@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 122ª PASSAGEM: a transformada inversa 2D de referência transcrita da fonte buscada (`scripts/av1_idct16_ref.py` — `av1_idct16` de sete estágios + `cospi` 12-bit + as passagens/deslocamentos 2D; a passagem de "linhas" recolhe a COLUNA do raster, shifts 2 e 4). COMPARAÇÃO na entrada do V: referência `(0,0)=4 (0,1)=4 (1,0)=5 (1,1)=5 (15,15)=38` vs Kof `VRES 1/1/2/2/34` — a FORMA concorda, o nível difere ~4. NÃO É ACHADO: o decodificador acerta o plano U (só-DC) exatamente ⇒ o seu caminho DC está certo ⇒ a transcrição é a suspeita. ESTADO: NÃO RESOLVIDO (declarado no docstring da ferramenta). PRÓXIMO: validar a transcrição no caso só-DC do U.
-doing: §3bd — a referência 2D transcrita DISCORDA do Kof no resíduo do V, mas o decodificador acerta o caso só-DC do U ⇒ a transcrição é a suspeita; estado NÃO RESOLVIDO declarado
-next: §3bd — validar `scripts/av1_idct16_ref.py` contra o resíduo SÓ-DC do U (o caso que o decodificador acerta exatamente); só depois usá-la no V; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 123ª PASSAGEM: a referência é VALIDADA e EXONERA a transformada inversa de 16x16 do Kof ⇒ o ±1 do V está na PREDIÇÃO (alfa CFL/DC) ou na SOMA; o "o ±1 está no IDCT" da 118ª fica REFUTADO. A validação que a 122ª nomeou falhou na transcrição da 122ª (uma entrada só-DC dava 0 e 16 — impossível numa transformada linear): o ESTÁGIO 6 estava como passagem directa onde o libaom combina as metades. Corrigido ⇒ só-DC plano; e o bloco do V reproduz EXATAMENTE o VRES do Kof (1/1/2/2/34). Segunda verificação independente: o resíduo do U do decodificador é PLANO em 16 = a saída da referência para 9x223=2007 ⇒ o decodificador coincide nos dois casos. A ferramenta leva as duas como AUTO-ASSERÇÕES.
+doing: §3bd — a transformada inversa de 16x16 PROVADA correta contra uma referência validada (DC-only + AC) ⇒ o ±1 do V está na predição/soma; próximo: instrumentar a PREDIÇÃO do V
+next: §3bd — instrumentar a PREDIÇÃO do plano V (a saída CFL antes do resíduo) e compará-la com o AC calculado à mão na 117ª e com o alfa que o decodificador usou; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (123ª) — 3bd: o IDCT de 16x16 PROVADO correto; o ±1 está na predição/soma
+- **VALIDAÇÃO:** só-DC plano + o V exato (1/1/2/2/34) ⇒ a referência validada e o decodificador coincidem; o U plano em 16 confirma do lado do decodificador.
+- **REFUTADO:** o "±1 no IDCT" da 118ª.
+- **PRÓXIMO:** a PREDIÇÃO do V (o CFL antes do resíduo).
 
 ## Sessão 18/10 (122ª) — 3bd: a referência 2D transcrita; discorda, mas não é achado (não validada)
 - **LANDADO:** `scripts/av1_idct16_ref.py` (transcrição de sete estágios + o driver 2D), com o estado NÃO RESOLVIDO no docstring.

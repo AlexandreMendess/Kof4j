@@ -322,6 +322,13 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // these are Kof's values, small and gradient-like, and the next step is to
         // compute the reference 2D inverse transform for the SAME input (the DC
         // 2676 plus the two ACs) from libaom's seven-stage av1_idct16 and compare.
+        // The U's residual is DC-ONLY and comes out FLAT at 16 — exactly what the
+        // validated reference (scripts/av1_idct16_ref.py) gives for its single
+        // coefficient (level 9 x dc_q 223 = 2007). Together with the V below, the
+        // decoder's 16x16 inverse transform is PROVEN correct on both the DC-only
+        // and the AC case, so the V plane's ±1 lies in the prediction or the add.
+        assertTrue(line.contains("URES (0,0)=16 (0,1)=16 (1,0)=16"),
+                () -> "the U residual moved: " + line);
         assertTrue(line.contains("VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34"),
                 () -> "the V residual moved: " + line);
         // The U's residual is DC-ONLY (one coefficient, 9): its exactness tests the

@@ -20,7 +20,7 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Av1ChromaPlanes chroma, List<Int[]> levelsV, List<Int[]> steps,
                Int dcq, Int acq, Int baseQIdx, Int bitDepth,
                Av1TileDecode tile, List<Int> modes, List<Int> txTypesV,
-               List<Int[]> levelsU) {
+               List<Int[]> levelsU, List<Int> txTypesU) {
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
@@ -101,6 +101,16 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         if (s15 >= w2) { s15 = w2 - 1 }
         vres = vres + " (1,1)=" + rec[w2 + 1] + " (15,15)=" + rec[w2 * s15 + s15]
     }
+    // The U transform block's residual too: it is DC-ONLY, so it is the case the
+    // decoder is known to get EXACTLY right and the reference transcription can be
+    // validated against.
+    var ures = ""
+    if (levelsU.size > 0 && txTypesU.size > 0 && av1TxWidth(uvTx2) * av1TxHeight(uvTx2) == levelsU.get(0).size) {
+        var zu = new Int[av1TxWidth(uvTx2) * av1TxHeight(uvTx2)]
+        var recu = av1ReconstructBlock(levelsU.get(0), zu, uvTx2, txTypesU.get(0), bitDepth, false, dcq, acq)
+        ures = " (0,0)=" + recu[0] + " (0,1)=" + recu[1] + " (1,0)=" + recu[av1TxWidth(uvTx2)]
+    }
+    println("URES" + ures)
     println("VRES" + vres)
     println("UV 00=" + chroma.u[1 * chroma.strideU + 1] + "," + chroma.v[1 * chroma.strideV + 1]
         + " 032=" + chroma.u[1 * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx1 >> 1) + 1)]
