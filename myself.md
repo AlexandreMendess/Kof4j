@@ -2,11 +2,15 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 127ª PASSAGEM: uma BUSCA DE MUDANÇA DE NÍVEL exclui o coeficiente mal decodificado (nenhuma perturbação de um só coeficiente — ±1/±2 níveis — reproduz o `(2,31)` implícito do codificador contra o `(1,32)` do decodificador) ⇒ o ±1 do V é a PREDIÇÃO: a saída 129/160 e o resíduo 1/32 implicam exatamente 128 (o DC correto, alfa_V=0) e o ffmpeg 130/159 implica 129/127. É o ÚNICO termo nunca medido; a tentativa desta passagem de o expor ficou incompleta e foi REVERTIDA (não meio-landada).
-doing: §3bd — a busca de nível exclui o coeficiente ⇒ o ±1 é a PREDIÇÃO (o único termo não medido); próximo: expor o pred da chroma pelas três assinaturas e imprimi-lo
-next: §3bd — expor a PREDIÇÃO da chroma (`pred[0]`/`pred[1]` antes de `av1ReconBlockIntoClip`) por `av1DecodeChromaPlane` -> `av1DecodeChromaBlock` -> o driver -> a probe, e comparar a do V com o 128 derivado e a do U com o seu resultado CFL
+last: 18/10 — 3bd 128ª PASSAGEM: a instrumentação da predição REVERTIDA outra vez (é a 2ª) — quebrou nos SÍTIOS DE CHAMADA DO CONSTRUTOR, descobertos um erro de compilação de cada vez (`Av1DecodeTileRecon.kf:713` foi o que corrompeu a edição). Tudo de volta a `c6cd419e5`. A LISTA estrutural que a próxima tentativa precisa fica escrita: (a) as 2 assinaturas da chroma; (b) o campo + o parâmetro do construtor + o local + a chamada de chroma do driver; (c) OS DOIS sítios de construção (o laço de tiles do programa da probe E o helper `av1DecodeTileRecon`); (d) a lista + a impressão na probe.
+doing: §3bd — a instrumentação da predição revertida (2ª vez) e a lista estrutural escrita; a próxima tentativa faz a lista toda de uma vez
+next: §3bd — fazer a instrumentação da predição em UMA passagem a partir da lista escrita (as 2 assinaturas da chroma + o driver: campo/construtor/local/chamada + OS DOIS sítios de construção + a probe: lista e impressão), depois comparar a predição do V com o 128 derivado
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (128ª) — 3bd: a predição revertida (2ª) e a lista estrutural escrita
+- **REVERTIDO:** tudo de volta a `c6cd419e5` (nada meio-landado).
+- **A LISTA:** as 2 assinaturas da chroma; o driver (campo/construtor/local/chamada); os DOIS sítios de construção; a probe (lista + impressão).
 
 ## Sessão 18/10 (127ª) — 3bd: o coeficiente excluído; o ±1 é a predição (nunca medida)
 - **BUSCA:** nenhuma perturbação de ±1/±2 níveis reproduz o (2,31) implícito ⇒ o nível está certo.
