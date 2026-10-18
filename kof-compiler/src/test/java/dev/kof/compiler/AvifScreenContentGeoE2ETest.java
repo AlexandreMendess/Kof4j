@@ -228,6 +228,25 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "the four tiles must cover the whole frame: " + line);
     }
 
+    /**
+     * UNEQUAL tiles: 192x64 — three superblocks across, one down — encoded with
+     * {@code -tiles 2x1}. The encoder spaces uniform tiles by
+     * {@code ceil(sbCols / tileCols)} = 2 superblocks wide, so the FIRST tile is
+     * 128 px and the LAST gets the remaining ONE superblock (64 px) — a tile
+     * whose mi rectangle ends past the frame's own extent and is CLAMPED to it.
+     * ffmpeg's plane gives, at each tile's origin and 4px right of it, the
+     * checkerboard's 16 and 235.
+     */
+    @Test
+    void unequalTilesDecodeToReferenceOnJvm() throws Exception {
+        var line = runKof(canonical("avif_real_mt192.avif", "mt192.avif"));
+        assertTrue(line.contains("TILES n=2"), () -> "the fixture must be 2 tiles: " + line);
+        assertTrue(line.contains("TILEY t0(0,0)=16(4,0)=235 t1(128,0)=16(132,0)=235"),
+                () -> "both tiles must match the ffmpeg reference: " + line);
+        assertTrue(line.contains("covered=768 frame=768"),
+                () -> "the two tiles must cover the whole frame: " + line);
+    }
+
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
     private Path canonical(String resource, String name) throws Exception {
         byte[] raw = Files.readAllBytes(Path.of("src/test/resources", resource));

@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 110ª PASSAGEM: um frame MULTI-TILE decodifica INTEIRO. Biblioteca: `Av1Partition.walkTile(r0,c0,r1,c1)` (o `walk()` delega com o frame todo ✓ zero regressão) — o laço de superblocos limitado ao tile como o `decode_tile` do libaom, com a lógica de borda da partição a usar os limites do FRAME (a borda de um tile não é a do frame). Instrumento: a probe decodifica TODOS os tiles, cada um com leitor/`Av1CoeffCdfStore`/driver NOVOS (o libaom dá a cada tile a sua cópia do contexto: `tile_data->tctx = *cm->fc`) e a sua caminhada limitada; resumo = SOMA sobre tiles + linha nova `TILEY`. PROVA: geo 8/8 — `TILEY t0(0,0)=16(4,0)=235 t1(64,0)=16(68,0)=235 t2(0,64)=16(4,64)=235 t3(64,64)=16(68,64)=235` + `covered=1024 frame=1024`.
-doing: §3bd — multi-tile decodifica inteiro (caminhada por tile + store por tile); seguem (a) grelhas não-uniformes, (b) o CFL dentro dos limites, (c) o decodificador independente
-next: §3bd — (a) grelhas de tile NÃO-UNIFORMES (expor os tamanhos por tile que o cabeçalho já analisa) com um fixture `-tiles` desigual; (b) o AC do CFL dentro dos limites numa borda; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
+last: 18/10 — 3bd 111ª PASSAGEM: tiles DESIGUAIS decodificam contra a referência. O fixture 2x2 da 110ª tem tiles IGUAIS ⇒ o clamp da probe (`t1c > miw`) nunca disparava; novo fixture `avif_real_mt192.avif` (192x64 = 3x1 superblocos, xadrez 4px, `-tiles 2x1`) ⇒ `tileSbW = ceil(3/2) = 2` ⇒ primeiro tile 2 SB (128 px), último 1 SB (64 px) cujo fim mi 64 > 48 ⇒ LIMITADO. PROVA: geo 9/9 — `TILES n=2`, `TILEY t0(0,0)=16(4,0)=235 t1(128,0)=16(132,0)=235` e `covered=768 frame=768`; passou à primeira corrida (prova de cobertura). LIMITE HONESTO: é o espaçamento UNIFORME com resto desigual, não o ramo de tamanhos EXPLÍCITOS (`uniform_tile_spacing_flag = 0`), que este codificador não emite.
+doing: §3bd — tiles desiguais provados (clamp do último tile); seguem (a) tamanhos por tile explícitos, (b) o CFL dentro dos limites, (c) o decodificador independente
+next: §3bd — (a) tamanhos por tile EXPLÍCITOS (expor o que o ramo não-uniforme do cabeçalho analisa; precisa de um stream construído à mão ou de um codificador que os emita); (b) o AC do CFL dentro dos limites numa borda; (c) o decodificador de símbolos independente (semente 15, primeiro símbolo `10:3` terminando em 18)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (111ª) — 3bd: tiles desiguais (o clamp do último tile) provados
+- **LANDADO:** fixture `avif_real_mt192.avif` (192x64, xadrez 4px, `-tiles 2x1`) + `unequalTilesDecodeToReferenceOnJvm` (TILES n=2, TILEY dos dois tiles, covered=768).
+- **PORQUÊ:** no fixture 2x2 da 110ª os tiles são iguais ⇒ o clamp da probe nunca disparava; aqui o último tile tem 1 superbloco e o seu fim mi excede o frame (limitado).
+- **PROVA:** geo 9/9, BUILD SUCCESS; passou à primeira corrida.
 
 ## Sessão 18/10 (110ª) — 3bd: multi-tile INTEIRO (caminhada por tile + CDF por tile)
 - **LANDADO:** `Av1Partition.walkTile` (o `walk()` delega) + a probe a decodificar todos os tiles com estado próprio e `TILEY` por tile; `multiTileFrameDecodesTheWholeFrameToReferenceOnJvm` afirma os quatro tiles + `covered=1024 frame=1024`.
