@@ -1163,3 +1163,16 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **DISCREPÂNCIA NOVA E CONCRETA (o ganho da passagem):** a leitura de **seis vias** `6:0@143` é um **`eob_pt`**, e uma CDF de `eob_pt` tem **seis** símbolos **só** quando `eob_multi_size` é **1** — isto é, para uma transformada **TX_8X16/TX_16X8** — enquanto o registo do bloco diz **`txSz = 1` (TX_8X8)**, cujo `eob_multi_size` é **2** e cuja CDF tem **sete**. **Os dois não podem estar ambos certos.**
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** ler o **`readSelectedTxSize`** e conferir o seu **mapeamento símbolo→tamanho de transformada** para um bloco 16x8 contra o registo — é uma tabela pequena e auto-contida, e um erro nela explicaria tanto a aridade do `eob_pt` como o custo do resíduo.
+
+## Sessão 17/10 (sexta) — slice 3bd 95ª passagem: tabelas de tx-size lidas + uma CONTRADIÇÃO computável
+- **Unidade:** li as tabelas do tamanho de transformada para responder à discrepância da 94ª (o `eob_pt` de seis vias vs o `txSz` do registo).
+- **As tabelas (da biblioteca):**
+  - `av1BsizeToMaxDepth(BLOCK_16X8 = 5)` = **2** ⇒ a leitura do tamanho de transformada é `readSymbol(cdf, 3)` — **três vias**, casando com o `3:2@138` do trace ✓;
+  - `av1DepthToTxSize(depth, BLOCK_16X8)` parte de `av1BlockMaxTxRect(BLOCK_16X8)` = `TX_16X8` (índice 8) e aplica `av1SplitTxSize`: **`split(8) = 1` (TX_8X8)** e **`split(1) = 0` (TX_4X4)**.
+  - ⇒ Para um bloco **16x8**, a profundidade lida só pode significar: **0 → TX_16X8, 1 → TX_8X8, 2 → TX_4X4**.
+- **A CONTRADIÇÃO (computável, sem nova execução):** o símbolo do trace é **2 ⇒ TX_4X4**, cuja CDF de `eob_pt` tem **cinco** símbolos; o registo do bloco diz **`txSz = 1` ⇒ TX_8X8**, cuja CDF tem **sete**. **Nenhum dos dois é o SEIS que o trace mostra.**
+- **O que isso deixa:** uma CDF de `eob_pt` com **seis** símbolos só existe para `eob_multi_size == 1` (transformada **TX_8X16/TX_16X8**) — e **nenhuma** profundidade alcançável por um bloco 16x8 produz uma (a tabela de split nunca gera TX_8X16/TX_16X8 a partir de TX_16X8). ⇒ **A leitura de seis vias pertence muito provavelmente a um bloco DIFERENTE do bloco 2** (o seguinte da caminhada), e a leitura de "resíduo do bloco 2" da 92ª precisa da **atribuição conferida** — exatamente como a do modo Y precisou.
+- **O que NÃO é tocado:** as dez leituras de duas vias continuam a ser `readBool`s (sinais/`eob_extra`/`golomb`) e continuam a **implicar um resíduo**; o bloco 2 continua a ser o **último com bits**.
+- **Nota:** uma substituição de escapes que rodei tocou de novo linhas de outras lanes; corrigi **só a minha linha** (o `DOING.pt_BR.md` mantém os 11 `\"` das outras ✓ intactos) — a lição da 92ª aplicada.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** atribuir a leitura de seis vias **como a extensão do modo Y foi atribuída** — registando, **por bloco**, a posição do leitor **na leitura do tamanho de transformada** e **no fim de cada bloco de transformada**, para que a leitura seja colocada **dentro** da extensão de um bloco em vez de inferida de uma janela.
