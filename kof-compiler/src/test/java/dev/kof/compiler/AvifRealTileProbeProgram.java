@@ -81,6 +81,11 @@ main() {
     if (seq.enableCdef) { ec = 1 }
     var modes = listOf<Int>()
     var levels = listOf<Int[]>()
+    // The CHROMA transform blocks' decoded levels: the V plane's residual is where
+    // the 116th pass's +/-1 has to live (the AC is hand-computed EXACT and the U
+    // matches ffmpeg through the same path).
+    var levelsU = listOf<Int[]>()
+    var levelsV = listOf<Int[]>()
     var pal = 0
     if (h.allowScreenContent) { pal = 1 }
     var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
@@ -101,7 +106,7 @@ main() {
     var allSteps = listOf<Int[]>()
     var totalSymBits = 0
     var totalPayloadBits = 0
-    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, listOf<Int>(), listOf<Int>())
     var walk = Av1Partition(data, miw, mih)
     var tline = ""
     var ti = 0
@@ -125,7 +130,9 @@ main() {
         // tile's block count.
         modes = listOf<Int>()
         levels = listOf<Int[]>()
-        tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+        levelsU = listOf<Int[]>()
+        levelsV = listOf<Int[]>()
+        tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, listOf<Int>(), listOf<Int>())
         walk = Av1Partition(tiles.get(ti), miw, mih)
         walk.useReader(tsym)
         walk.bindDecoder(tile)
@@ -474,6 +481,18 @@ main() {
     println("Y 00=" + frame[1 * stride + 1] + " 032=" + frame[1 * stride + (sx1 + 1)] + " 063=" + frame[1 * stride + (sx2 + 1)] + " 320=" + frame[(sy + 1) * stride + 1] + " 3232=" + frame[(sy + 1) * stride + (sx1 + 1)] + " 3263=" + frame[(sy + 1) * stride + (sx2 + 1)])
     // The CHROMA at the same points: CFL acts on the chroma, so a luma oracle
     // alone cannot see it (the 115th pass's instrument gap).
+    var cl = ""
+    var ci2 = 0
+    while (ci2 < levelsV.size) {
+        var lv = levelsV.get(ci2)
+        var k5 = 0
+        while (k5 < lv.size) {
+            if (lv[k5] != 0) { cl = cl + " t" + ci2 + "[" + k5 + "]=" + lv[k5] }
+            k5 = k5 + 1
+        }
+        ci2 = ci2 + 1
+    }
+    println("VLEV n=" + levelsV.size + cl)
     println("UV 00=" + chroma.u[1 * chroma.strideU + 1] + "," + chroma.v[1 * chroma.strideV + 1]
         + " 032=" + chroma.u[1 * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx1 >> 1) + 1)]
         + " 063=" + chroma.u[1 * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[1 * chroma.strideV + ((sx2 >> 1) + 1)]

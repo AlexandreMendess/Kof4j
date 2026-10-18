@@ -299,6 +299,13 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // deviation this oracle is the first to see. RECORDED, not asserted as
         // correct: the values below are Kof's, so any change to them fails here
         // and the ±1 stays visible until its root cause is found.
+        // The V plane's decoded levels: ONE transform block with three non-zero
+        // coefficients. RECORDED (they are Kof's own decode), and they are the
+        // half of the ±1 the AC oracle cannot see: the AC is hand-computed EXACT
+        // and the prediction is exonerated, so the deviation lives in this
+        // residual's dequantization/inverse transform.
+        assertTrue(line.contains("VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1"),
+                () -> "the V residual moved: " + line);
         assertTrue(line.contains("UV 00=129,129 032=159,129 063=159,129 320=129,160 3232=159,160 3263=159,160"),
                 () -> "the chroma moved (U must be 129/159, V is RECORDED at 129/160 vs ffmpeg's 130/159): " + line);
     }

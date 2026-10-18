@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 116ª PASSAGEM: o ORÁCULO DE CHROMA landado (linha `UV` na probe, a lacuna nomeada pela 115ª) e encontrou JÁ o primeiro desvio ao nível da chroma: num bloco CFL numa borda, o U bate o ffmpeg EXATAMENTE (129/159) mas o V está ±1 fora (Kof 129/160 vs ffmpeg 130/159) — 1 abaixo no topo e 1 acima no fundo ⇒ dispersão maior, uma diferença de AC ou DC. Já excluídos lendo a fonte: a forma e o escalonamento da predição (`get_scaled_luma_q0` = `ROUND_POWER_OF_TWO_SIGNED(alpha_q3*ac_q3, 6)` = o `av1CflScaledLuma`) e a ordem preencher-antes-da-média. Suspeitos: o q3 do AC (arredondamento da média) e o DC de chroma. O teste afirma o U e REGISTA o V (convenção do repo). PROVA: geo 11/11.
-doing: §3bd — oráculo de chroma landado e já a apontar um desvio de ±1 no plano V de um bloco CFL numa borda; próximo: a causa raiz (q3 do AC / DC de chroma)
-next: §3bd — causa raiz do ±1 no V do bloco CFL de `avif_real_cfl32x24.avif`: calcular à mão o q3 do AC (round_offset/num_pel_log2) e o DC de chroma do plano V e comparar com o Kof; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 117ª PASSAGEM: o AC do CFL é CALCULADO À MÃO e EXATO (sub(0,0)=44, avg=990, rampa simétrica [-946,-582,-186,186,578,946]) ⇒ a PREDIÇÃO fica exonerada (o U bate o ffmpeg pelo mesmo caminho e a predição não pode variar com a linha para esta luma) ⇒ o ±1 do V vive no seu RESÍDUO. Instrumento novo: a probe guardava listas DESCARTÁVEIS para os níveis da chroma; agora imprime `VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1` (um bloco de transformada do V, três coeficientes). O teste afirma-os como REGISTADOS.
+doing: §3bd — o ±1 do V fixado no seu resíduo (AC exato à mão, predição exonerada); o instrumento dos níveis da chroma landado (VLEV) e três coeficientes medidos
+next: §3bd — seguir os três coeficientes do V (t0[0]=12, t0[16]=-5, t0[32]=-1) pela desquantização e transformada inversa; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (117ª) — 3bd: o ±1 do V fixado no resíduo (AC exato à mão)
+- **FEITO:** o AC calculado à mão (offline) e EXATO; a predição exonerada; a probe passa a reportar `VLEV` (níveis da chroma, antes descartados).
+- **MEDIDO:** `VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1` (assertado como REGISTADO).
+- **PRÓXIMO:** seguir esses coeficientes pela desquantização/IDCT do V.
 
 ## Sessão 18/10 (116ª) — 3bd: o oráculo de chroma landado; desvio de ±1 no V encontrado
 - **LANDADO:** linha `UV` na probe (U/V nos mesmos pontos que a `Y`) + a asserção no teste do CFL numa borda (U exato; V REGISTADO com o desvio declarado).
