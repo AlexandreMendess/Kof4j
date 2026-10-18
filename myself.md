@@ -1211,3 +1211,14 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O ganho desta passagem:** esta frente **nunca teve um orçamento**; agora tem — **15,6 bits por bloco** — e qualquer estágio que o exceda fica suspeito por aritmética, não por opinião.
 - **Prova:** só documentação; **os 11 gates estruturais rc=0**.
 - **Próximo passo (nomeado):** dumpar os **símbolos individuais do bloco 0** — o seu primeiro bloco de transformada de **19 bits** e o seu **croma de 28 bits** — e precificar cada um contra a sintaxe, com o orçamento conhecido em vez de um juízo de plausibilidade.
+
+## Sessão 17/10 (sexta) — slice 3bd 99ª passagem: símbolos do bloco 0 (TRÊS símbolos extra por bloco de transformada)
+- **Unidade:** movi a janela do trace para **19..74** (a extensão do bloco 0) e dumpámo-la — o primeiro olhar sobre os símbolos do bloco mais caro do quadro.
+- **O dump (uma execução):** `10:0@19` (partição) · `2:0@19` (skip) · `13:0@21` (modo Y DC) · `14:0@22` (modo UV DC) · `2:0@22 2:0@22` (bandeira de paleta + filter-intra) · `2:0@24` · `3:1@25` (tx size) — e o laço de transformada:
+  - `2:0@28` **all_zero = 0** (o primeiro bloco **tem** resíduo) · `7:1@30` **o TIPO de transformada** (sete símbolos = TX_SET_INTRA_1, o que `reduced_tx_set == 0` usa) · `7:0@32` **o `eob_pt`** (sete símbolos = `eob_multi_size == 2` = TX_8X8; valor 0 ⇒ `eob_pt = 1` ⇒ **`eob = 1`, UM coeficiente**) · `3:2@37` (`coeff_base_eob`) · `4:3@39 4:2@43` (base-range) · `2:1@44` (sinal);
+  - **e depois `2:1@45 2:1@45 2:1@46`** — três leituras de duas vias que a sintaxe **não deve** para um bloco de um coeficiente — antes do `2:0@49` do bloco seguinte.
+- **A contagem, contra o orçamento da 98ª:** um bloco de transformada de **um** coeficiente deve **sete** símbolos (`all_zero`, tipo, `eob_pt`, `coeff_base_eob`, duas de base-range, sinal) e o trace mostra **dez**. ⇒ **Três símbolos binários extra por bloco de transformada** — e o bloco 0 tem **seis** (quatro de luma + dois de croma) ⇒ **~18 bits dos seus 55**, contra um orçamento de **15,6**.
+- **O que eles NÃO são (por eliminação imediata):** não são um escape `golomb` (exige `level >= 15`; este nível é **8**), nem o `all_zero` do bloco seguinte (esse é o `2:0@49`, que precede o tipo `7:0@50` do bloco seguinte).
+- **O ganho:** a pergunta deixou de ser "55 bits contra 15,6" e passou a ser **"que três símbolos são estes"** — um espaço de busca pequeno e fechado.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** identificar essas três leituras **pelo caminho de código** — enumerar os símbolos binários que a caminhada de coeficientes pode emitir **depois** do sinal de um bloco quando `eob == 1` — a mesma enumeração que resolveu as leituras de duas vias do bloco 2.

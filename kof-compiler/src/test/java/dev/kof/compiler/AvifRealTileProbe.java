@@ -287,7 +287,7 @@ main() {
     var wline = ""
     while (wi < wsl.size / 3) {
         var wpos = wsl[wi * 3 + 2]
-        if (wpos >= 120 && wpos <= 150) {
+        if (wpos >= 19 && wpos <= 74) {
             wline = wline + " " + wsl[wi * 3] + ":" + wsl[wi * 3 + 1] + "@" + wpos
         }
         wi = wi + 1
