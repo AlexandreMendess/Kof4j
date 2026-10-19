@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (150ª) — 3bd: nível DC isolado
+- **SHA:** `5599f4d06` (push 0/0).
 - **NÚMEROS:** p=128, nível -442, r=64; referência Y=71 ⇒ nível ~-394.
 - **EXONERADO:** tabelas de quantização 8-bit exactas.
 - **ALVO:** coeff_base/br do DC; contexto do coeff_br suspeito.
