@@ -163,15 +163,23 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         var z = new Int[av1TxWidth(uvTx2) * av1TxHeight(uvTx2)]
         var rec = av1ReconstructBlock(levelsV.get(0), z, uvTx2, txTypesV.get(0), bitDepth, false, dcq, acq)
         var w2 = av1TxWidth(uvTx2)
-        vres = " (0,0)=" + rec[0] + " (0,1)=" + rec[1] + " (1,0)=" + rec[w2]
+        // The V transform may be a NON-SQUARE 16x4/4x16 (the guard above only
+        // checks the COEFFICIENT COUNT), so the sample indices are clamped by
+        // BOTH dimensions; for the square blocks this prints exactly as before.
+        var h2 = av1TxHeight(uvTx2)
+        var iB = w2
+        if (h2 < 2) { iB = 0 }
+        vres = " (0,0)=" + rec[0] + " (0,1)=" + rec[1] + " (1,0)=" + rec[iB]
         var s15 = 15
         if (s15 >= w2) { s15 = w2 - 1 }
-        vres = vres + " (1,1)=" + rec[w2 + 1] + " (15,15)=" + rec[w2 * s15 + s15]
+        if (s15 >= h2) { s15 = h2 - 1 }
+        vres = vres + " (1,1)=" + rec[iB + 1] + " (15,15)=" + rec[w2 * s15 + s15]
         // The BOTTOM rows the derived prediction uses (the 124th pass): with
         // alpha_V = 0 the prediction should be a per-block constant, so the
         // spread 129 -> 127/125 has to be in the residual or in the DC.
         var r11 = 11
         if (r11 >= w2) { r11 = w2 - 1 }
+        if (r11 >= h2) { r11 = h2 - 1 }
         vres = vres + " (0,11)=" + rec[w2 * r11] + " (8,11)=" + rec[w2 * r11 + (w2 >> 1)]
     }
     // The U transform block's residual too: it is DC-ONLY, so it is the case the

@@ -145,6 +145,34 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
                         + line);
     }
 
+    /**
+     * A SKIPPED block ({@code skip_txfm == 1}) reads NO coefficient symbols:
+     * libaom's {@code read_coeffs_tx_intra_block} guards the whole
+     * {@code av1_read_coeffs_txb} call on {@code !mbmi->skip_txfm}, and
+     * {@code decode_block} then resets the block's entropy contexts
+     * ({@code av1_reset_entropy_context}). Fixture: the same 4x4-pixel
+     * checkerboard 16/235, encoded with {@code -cpu-used 0} (the slower search
+     * makes the first block skip=1), 2x1 tiles, palette off. The {@code TILESTATS}
+     * prefix is the driver's per-tile stage data: tile 0's block 0 runs
+     * 10 -> 34 -> 34 (its transform size ends at 34 and its residual ends at
+     * 34: ZERO coefficient bits) and the tile yields 12 transform blocks /
+     * 53 levels. Before the guard the same block ran 34 -> 528 (494 bits of
+     * coefficient syntax the encoder never wrote) and the tile read 32
+     * transform blocks / 366 levels. Tile 1's own sync
+     * ({@code b32/txb256/nz256}, its exact-payload decode) is the control: the
+     * guard must not disturb a block that is not skipped.
+     */
+    @Test
+    void skippedBlockReadsNoCoefficientSymbols() throws Exception {
+        var line = runFullPlaneProbe(
+                Path.of("src/test/resources", "avif_enc_nopal_cu0_2tile192.avif")
+                        .toAbsolutePath());
+        assertTrue(line.contains("t0:b5/txb12/nz53/st10,34,34,37,37"),
+                () -> "a skipped block must consume no coefficient symbols: " + line);
+        assertTrue(line.contains("t1:b32/txb256/nz256"),
+                () -> "the non-skipped tile must keep its exact decode: " + line);
+    }
+
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */
     private static String planeRows(String tag, int offset, int w, int h, String reference)
             throws Exception {
