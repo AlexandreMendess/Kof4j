@@ -551,6 +551,13 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > anda e o diretório central montado no `close()` a partir do que foi anotado (as cargas nunca
 > ficam em memória). Os nomes saem em UTF-8 com o bit EFS (11) ligado, o MESMO bit que o leitor
 > consulta, e nomes duplicados são recusados. Método 8 precisaria de compressor: fatia própria.
+> **A ESCRITA de GZIP está DENTRO:** `GzipWriter(path)` + `addText`/`addBytes` + `close()` escreve
+> membros RFC 1952 com blocos DEFLATE **STORED** (BTYPE=00) — verbatim, SEM compressor, o mesmo
+> precedente honesto do `ZipWriter`. O cabeçalho de 10 bytes carrega MTIME 0 (bytes determinísticos),
+> cada chamada vira um ou mais blocos STORED de até 65535 bytes, e o `close()` emite o bloco final
+> vazio mais o trailer CRC-32/ISIZE acumulado incrementalmente (`zipCrc32State`) — as cargas nunca
+> ficam em memória só para calcular o trailer. Saída comprimida (blocos fixed/dynamic) precisaria
+> de compressor: fatia própria.
 > **A validação estrutural está DENTRO:** o `Zip.validate()` recusa um arquivo cujo header
 > LOCAL e diretório CENTRAL discordam (nome/método/tamanhos/CRC-32, tolerando o data
 > descriptor legítimo da especificação) e qualquer par de entradas com faixas de dados

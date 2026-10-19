@@ -76,7 +76,13 @@ Int zipCrc32(Int[] data) {
 /** CRC-32 over the first `len` bytes — the GZIP's `Inflate.out` is a
  *  caller-sized window, so only the bytes the stream actually produced count. */
 Int zipCrc32(Int[] data, Int len) {
-    var crc = -1
+    return zipCrc32State(-1, data, len) ^ -1
+}
+
+/** CRC-32 state update over the first `len` bytes, WITHOUT the final xor — the
+ *  incremental form the writers need (a stream arrives in several calls, and
+ *  holding all of it to compute the CRC once would defeat the streaming). */
+Int zipCrc32State(Int crc, Int[] data, Int len) {
     var poly = -306674912
     var i = 0
     while (i < len) {
@@ -92,7 +98,7 @@ Int zipCrc32(Int[] data, Int len) {
         }
         i = i + 1
     }
-    return crc ^ -1
+    return crc
 }
 
 /** Bytes UTF-8 de uma string — o par do DECODIFICADOR `zipUtf8`, e o que os

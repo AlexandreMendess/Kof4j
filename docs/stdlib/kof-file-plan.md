@@ -367,6 +367,13 @@ Consider security against path traversal inside archives.
 > directory built at `close()` from what was recorded (the payloads are never held in memory).
 > Names go out as UTF-8 with the spec's EFS bit (11) set, which is the same bit the reader
 > consults, and duplicate names are refused. Method 8 would need a compressor: a separate slice.
+> **GZIP WRITING is IN:** `GzipWriter(path)` + `addText`/`addBytes` + `close()` writes RFC 1952
+> members using DEFLATE **STORED** blocks (BTYPE=00) — verbatim, NO compressor, the same honest
+> precedent as `ZipWriter`. The 10-byte header carries MTIME 0 (deterministic bytes), each call
+> becomes one or more stored blocks of up to 65535 bytes, and `close()` emits the empty final
+> block plus the CRC-32/ISIZE trailer accumulated incrementally (`zipCrc32State`) — the payloads
+> are never held in memory to compute it. Compressed output (fixed/dynamic blocks) would need a
+> compressor: a separate slice.
 > **Structural validation is IN:** `Zip.validate()` refuses an archive whose LOCAL header and
 > CENTRAL directory disagree (name/method/sizes/CRC-32, tolerating the spec's legitimate
 > data descriptor) and any pair of entries whose data ranges OVERLAP — the two lies the
