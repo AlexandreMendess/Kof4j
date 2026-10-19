@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (136ª) — 3bd: auditoria de plano inteiro do corpus
+- **SHA:** `bd430dc51` (push 0/0).
 - **AUDITORIA:** 5/11 geo fixtures exactos; 6 divergentes pré-CDEF (ll, mt192, oh24, oh40, sq1, tall).
 - **CATALOGADO:** §754 (tile multi-SB), §755 (overhang), §756 (lossless) — com evidência medida.
 - **DIAGNÓSTICO:** `MODESA` (modos de todos os tiles); mt192 SB1: yMode=9 SMOOTH, plano 235.
