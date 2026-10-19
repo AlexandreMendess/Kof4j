@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (139ª) — 3bd: CDFs default exoneradas
+- **SHA:** `6266cf130` (push 0/0).
 - **AUDITADAS:** 13 tabelas da janela contra o entropymode.c/token_cdfs.h buscados — zero diferenças.
 - **RESTA:** selecção/estado (lookup + posição do leitor pós-mapa de cor).
 - **REPRODUTOR:** ffmpeg codifica AVIF; film-grain do libaom e o grupo do rav1e precisam de tratamento.
