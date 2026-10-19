@@ -374,15 +374,28 @@ class Av1TileDecode {
             // (mi_rows - bh - mi_row) * 4` as the wavefront's `rows`/`cols`,
             // while the map's own width/height stay the FULL block — the cells
             // past the edge are then filled by the last-column/last-row copy.
+            // The CODED extent is the aligned mi grid's: libaom's
+            // `av1_get_block_dimensions` uses `(mi_rows - bh - mi_row) * 4`,
+            // i.e. the 24px-aligned grid, NOT the 20px frame. The map's
+            // wavefront and the tokens that follow (the chroma map shares the
+            // reader) depend on it; clamping to the pixel frame desyncs the
+            // stream (known-bugs §753). PAINTING stays inside the visible
+            // frame, since the extra coded cells are off-screen.
             var hMax = ph
-            if (r * 4 + hMax > this.frameH) { hMax = this.frameH - r * 4 }
+            var yBottom = this.miH * 4
+            if (r * 4 + hMax > yBottom) { hMax = yBottom - r * 4 }
             var wMax = pw
-            if (c * 4 + wMax > this.frameW) { wMax = this.frameW - c * 4 }
+            var yRight = this.miW * 4
+            if (c * 4 + wMax > yRight) { wMax = yRight - c * 4 }
             var cmy = av1PaletteColorMap(reader, modeInfo, 0, palY, pw, ph, hMax, wMax)
+            var paintH = hMax
+            if (r * 4 + paintH > this.frameH) { paintH = this.frameH - r * 4 }
+            var paintW = wMax
+            if (c * 4 + paintW > this.frameW) { paintW = this.frameW - c * 4 }
             var pry = 0
-            while (pry < hMax) {
+            while (pry < paintH) {
                 var pcy = 0
-                while (pcy < wMax) {
+                while (pcy < paintW) {
                     this.colorIndexY[(r * 4 + pry) * this.frameW + (c * 4 + pcy)] = cmy[pry * pw + pcy]
                     pcy = pcy + 1
                 }
@@ -399,15 +412,23 @@ class Av1TileDecode {
             var u0r = r >> this.ssY
             var u0c = c >> this.ssX
             // Same within-bounds rule as the luma map, on the chroma plane.
+            // Same rule on the chroma plane: the coded extent is the aligned
+            // mi grid subsampled, the painted extent the visible plane.
             var uhMax = puh
-            if (u0r * 4 + uhMax > this.chroma.hU) { uhMax = this.chroma.hU - u0r * 4 }
+            var uBottom = (this.miH * 4) >> this.ssY
+            if (u0r * 4 + uhMax > uBottom) { uhMax = uBottom - u0r * 4 }
             var uwMax = puw
-            if (u0c * 4 + uwMax > this.chroma.wU) { uwMax = this.chroma.wU - u0c * 4 }
+            var uRight = (this.miW * 4) >> this.ssX
+            if (u0c * 4 + uwMax > uRight) { uwMax = uRight - u0c * 4 }
             var cmu = av1PaletteColorMap(reader, modeInfo, 1, palUv, puw, puh, uhMax, uwMax)
+            var paintHu = uhMax
+            if (u0r * 4 + paintHu > this.chroma.hU) { paintHu = this.chroma.hU - u0r * 4 }
+            var paintWu = uwMax
+            if (u0c * 4 + paintWu > this.chroma.wU) { paintWu = this.chroma.wU - u0c * 4 }
             var pru = 0
-            while (pru < uhMax) {
+            while (pru < paintHu) {
                 var pcu = 0
-                while (pcu < uwMax) {
+                while (pcu < paintWu) {
                     this.colorIndexUv[(u0r * 4 + pru) * this.chroma.wU + (u0c * 4 + pcu)] = cmu[pru * puw + pcu]
                     pcu = pcu + 1
                 }

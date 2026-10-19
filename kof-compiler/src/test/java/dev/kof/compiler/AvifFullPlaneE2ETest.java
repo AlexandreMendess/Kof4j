@@ -39,17 +39,37 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
     void multiTileFrameMatchesFfmpegOnEverySample() throws Exception {
         var line = runFullPlaneProbe(canonicalFixture("avif_real_mt128.avif", "mt-full.avif"));
         assertTrue(line.contains("TILES n=4"), () -> "the fixture must be 2x2 tiles: " + line);
-        assertTrue(line.contains(planeRows("YROWF", 0, 128, 128)),
+        assertTrue(line.contains(planeRows("YROWF", 0, 128, 128, "avif_ref_mt128.yuv")),
                 () -> "the luma plane moved: " + line);
-        assertTrue(line.contains(planeRows("UROWF", 16384, 64, 64)),
+        assertTrue(line.contains(planeRows("UROWF", 16384, 64, 64, "avif_ref_mt128.yuv")),
                 () -> "the U plane moved: " + line);
-        assertTrue(line.contains(planeRows("VROWF", 20480, 64, 64)),
+        assertTrue(line.contains(planeRows("VROWF", 20480, 64, 64, "avif_ref_mt128.yuv")),
+                () -> "the V plane moved: " + line);
+    }
+
+    /**
+     * The UNALIGNED 20x20 frame, every sample. Its single 32x32 palette block
+     * overhangs the 20x20 frame; libaom's palette wavefront codes the ALIGNED
+     * mi extent (24x24), not the pixel extent, and the chroma tokens follow the
+     * luma map in the same reader. Kof used the pixel clamp, so the map
+     * desynced at diagonal 20 and the chroma decode started at the wrong bit.
+     * This test is the regression proof for known-bugs §753.
+     */
+    @Test
+    void unalignedFrameMatchesFfmpegOnEverySample() throws Exception {
+        var line = runFullPlaneProbe(canonicalFixture("avif_real_ua20.avif", "ua-full.avif"));
+        assertTrue(line.contains(planeRows("YROWF", 0, 20, 20, "avif_ref_ua20.yuv")),
+                () -> "the luma plane moved: " + line);
+        assertTrue(line.contains(planeRows("UROWF", 400, 10, 10, "avif_ref_ua20.yuv")),
+                () -> "the U plane moved: " + line);
+        assertTrue(line.contains(planeRows("VROWF", 500, 10, 10, "avif_ref_ua20.yuv")),
                 () -> "the V plane moved: " + line);
     }
 
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */
-    private static String planeRows(String tag, int offset, int w, int h) throws Exception {
-        var bytes = Files.readAllBytes(Path.of("src/test/resources", "avif_ref_mt128.yuv"));
+    private static String planeRows(String tag, int offset, int w, int h, String reference)
+            throws Exception {
+        var bytes = Files.readAllBytes(Path.of("src/test/resources", reference));
         var sb = new StringBuilder();
         for (var r = 0; r < h; r++) {
             sb.append(tag).append(' ').append(r);

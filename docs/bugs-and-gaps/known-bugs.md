@@ -19867,7 +19867,7 @@ Kof's guard was `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <
 <!-- pt-switch --> **PT:** [§752 (pt_BR)](known-bugs.pt_BR.md#752--a-guarda-do-filter-intra-faltava-o-termo-da-paleta-do-libaom)
 
 ## §753 — the AVIF tile decode mis-decodes the UNALIGNED 20x20 frame beyond its top rows (luma from row 6, the whole chroma)
-**Status:** 🔴 OPEN — catalogued 19/10; the overhanging/partial-superblock block PLACEMENT is the suspect.
+**Status:** ✅ FIXED 19/10 — the palette map's CODED extent is the aligned mi grid, not the pixel frame.
 
 **CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by the 134th pass's FULL-PLANE comparison of `avif_real_ua20.avif` (20x20, one 64x64 superblock with overhanging blocks) against ffmpeg's decoded YUV 4:2:0 (libdav1d == libaom byte for byte). The existing `unalignedFrameDecodesToReferenceOnJvm` samples only PATCH rows 0 and 2 — which match — so the defect was invisible to it.
 
@@ -19882,4 +19882,8 @@ chroma 10x10: ALL rows differ; U(0,0)=235 where ffmpeg has 16, and the pattern i
 **Not CDEF:** the divergence is present BEFORE the filter (the frame's CDEF strengths are irrelevant to it).
 **Suspect:** the overhanging-block placement (the mode-info/transform position at the right/bottom edge of the partial superblock) — the same overhang class §751/§752 fixed for the CONTEXTS, but here on the block POSITIONS.
 **Next step:** run the probe's per-block dumps (`PART`, `B`, `PREDBLK`) on ua20 and price the block whose origin crosses x=16 / y=16 against the partition walk.
+
+**ROOT CAUSE + FIX 19/10 (lane pipeline/image-vision `192.168.15.21:0`):** the 32x32 PALETTE block's color-index map was decoded with the wavefront's `rows`/`cols` clamped to the PIXEL frame (20), while libaom's `av1_get_block_dimensions` (fetched) clamps to the ALIGNED mi grid: `block_rows = block_height + (mi_rows - bh - mi_row) * 4` = 24 here. The wavefront diverged at diagonal 20 (the first cell decoded after the 20-column limit), and because the chroma tokens follow the luma map in the SAME reader, the whole chroma decode started at the wrong bit (U(0,0)=235 vs 16). The fix separates the two extents in `libs/image/Av1DecodeTileRecon.kf`: the map is decoded over `Min(block, (miH - r) * 4)` x `Min(block, (miW - c) * 4)` (aligned), while PAINTING stays clamped to the visible plane (`frameH`/`frameW`, `chroma.hU`/`wU`) so the off-screen coded cells are never written.
+
+**Proof (RED-first):** `AvifFullPlaneE2ETest#unalignedFrameMatchesFfmpegOnEverySample` compares ALL of the fixture's samples — luma 20x20, U and V 10x10 — against ffmpeg's YUV (`avif_ref_ua20.yuv`, libdav1d == libaom byte for byte; the frame's CDEF strengths are 0, so these are pure decode planes). It FAILS on the old clamp (luma from row 6, all chroma) and passes after the fix.
 <!-- pt-switch --> **PT:** [§753 (pt_BR)](known-bugs.pt_BR.md#753--o-decode-avif-de-um-quadro-nao-alinhado-20x20-erra-para-alem-das-suas-linhas-de-topo-luma-a-partir-da-linha-6-toda-a-chroma)

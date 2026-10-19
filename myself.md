@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 134ª PASSAGEM: conformidade de PLANO INTEIRO do quadro multi-tile fixada — `AvifFullPlaneE2ETest` assere Y 128x128 + U/V 64x64 de `avif_real_mt128.avif` (2x2 tiles) contra o YUV do ffmpeg (libdav1d == libaom), 24.576 amostras byte-exactas. O MESMO instrumento expôs um bug real: o quadro não alinhado `avif_real_ua20.avif` está mal decodificado PRÉ-CDEF (luma da linha 6 em diante, 14/20 linhas; toda a chroma errada, U(0,0)=235 vs 16) — catalogado `known-bugs` §753 ABERTO; o teste amostrado só via as linhas 0/2.
-doing: §3bd — plano inteiro multi-tile provado; §753 (overhang do quadro não alinhado) é o próximo bug a corrigir
-next: §3bd — corrigir §753 a partir dos dumps por bloco (o bloco cuja origem cruza x=16/y=16); depois o loop filter e o `decodeRaster`
+last: 19/10 — 3bd 135ª PASSAGEM: `known-bugs` §753 CORRIGIDO — o quadro não alinhado 20x20 decodifica exactamente. CAUSA: a wavefront do mapa de paleta do bloco 32x32 era limitada ao quadro em pixels (20); o libaom limita à grelha mi ALINHADA (24) ⇒ a wavefront divergiu na diagonal 20 e a chroma (mesmo leitor) começou no bit errado. FIX em `Av1DecodeTileRecon.kf`: extensão codificada = grelha alinhada, pintura = plano visível. PROVA: `AvifFullPlaneE2ETest#unalignedFrameMatchesFfmpegOnEverySample` (Y 20x20 + U/V 10x10 == ffmpeg) RED antes e GREEN depois; regressão 24/24.
+doing: §3bd — §753 corrigido e provado; falta o loop filter e a rota decodeRaster
+next: §3bd — implementar o loop filter e depois a rota `decodeRaster` AVIF com o quadro completo como entrada
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (135ª) — 3bd: §753 corrigido
+- **CAUSA:** clamp do mapa de paleta ao quadro em pixels em vez da grelha mi alinhada.
+- **FIX:** codificado = alinhado, pintura = visível; `Av1DecodeTileRecon.kf`.
+- **PROVA:** full-plane ua20 (600 amostras) RED->GREEN; regressão 24/24.
 
 ## Sessão 18/10 (134ª) — 3bd: plano inteiro multi-tile + §753
 - **SHA:** `062319e9e` (push 0/0).
