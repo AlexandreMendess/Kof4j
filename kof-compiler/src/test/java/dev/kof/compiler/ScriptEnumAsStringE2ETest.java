@@ -28,10 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * class carries it — a precise marker (a normal class has no such field), and
  * the rest of the object path (records, the identity fallback) is untouched.
  *
- * <p>Oracle is the JVM (≡ JS ≡ native x86, all measured). SCOPE: the riscv64/aarch64
- * faces are EXCLUDED here because {@code Dir.valueOf(String)} SIGSEGVs on those two
- * targets (measured exit 139; catalogued separately as §750) — a face of its own, not
- * a regression of this fix.
+ * <p>Oracle is the JVM (≡ JS ≡ the three native targets, all measured). The
+ * riscv64/aarch64 faces were EXCLUDED at first because {@code Dir.valueOf(String)}
+ * SIGSEGVs there (§750); after the §750 gate (static {@code valueOf} on a user
+ * owner takes the cross DIRECT call) they join this contract.
  */
 class ScriptEnumAsStringE2ETest {
 
@@ -106,6 +106,29 @@ class ScriptEnumAsStringE2ETest {
         String o = NativeRiscv64E2ETest.runBounded(p, "x86");
         assertEquals(0, p.exitValue(), () -> "x86 saída: " + o);
         assertEquals(GOLDEN, o);
+    }
+
+    @Test
+    void riscv64EnumToStringMatchesTheJvm() throws Exception {
+        runCross("riscv64", Target.NATIVE_RISCV64);
+    }
+
+    @Test
+    void aarch64EnumToStringMatchesTheJvm() throws Exception {
+        runCross("aarch64", Target.NATIVE_AARCH64);
+    }
+
+    private void runCross(String arch, Target target) throws Exception {
+        Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                arch + " cross toolchain/qemu absent");
+        Path dir = tmp.resolve(arch);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("Main.kf"), SRC);
+        Path out = dir.resolve("out");
+        CompilationResult r = driver.compile(dir.resolve("Main.kf"), out, target);
+        assertTrue(r.success(), () -> arch + " compile: " + r.diagnostics().getDiagnostics());
+        String o = NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main"));
+        assertEquals(GOLDEN, o.strip());
     }
 
     private String runJvm() throws Exception {
