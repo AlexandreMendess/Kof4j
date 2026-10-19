@@ -19887,3 +19887,45 @@ chroma 10x10: ALL rows differ; U(0,0)=235 where ffmpeg has 16, and the pattern i
 
 **Proof (RED-first):** `AvifFullPlaneE2ETest#unalignedFrameMatchesFfmpegOnEverySample` compares ALL of the fixture's samples — luma 20x20, U and V 10x10 — against ffmpeg's YUV (`avif_ref_ua20.yuv`, libdav1d == libaom byte for byte; the frame's CDEF strengths are 0, so these are pure decode planes). It FAILS on the old clamp (luma from row 6, all chroma) and passes after the fix.
 <!-- pt-switch --> **PT:** [§753 (pt_BR)](known-bugs.pt_BR.md#753--o-decode-avif-de-um-quadro-nao-alinhado-20x20-erra-para-alem-das-suas-linhas-de-topo-luma-a-partir-da-linha-6-toda-a-chroma)
+
+## §754 — a tile that spans MULTIPLE superblocks mis-decodes its later superblock (mt192: tile 0's second SB is a flat prediction)
+**Status:** 🔴 OPEN — catalogued 19/10; the multi-SB tile path is the suspect.
+
+**CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by the 136th pass's corpus-wide FULL-PLANE audit (`avif_real_mt192.avif`, 192x64, 2x1 unequal tiles of 128+64 px). The geo test `unequalTilesDecodeToReferenceOnJvm` samples only the tile ORIGINS and passes, but the full plane diverges from x=64 onward.
+
+**Measured (PRE-CDEF, Kof's own `YROW` vs ffmpeg's YUV; libdav1d == libaom byte for byte):**
+```
+tile 0 = SBs 0 and 1 (x 0..127); tile 1 = SB 2 (x 128..191)
+luma x 0..63: EXACT (SB 0)
+luma x 64..127: FLAT 235 (SB 1) vs the reference checkerboard 16,16,16,16,235,...
+all 64 rows differ from x=64 on; U/V likewise from x=32
+BLKY (0,0,bs12)=16 (0,16,bs12)=235 (0,32,bs12)=16 — the block ORIGIN sampling agrees with the wrong plane, so the test never saw it
+MODESA n=3 (0,3,0,0) (0,2,9,0) (0,3,0,0) — SB 1's block reads skip=0, txSz=2, yMode=9 (SMOOTH)
+```
+**Not CDEF** (the frame's CDEF strengths are 0) and **not the tile split** (TILEY and the partition steps place all three blocks correctly). The single-SB-per-tile mt128 fixture is EXACT, so the defect is specific to a tile's SECOND superblock.
+**Suspects:** the mode-info/context state across the in-tile SB boundary, or the SMOOTH prediction/residual for that block (yMode=9; the flat 235 is the left neighbour's value).
+**Next step:** dump the SB-1 block's per-block stages/levels (the diagnostic now accumulates every tile's mode records in `MODESA`; the levels need the same) and compare its mode/coefficients with libaom's.
+<!-- pt-switch --> **PT:** [§754 (pt_BR)](known-bugs.pt_BR.md#754--um-tile-que-abrange-varios-superblocos-desdecodifica-o-superbloco-seguinte-mt192-o-segundo-sb-do-tile-0-e-uma-predicao-plana)
+
+## §755 — the bottom/right OVERHANG decode still diverges beyond the sampled rows (oh24, oh40, sq1, tall; §753's fix covered only palettes)
+**Status:** 🔴 OPEN — catalogued 19/10.
+
+**CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by the 136th pass's corpus-wide FULL-PLANE audit; the existing geo tests sample the top-left rows/columns of these fixtures and pass.
+
+**Measured (PRE-CDEF, Kof's `YROW` vs ffmpeg's YUV; the four frames' CDEF strengths are 0):**
+```
+oh24 (32x24): luma diverges from row 16 (x=16: 107,116,123,128 vs 16,16,16,16); U/V from row 8
+oh40 (32x40): luma from row 16 (x=16: 59,21,11 vs 16); U/V from row 12
+sq1  (32x32): luma from row 16 (x=16: 24,24,24,24 vs 16); U/V from row 8
+tall (64x256): luma from x=48 (236,237,238 vs 16); all 256 rows affected
+```
+**Not CDEF**, and not the palette extent (these are residual-coded blocks). The first divergences sit exactly at the frames' block/transform boundaries (row 16 / x=48): the overhanging bottom/right blocks' PREDICTION or RESIDUAL placement.
+**Next step:** the probe's per-block records (`MODESA`, `STAGES`, `BLKY`) on sq1 (the simplest 32x32), starting with the block whose origin crosses y=16.
+<!-- pt-switch --> **PT:** [§755 (pt_BR)](known-bugs.pt_BR.md#755--o-decode-dos-blocos-que-transbordam-em-baixoà-direita-ainda-diverge-para-alem-das-linhas-amostradas-oh24-oh40-sq1-tall-o-fix-753-cobriu-so-paletas)
+
+## §756 — the LOSSLESS 32x32 fixture diverges in its bottom half (ll, from row 16 at x=4)
+**Status:** 🔴 OPEN — catalogued 19/10.
+
+**CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** The 136th pass's full-plane audit of `avif_enc_ll.avif` (32x32, lossless): luma rows 0..15 match ffmpeg, from row 16 (x=4) the values are a gradient (94,94,... vs 100) and U/V diverge too. The frame does not overhang; the divergence starts at the 16-row block boundary, so the LOSSLESS path (WHT / coefficient placement) or the second block row's mode info is the suspect. `ll` is the only lossless fixture in the geo suite.
+**Next step:** the probe's per-block TX/levels on ll (txSz, WHT), the same instrument §754 needs.
+<!-- pt-switch --> **PT:** [§756 (pt_BR)](known-bugs.pt_BR.md#756--o-fixture-lossless-32x32-diverge-na-metade-inferior-ll-da-linha-16-em-x4)

@@ -22,7 +22,7 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Av1TileDecode tile, List<Int> modes, List<Int> txTypesV,
                List<Int[]> levelsU, List<Int> txTypesU, List<Int> quantDeltas,
                List<Int> chromaPreds, Int cdefDamping, List<Int> cdefY,
-               List<Int> cdefUv) {
+               List<Int> cdefUv, List<Int> allModes) {
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
@@ -248,6 +248,16 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         println("VROWF " + rr4 + vl4)
         rr4 = rr4 + 1
     }
+    // EVERY tile's mode records (the per-tile `B` lines below only see the
+    // LAST tile): skip, txSize, yMode, uvMode per block, in walk order.
+    var ma = ""
+    var mb = 0
+    while (mb < allModes.size / 17) {
+        var mi = mb * 17
+        ma = ma + " (" + allModes[mi] + "," + allModes[mi + 4] + "," + allModes[mi + 5] + "," + allModes[mi + 6] + ")"
+        mb = mb + 1
+    }
+    println("MODESA n=" + (allModes.size / 17) + ma)
     var pos = tile.positions()
     var b2 = 0
     while (b2 < modes.size / 17) {

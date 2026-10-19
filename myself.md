@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 135ª PASSAGEM: `known-bugs` §753 CORRIGIDO — o quadro não alinhado 20x20 decodifica exactamente. CAUSA: a wavefront do mapa de paleta do bloco 32x32 era limitada ao quadro em pixels (20); o libaom limita à grelha mi ALINHADA (24) ⇒ a wavefront divergiu na diagonal 20 e a chroma (mesmo leitor) começou no bit errado. FIX em `Av1DecodeTileRecon.kf`: extensão codificada = grelha alinhada, pintura = plano visível. PROVA: `AvifFullPlaneE2ETest#unalignedFrameMatchesFfmpegOnEverySample` (Y 20x20 + U/V 10x10 == ffmpeg) RED antes e GREEN depois; regressão 24/24.
-doing: §3bd — §753 corrigido e provado; falta o loop filter e a rota decodeRaster
-next: §3bd — implementar o loop filter e depois a rota `decodeRaster` AVIF com o quadro completo como entrada
+last: 19/10 — 3bd 136ª PASSAGEM: auditoria de PLANO INTEIRO de todo o corpus geo — 5/11 exactos (cfl32x24, grad64x40, mt128, ns6416, ua20) e SEIS divergentes PRÉ-CDEF: ll (lossless), mt192 (o segundo SB do tile 0 plano em 235, yMode=9 SMOOTH), oh24, oh40, sq1, tall. Três bugs catalogados: §754 (tile multi-SB), §755 (resíduo/predição do overhang, início na linha 16/x=48), §756 (lossless). Novo diagnóstico `MODESA` acumula os registos de modo de TODOS os tiles (as linhas B só mostravam o último).
+doing: §3bd — auditoria completa; corrigir §754 (bloco do segundo SB) e depois §755/§756
+next: §3bd — corrigir o §754 com os estágios/níveis por bloco (mt192 e sq1), depois §755 (overhang) e §756 (lossless); depois o loop filter e o decodeRaster
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (136ª) — 3bd: auditoria de plano inteiro do corpus
+- **AUDITORIA:** 5/11 geo fixtures exactos; 6 divergentes pré-CDEF (ll, mt192, oh24, oh40, sq1, tall).
+- **CATALOGADO:** §754 (tile multi-SB), §755 (overhang), §756 (lossless) — com evidência medida.
+- **DIAGNÓSTICO:** `MODESA` (modos de todos os tiles); mt192 SB1: yMode=9 SMOOTH, plano 235.
 
 ## Sessão 18/10 (135ª) — 3bd: §753 corrigido
 - **SHA:** `2a9561500` (push 0/0).

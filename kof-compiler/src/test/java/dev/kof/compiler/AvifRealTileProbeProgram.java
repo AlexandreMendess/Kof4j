@@ -118,6 +118,7 @@ main() {
     var tileSbW = (nSbCols + tileCols2 - 1) / tileCols2
     var tileSbH = (nSbRows + tileRows2 - 1) / tileRows2
     var allSteps = listOf<Int[]>()
+    var allModes = listOf<Int>()
     var totalSymBits = 0
     var totalPayloadBits = 0
     var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
@@ -158,6 +159,11 @@ main() {
         while (si < tsteps.size) {
             allSteps.add(tsteps.get(si))
             si = si + 1
+        }
+        var mi2 = 0
+        while (mi2 < modes.size) {
+            allModes.add(modes.get(mi2))
+            mi2 = mi2 + 1
         }
         totalSymBits = totalSymBits + walk.position()
         totalPayloadBits = totalPayloadBits + tiles.get(ti).size * 8
@@ -486,7 +492,7 @@ main() {
         uc = uc + 1
     }
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head + " uvCFL=" + uvCfl)
-    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas, chromaPreds, h.cdefDamping, h.cdefYStrengths, h.cdefUvStrengths)
+    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas, chromaPreds, h.cdefDamping, h.cdefYStrengths, h.cdefUvStrengths, allModes)
 }
 """.formatted(path).replace("//#DIAG", AvifRealTileProbeDiag.source());
     }
