@@ -66,6 +66,26 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
                 () -> "the V plane moved: " + line);
     }
 
+    /**
+     * A stream from a REAL encoder, decoded from its RAW item: no temporal
+     * delimiter and no re-wrap. The AV1 temporal delimiter is OPTIONAL and an
+     * ISOBMFF item is already self-delimited, so the walker now accepts a
+     * sequence/frame OBU directly (before the 141st pass it threw
+     * `IMAGE: avif item does not begin with a temporal delimiter`, which is why
+     * every earlier real fixture had to be re-wrapped). The assertion pins the
+     * ENTROPY SYNC: 94 blocks and the symbol consumption exactly equal to the
+     * payload (2376/2376) — the encoder's own tile stream reads to its end.
+     */
+    @Test
+    void encodedLibaomStreamDecodesItsWholePayload() throws Exception {
+        var line = runFullPlaneProbe(
+                Path.of("src/test/resources", "avif_enc_check192.avif").toAbsolutePath());
+        assertTrue(line.contains("TILES n=2"), () -> "the stream must be 2 tiles: " + line);
+        assertTrue(line.contains("blocks=94 covered=768 frame=768 overlap=0 "
+                        + "symBits=2376 payloadBits=2376"),
+                () -> "the raw item decode lost its entropy sync: " + line);
+    }
+
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */
     private static String planeRows(String tag, int offset, int w, int h, String reference)
             throws Exception {

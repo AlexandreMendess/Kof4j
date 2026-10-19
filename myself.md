@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 140ª PASSAGEM: a GUARDA DE FILM GRAIN ficou FIEL — o `AvifSeqHeader` transporta `filmGrainPresent`, o `frameWalk` lê `showable_frame`, a cauda lê o primeiro bit de `film_grain_params()` e só `apply_grain==1` é recusado. PROVA: `AvifEncodedFilmGrainE2ETest` (novo) sobre um AVIF real do ffmpeg/libaom (xadrez 192x64, `-tiles 2x1`, film grain presente): `hdr 192x64 bq=80 lf=0 ll=0 tx=1 dfl=0 cdef=0`; RED-first (o walk antigo lançava antes de imprimir). O mesmo stream decodifica pela probe com `symBits == payloadBits` (2376/2376) e resíduos reais; a comparação de plano inteiro aguarda um wrap fiel do item.
-doing: §3bd — guarda de film grain landada e provada; reprodutor controlado a funcionar (falta o wrap fiel do item)
-next: §3bd — envolver o item com `avifItemBytes`, comparar os planos do stream controlado com o ffmpeg e isolar a selecção/estado de entropia do §754
+last: 19/10 — 3bd 141ª PASSAGEM: a exigência do DELIMITADOR TEMPORAL foi levantada (o TD do AV1 é opcional; um item ISOBMFF é auto-delimitado) — o item CRU de um encoder real (ffmpeg/libaom) decodifica de ponta a ponta: `TILES n=2`, `blocks=94 ... symBits=2376 payloadBits=2376`. O mesmo stream expôs uma divergência de planos CONTROLADA, catalogada `known-bugs` §757: Y 235 vs ffmpeg 218, U/V 238 vs o neutro 129, chroma em xadrez numa fonte cinzenta (com os símbolos a consumir o payload exactamente). Recodificar com variações de paleta/CFL/tiles é o próximo isolamento.
+doing: §3bd — TD opcional landado; reprodutor controlado a divergir (§757), a isolar por variações do encoder
+next: §3bd — recodificar `avif_enc_check192.avif` com `-enable-palette 0`, um só tile e lossless, comparar cada variante e isolar a chroma/CFL do §757
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (141ª) — 3bd: TD opcional + reprodutor controlado (§757)
+- **LANDADO:** `avifItemObus` aceita um item sem delimitador temporal (OBUs validados).
+- **PROVA:** `AvifFullPlaneE2ETest#encodedLibaomStreamDecodesItsWholePayload` (2376/2376) — RED-first era a recusa antiga.
+- **ACHADO §757:** planos divergentes do ffmpeg no stream controlado; próximo passo = variações do encoder.
 
 ## Sessão 18/10 (140ª) — 3bd: film grain + reprodutor controlado
 - **SHA:** `2f5af376e` (push 0/0).

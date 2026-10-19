@@ -86,9 +86,10 @@ AvifObuCounts avifItemObus(Int[] item) {
         if (hasSize != 1) {
             throw "IMAGE: avif item obu missing size field"
         }
-        if (total == 0 && type != 2) {
-            throw "IMAGE: avif item does not begin with a temporal delimiter"
-        }
+        // The TEMPORAL DELIMITER is OPTIONAL: an ISOBMFF item is already
+        // self-delimited (AV1 temporal_unit() allows the TD to be omitted),
+        // and real encoders such as libaom write the sequence/frame OBUs
+        // directly. The walker validates every OBU's structure regardless.
         var p = pos + 1 + ext
         if (p >= n) {
             throw "IMAGE: avif obu truncated"

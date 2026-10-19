@@ -17443,3 +17443,18 @@ tall (64x256): a luma de x=48 (236,237,238 vs 16); as 256 linhas afectadas
 **CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** A auditoria de plano inteiro da 136ª passagem de `avif_enc_ll.avif` (32x32, lossless): a luma das linhas 0..15 coincide com o ffmpeg, da linha 16 (x=4) os valores são um gradiente (94,94,... vs 100) e o U/V também diverge. O quadro não transborda; a divergência começa na fronteira de linha de 16 blocos, logo o caminho LOSSLESS (WHT / colocação de coeficientes) ou o mode-info da segunda linha de blocos é o suspeito. `ll` é o único fixture lossless da suite geo.
 **Próximo passo:** os TX/níveis por bloco da probe no ll (txSz, WHT), o mesmo instrumento que o §754 precisa.
 <!-- pt-switch --> **PT:** [§756](known-bugs.md#756--the-lossless-32x32-fixture-diverges-in-its-bottom-half-ll-from-row-16-at-x4)
+
+## §757 — um AVIF CRU do ffmpeg/libaom decoda até ao fim do payload mas os seus PLANOS divergem (Y 235 vs ffmpeg 218; chroma em xadrez onde a fonte é cinzenta)
+**Estado:** 🔴 ABERTO — catalogado 19/10; existe agora um reprodutor CONTROLADO.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Com a exigência do delimitador temporal levantada (o TD do AV1 é opcional e um item ISOBMFF já é auto-delimitado) o decodificador lê o item de um encoder real DE PONTA A PONTA a partir dos seus bytes crus: `TILES n=2`, `blocks=94 covered=768 frame=768 overlap=0 symBits=2376 payloadBits=2376` (o consumo de símbolos IGUALA exactamente o payload), 272 níveis não zero no tile 0, seis blocos de paleta e nove blocos CFL. Os planos diferem na mesma do decode do ffmpeg do MESMO ficheiro (libdav1d): em (0,0) Kof Y=235 vs ffmpeg 218; Kof U=238, V=238 vs o neutro 129; e a chroma é um XADREZ embora a fonte seja cinzenta (R=G=B).
+
+**Reprodutor (o encoder pode agora ser variado):**
+```
+python3: xadrez 192x64, células de 4 px, valores 16 e 235 em R=G=B -> check.ppm
+ffmpeg -i check.ppm -c:v libaom-av1 -still-picture 1 -cpu-used 6 -crf 20 -tiles 2x1 -y check.avif
+fixture: kof-compiler/src/test/resources/avif_enc_check192.avif (610 bytes)
+```
+O stream traz film grain presente com apply_grain 0 (aceite desde a 140ª passagem), paletas (blocos `palY2`) e CFL (`uvCFL=9`).
+**Próximo passo:** recodificar com `-enable-palette 0`, com um só tile, e lossless, e comparar cada variante — o xadrez da chroma aponta ao caminho CFL/paleta, os valores de Y à interpretação da cor da paleta ou do intervalo.
+<!-- pt-switch --> **PT:** [§757](known-bugs.md#757--a-raw-ffmpeglibaom-avif-decodes-to-the-end-of-its-payload-but-its-planes-diverge-y-235-vs-ffmpeg-218-chroma-a-checkerboard-where-the-source-is-gray)
