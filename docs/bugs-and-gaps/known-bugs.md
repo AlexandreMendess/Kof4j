@@ -19907,6 +19907,14 @@ MODESA n=3 (0,3,0,0) (0,2,9,0) (0,3,0,0) — SB 1's block reads skip=0, txSz=2, 
 **Not CDEF** (the frame's CDEF strengths are 0) and **not the tile split** (TILEY and the partition steps place all three blocks correctly). The single-SB-per-tile mt128 fixture is EXACT, so the defect is specific to a tile's SECOND superblock.
 **Suspects:** the mode-info/context state across the in-tile SB boundary, or the SMOOTH prediction/residual for that block (yMode=9; the flat 235 is the left neighbour's value).
 **Next step:** dump the SB-1 block's per-block stages/levels (the diagnostic now accumulates every tile's mode records in `MODESA`; the levels need the same) and compare its mode/coefficients with libaom's.
+**DEEPER EVIDENCE 19/10 (137th pass):** the tile-level counters (`TILESTATS`) show the exact shape of the failure:
+```
+t0: 2 blocks, 16 transform blocks, NONZERO LEVELS 0, stages [85, 357, 365, 365], pos 370 of the tile's 560 payload bits
+t1: 1 block, 0 TXB, stages [85, 352], pos 352 of 352 (fully consumed)
+```
+Block 0 is the 64x64 PALETTE block (its colour map costs 85..357 = 272 bits and paints the reference checkerboard exactly). Block 1's whole mode-info body then costs only **8 bits** (357..365), its 16 transform blocks decode **all-zero** (about 5 bits), and the tile STOPS 190 bits before the payload end. A correct decode should consume those bits: the all-zero flags are cheap precisely because the decoder believes none of the 16 blocks has coefficients. The suspect is therefore the ENTROPY STATE after the palette block — the coefficient `all_zero` context/CDF row or the block-1 mode-info context — not the block placement, the palette map, or the reconstruction (the prediction is applied, the residual is simply decoded as absent).
+**Next step:** capture the first `all_zero` read of block 1 (its context row and the CDF probabilities) and compare with the expected residual presence; the palette block's coefficient-context treatment (`av1_set_entropy_contexts` is not called for it) is the first place to check against the fetched decoder.
+
 <!-- pt-switch --> **PT:** [§754 (pt_BR)](known-bugs.pt_BR.md#754--um-tile-que-abrange-varios-superblocos-desdecodifica-o-superbloco-seguinte-mt192-o-segundo-sb-do-tile-0-e-uma-predicao-plana)
 
 ## §755 — the bottom/right OVERHANG decode still diverges beyond the sampled rows (oh24, oh40, sq1, tall; §753's fix covered only palettes)

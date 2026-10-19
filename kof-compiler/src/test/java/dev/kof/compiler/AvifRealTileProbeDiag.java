@@ -16,6 +16,43 @@ final class AvifRealTileProbeDiag {
 
     static String source() {
         return """
+List<Int> av1AppendAll(List<Int> dst, List<Int> src) {
+    var i = 0
+    while (i < src.size) {
+        dst.add(src.get(i))
+        i = i + 1
+    }
+    return dst
+}
+
+// One tile's counters: blocks / transform blocks / NONZERO levels / the
+// driver's stage positions / the walk's end position / the tile's payload
+// bits. The 137th pass used it to show that mt192's second block decodes 16
+// all-zero TXBs and the tile stops 190 bits early (known-bugs §754).
+String av1TileStatsLine(Int ti, List<Int> modes, List<Int[]> levels,
+                        Av1TileDecode tile, Av1Partition walk, Int payBytes) {
+    var tz = 0
+    var tl = 0
+    while (tl < levels.size) {
+        var la = levels.get(tl)
+        var lk = 0
+        while (lk < la.size) {
+            if (la[lk] != 0) { tz = tz + 1 }
+            lk = lk + 1
+        }
+        tl = tl + 1
+    }
+    var stv = ""
+    var sv = 0
+    var stl = tile.stages()
+    while (sv < stl.size) {
+        stv = stv + "," + stl.get(sv)
+        sv = sv + 1
+    }
+    return " t" + ti + ":b" + (modes.size / 17) + "/txb" + levels.size + "/nz" + tz
+        + "/st" + stl.size() + stv + "/pos" + walk.position() + "/pay" + payBytes * 8
+}
+
 void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Av1ChromaPlanes chroma, List<Int[]> levelsV, List<Int[]> steps,
                Int dcq, Int acq, Int baseQIdx, Int bitDepth,

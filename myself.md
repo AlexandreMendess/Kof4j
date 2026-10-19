@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 136ª PASSAGEM: auditoria de PLANO INTEIRO de todo o corpus geo — 5/11 exactos (cfl32x24, grad64x40, mt128, ns6416, ua20) e SEIS divergentes PRÉ-CDEF: ll (lossless), mt192 (o segundo SB do tile 0 plano em 235, yMode=9 SMOOTH), oh24, oh40, sq1, tall. Três bugs catalogados: §754 (tile multi-SB), §755 (resíduo/predição do overhang, início na linha 16/x=48), §756 (lossless). Novo diagnóstico `MODESA` acumula os registos de modo de TODOS os tiles (as linhas B só mostravam o último).
-doing: §3bd — auditoria completa; corrigir §754 (bloco do segundo SB) e depois §755/§756
-next: §3bd — corrigir o §754 com os estágios/níveis por bloco (mt192 e sq1), depois §755 (overhang) e §756 (lossless); depois o loop filter e o decodeRaster
+last: 19/10 — 3bd 137ª PASSAGEM: §754 REDUZIDO — o segundo bloco do tile multi-SB (mt192) decodifica 16 TXBs TODOS ZERO (0 níveis não zero) e o tile para 190 bits antes do fim do payload (370/560). O bloco 0 é a paleta 64x64 (272 bits, xadrez exacto); o corpo do bloco 1 custa só 8 bits. Logo o resíduo perde-se no ESTADO DE ENTROPIA depois do bloco de paleta, não na colocação/recon. Instrumento novo: `TILESTATS` (blocos/TXBs/nz/estágios/posições/payload por tile).
+doing: §3bd — §754 reduzido ao estado de entropia pós-paleta; falta a medição do contexto/CDF do primeiro all_zero do bloco 1
+next: §3bd — capturar a primeira leitura all_zero do bloco 1 (linha de contexto + CDF) e o tratamento do contexto de coeficientes do bloco de paleta; depois §755/§756, o loop filter e o decodeRaster
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (137ª) — 3bd: §754 reduzido ao estado de entropia
+- **MEDIDO:** t0 = 2 blocos/16 TXB/0 níveis/[85,357,365,365]/370 de 560 bits; t1 = 1/0/352 de 352.
+- **LEITURA:** bloco 0 paleta 64x64 (272 bits exactos); corpo do bloco 1 = 8 bits; all_zero baratos.
+- **CAVEATS:** nenhuma mudança de comportamento; o fix exige o dump do contexto/CDF do all_zero.
 
 ## Sessão 18/10 (136ª) — 3bd: auditoria de plano inteiro do corpus
 - **SHA:** `bd430dc51` (push 0/0).

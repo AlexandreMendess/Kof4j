@@ -17394,6 +17394,14 @@ MODESA n=3 (0,3,0,0) (0,2,9,0) (0,3,0,0) — o bloco do SB 1 lê skip=0, txSz=2,
 **Não é o CDEF** (as forças CDEF do quadro são 0) e **não é a divisão de tiles** (TILEY e os passos de partição colocam os três blocos correctamente). O fixture mt128 (um SB por tile) é EXACTO, logo o defeito é específico do SEGUNDO superbloco de um tile.
 **Suspeitos:** o estado de mode-info/contexto através da fronteira de SB dentro do tile, ou a predição/resíduo SMOOTH desse bloco (yMode=9; o 235 plano é o valor do vizinho esquerdo).
 **Próximo passo:** despejar os estágios/níveis por bloco do SB 1 (o diagnóstico já acumula os registos de todos os tiles em `MODESA`; os níveis precisam do mesmo) e comparar o modo/coeficientes com o libaom.
+**EVIDÊNCIA MAIS PROFUNDA 19/10 (137ª passagem):** os contadores por tile (`TILESTATS`) mostram a forma exacta da falha:
+```
+t0: 2 blocos, 16 blocos de transformada, NÍVEIS NÃO ZERO 0, estágios [85, 357, 365, 365], pos 370 dos 560 bits de payload do tile
+t1: 1 bloco, 0 TXB, estágios [85, 352], pos 352 de 352 (totalmente consumido)
+```
+O bloco 0 é o bloco PALETA 64x64 (o seu mapa de cores custa 85..357 = 272 bits e pinta o xadrez de referência exactamente). O corpo de mode-info do bloco 1 custa depois só **8 bits** (357..365), os seus 16 blocos de transformada decodificam **todos zero** (~5 bits), e o tile PARA 190 bits antes do fim do payload. Uma decodificação correcta deveria consumir esses bits: as flags all-zero são baratas precisamente porque o decodificador acredita que nenhum dos 16 blocos tem coeficientes. O suspeito é portanto o ESTADO DE ENTROPIA depois do bloco de paleta — a linha de contexto/CDF do `all_zero` dos coeficientes ou o contexto do mode-info do bloco 1 — não a colocação dos blocos, o mapa de paleta ou a reconstrução (a predição é aplicada, o resíduo é simplesmente decodificado como ausente).
+**Próximo passo:** capturar a primeira leitura `all_zero` do bloco 1 (a sua linha de contexto e as probabilidades da CDF) e comparar com a presença esperada de resíduo; o tratamento do contexto de coeficientes do bloco de paleta (`av1_set_entropy_contexts` não é chamado para ele) é o primeiro sítio a verificar contra o decodificador buscado.
+
 <!-- pt-switch --> **PT:** [§754](known-bugs.md#754--a-tile-that-spans-multiple-superblocks-mis-decodes-its-later-superblock-mt192-tile-0s-second-sb-is-a-flat-prediction)
 
 ## §755 — o decode dos blocos que transbordam em baixo/à direita ainda diverge, oh24, oh40, sq1, tall (o fix §753 cobriu só paletas)
