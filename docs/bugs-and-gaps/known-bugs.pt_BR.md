@@ -17482,3 +17482,20 @@ O stream traz film grain presente com apply_grain 0 (aceite desde a 140ª passag
 **Prova (RED-first):** `AvifEncodedFilmGrainE2ETest#encodedPaletteFreeStreamSplitsItsTiles` — o grupo do stream sem paleta divide agora `sizes 2 1981 1005`; antes do fix a mesma leitura lançava `IMAGE: truncated avif tile group` (medido). O fixture é `avif_enc_nopal192.avif` (3300 bytes, `-enable-palette 0`).
 **Follow-up FECHADO 19/10 (144ª passagem):** a probe completa do tile neste stream chegava ao decode dos blocos mas rebentava na cauda DIAGNÓSTICA — o laço PALBLK indexava o `palInfos` do ÚLTIMO tile (17 blocos x 2 = 34 entradas) com o contador de blocos do QUADRO INTEIRO (`pi2[34]`), não uma falha da biblioteca. O laço limita agora o índice por tile, e o lookup da configuração CDEF guarda um índice para além da lista de forças do cabeçalho. A caminhada completa: `blocks=77 covered=768 frame=768 overlap=0 symBits=7283 payloadBits=23888` — o decode SEM paleta consome só 69% a menos do payload (uma divergência da família §757, registada como próxima medição), enquanto as forças CDEF do stream são 46/46 (a base com paleta tem 0/0).
 <!-- pt-switch --> **PT:** [§759](known-bugs.md#759--the--enable-palette-0-libaom-streams-tile-group-is-refused-as-truncated-the-tile-size-table-does-not-walk)
+
+## §760 — um stream libaom SEM PALETA desincroniza no caminho com resíduo: só ~30% do payload é consumido, independente de CDEF, lossless e qualidade
+**Estado:** 🔴 ABERTO — catalogado 19/10; o interruptor da paleta está isolado, o primeiro símbolo dessincronizado não.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** A matriz de features do reprodutor do §757 (todo o xadrez 192x64, tiles 2x1, ffmpeg/libaom):
+```
+stream            paleta   cdef   symBits / payloadBits
+t_base            ON       ON     2376 / 2376    totalmente consumido
+m_basecdef        ON       OFF    2376 / 2376    totalmente consumido
+t_nopal           OFF      ON     7283 / 23888
+m_ncdef           OFF      OFF    7283 / 23888
+m_ll (lossless)   OFF      -      4977 / 14240
+m_crf40           OFF      -      3259 / 14928
+```
+A PALETA é o único interruptor: todo o stream COM paleta consome o payload exactamente, todo o stream SEM paleta para nos ~30% seja qual for o CDEF, lossless ou qualidade. `covered=768 overlap=0` NÃO é prova de sincronia — um stream corrompido continua a tilar o quadro por construção (a armadilha documentada pela própria probe). Restoration e intrabc já estavam desligados nestes encodes (os interruptores produziram ficheiros byte-idênticos).
+**Próximo passo:** encontrar o PRIMEIRO símbolo dessincronizado num stream sem paleta a partir das posições de estágio por tile (`TILESTATS`) e dos registos de modo por bloco (`MODESA`); o caminho dos coeficientes (`all_zero` / `eob` / `tx_type`) é o primeiro suspeito.
+<!-- pt-switch --> **PT:** [§760](known-bugs.md#760--a-palette-free-libaom-stream-desyncs-in-the-residual-coded-path-only-~30-of-the-tile-payload-is-consumed-independent-of-cdef-lossless-and-quality)

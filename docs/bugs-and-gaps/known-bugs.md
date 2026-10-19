@@ -20008,3 +20008,20 @@ JVM/Script/JS/native x86-64 print `6` (exit 0); riscv64 and aarch64 exit **139**
 **Proof (RED-first):** `AvifEncodedFilmGrainE2ETest#encodedPaletteFreeStreamSplitsItsTiles` — the palette-free stream's group now splits `sizes 2 1981 1005`; before the fix the same read threw `IMAGE: truncated avif tile group` (measured). The fixture is `avif_enc_nopal192.avif` (3300 bytes, `-enable-palette 0`).
 **Follow-up CLOSED 19/10 (144th pass):** the full tile probe on this stream reached the block decode but crashed in the DIAGNOSTIC tail — the PALBLK loop indexed the LAST tile's `palInfos` (17 blocks x 2 = 34 entries) with the FRAME-WIDE block counter (`pi2[34]`), not a library fault. The loop now bounds the per-tile index, and the CDEF configuration lookup guards an index past the header's strength list. The walk completes: `blocks=77 covered=768 frame=768 overlap=0 symBits=7283 payloadBits=23888` — the palette-FREE decode consumes only 69% short of the payload (a §757-family divergence, recorded as the next measurement), while the stream's CDEF strengths are 46/46 (the palette baseline's are 0/0).
 <!-- pt-switch --> **PT:** [§759 (pt_BR)](known-bugs.pt_BR.md#759--o-tile-group-do-stream-libaom-com--enable-palette-0-é-recusado-como-truncado-a-tabela-de-tamanhos-por-tile-não-percorre)
+
+## §760 — a palette-FREE libaom stream desyncs in the residual-coded path: only ~30% of the tile payload is consumed, independent of CDEF, lossless and quality
+**Status:** 🔴 OPEN — catalogued 19/10; the palette switch is isolated, the first desynced symbol is not.
+
+**CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** The §757 reproducer's feature matrix (all 192x64 checkerboard, 2x1 tiles, ffmpeg/libaom):
+```
+stream            palette  cdef   symBits / payloadBits
+t_base            ON       ON     2376 / 2376    fully consumed
+m_basecdef        ON       OFF    2376 / 2376    fully consumed
+t_nopal           OFF      ON     7283 / 23888
+m_ncdef           OFF      OFF    7283 / 23888
+m_ll (lossless)   OFF      -      4977 / 14240
+m_crf40           OFF      -      3259 / 14928
+```
+The PALETTE is the only switch: every palette-ON stream consumes its payload exactly, every palette-OFF stream stops at ~30% whatever CDEF, lossless or quality. `covered=768 overlap=0` is NOT sync evidence — a corrupted stream still tiles the frame by construction (the probe's own documented pitfall). Restoration and intrabc were already off in these encodes (their encoder switches produced byte-identical files).
+**Next step:** find the FIRST desynced symbol in a palette-free stream from the per-tile stage positions (`TILESTATS`) and the per-block mode records (`MODESA`); the coefficient path (`all_zero` / `eob` / `tx_type`) is the first suspect.
+<!-- pt-switch --> **PT:** [§760 (pt_BR)](known-bugs.pt_BR.md#760--um-stream-libaom-sem-paleta-desincroniza-no-caminho-com-resíduo-só-~30-do-payload-é-consumido-independente-de-cdef-lossless-e-qualidade)

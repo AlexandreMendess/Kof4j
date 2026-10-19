@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 144ª PASSAGEM: o crash DIAGNÓSTICO do stream sem paleta corrigido (o laço PALBLK indexava o `palInfos` do ÚLTIMO tile, 34 entradas, com o contador do quadro inteiro ⇒ `pi2[34]`; guarda por tile + guarda do índice da config CDEF). A caminhada completa mede agora o decode SEM paleta: `blocks=77 ... symBits=7283 payloadBits=23888` (69% a menos) e forças CDEF 46/46 vs 0/0 da base — o caminho não-paleta desincroniza grosseiramente (família §757); a diferença de forças CDEF é o novo discriminador.
-doing: §3bd — guardas de diagnóstico landadas; o decode sem paleta desincroniza (7283/23888); próximo = isolar a feature com encodes CDEF off/on
-next: §3bd — codificar o mesmo xadrez com CDEF off/on e outras features (CFL, tx) para isolar a dessincronização do caminho sem paleta e a divergência do §757
+last: 19/10 — 3bd 145ª PASSAGEM: a MATRIZ DE FEATURES do §757 isola a PALETA como único interruptor — streams COM paleta consomem o payload exactamente (2376/2376, com CDEF on e off); streams SEM paleta param nos ~30% (7283/23888 com CDEF on/off, 4977/14240 lossless, 3259/14928 crf40). Restoration/intrabc já estavam off (interruptores byte-idênticos) e o CDEF muda bytes mas não o consumo. Catalogado `known-bugs` §760; a cobertura do frame NÃO é prova de sincronia.
+doing: §3bd — paleta isolada como interruptor; próximo = achar o primeiro símbolo dessincronizado no caminho sem paleta
+next: §3bd — achar o primeiro símbolo dessincronizado (TILESTATS/MODESA) no stream sem paleta; o caminho dos coeficientes (all_zero/eob/tx_type) é o primeiro suspeito
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (145ª) — 3bd: matriz de features, paleta isolada (§760)
+- **MATRIZ:** paleta ON = 2376/2376 exacto; paleta OFF = ~30% (7283/23888) em todas as variantes.
+- **CDEF/lossless/qualidade:** não são o interruptor; restoration/intrabc já estavam off.
+- **NOVO:** §760 catalogado; cobertura não é sincronia.
 
 ## Sessão 18/10 (144ª) — 3bd: guardas do nopal + medição
 - **SHA:** `e120dd76c` (push 0/0).
