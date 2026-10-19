@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (147ª) — 3bd: §760 localizado num bloco
+- **SHA:** `463741c41` (push 0/0).
 - **MEDIDO:** m_s64 tile0 104/104 exacto; tile1 49/96.
 - **EXCLUÍDO:** divisão/leitor de tiles, primeiro tile, modo/tx (m_solid 8/8).
 - **ALVO:** eob/all_zero do bloco com resíduo pequeno.
