@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (144ª) — 3bd: guardas do nopal + medição
+- **SHA:** `e120dd76c` (push 0/0).
 - **FIX:** limite por tile do `palInfos` + índice da config CDEF.
 - **MEDIDO:** `blocks=77 ... symBits=7283 payloadBits=23888`; CDEF 46/46 vs 0/0 da base.
 - **PRÓXIMO:** isolar a dessincronização sem paleta com encodes CDEF off/on.
