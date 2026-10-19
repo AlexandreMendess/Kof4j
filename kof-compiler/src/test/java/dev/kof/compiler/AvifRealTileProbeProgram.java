@@ -82,6 +82,13 @@ main() {
     if (seq.enableIntraEdgeFilter) { de = 0 }
     var ec = 0
     if (seq.enableCdef) { ec = 1 }
+    // The 130th pass's post-reconstruction suspect: CDEF is PARSED but never
+    // applied, and a directional filter on a smooth chroma gradient produces
+    // exactly the small, smooth +/-1 deviation the V plane shows. Print the
+    // sequence-header switch and the frame header's `cdef_bits` so the next
+    // measurement knows whether the filter is even on for this fixture.
+    println("CDEF ec=" + ec + " bits=" + h.cdefBits + " damp=" + h.cdefDamping
+        + " y=" + h.cdefYStrengths + " uv=" + h.cdefUvStrengths)
     var modes = listOf<Int>()
     var levels = listOf<Int[]>()
     // The CHROMA transform blocks' decoded levels: the V plane's residual is where

@@ -139,6 +139,36 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         + " 320=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + 1] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + 1]
         + " 3232=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + ((sx1 >> 1) + 1)] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + ((sx1 >> 1) + 1)]
         + " 3263=" + chroma.u[((sy >> 1) + 1) * chroma.strideU + ((sx2 >> 1) + 1)] + "," + chroma.v[((sy >> 1) + 1) * chroma.strideV + ((sx2 >> 1) + 1)])
+    // The FULL reconstructed planes (pre-CDEF): the V plane's +/-1 is the
+    // missing CDEF filter, and a per-sample print cannot feed the filter's
+    // oracle. Y rows then U/V rows, every sample, no clamping.
+    var yr3 = 0
+    while (yr3 < mh) {
+        var yl3 = ""
+        var xr3 = 0
+        while (xr3 < mw) {
+            yl3 = yl3 + " " + frame[(yr3 + 1) * stride + (xr3 + 1)]
+            xr3 = xr3 + 1
+        }
+        println("YROW " + yr3 + yl3)
+        yr3 = yr3 + 1
+    }
+    var ch3 = (mh + 1) / 2
+    var cw3 = (mw + 1) / 2
+    var cr3 = 0
+    while (cr3 < ch3) {
+        var ul3 = ""
+        var vl3 = ""
+        var xc3 = 0
+        while (xc3 < cw3) {
+            ul3 = ul3 + " " + chroma.u[(cr3 + 1) * chroma.strideU + (xc3 + 1)]
+            vl3 = vl3 + " " + chroma.v[(cr3 + 1) * chroma.strideV + (xc3 + 1)]
+            xc3 = xc3 + 1
+        }
+        println("UROW " + cr3 + ul3)
+        println("VROW " + cr3 + vl3)
+        cr3 = cr3 + 1
+    }
     var pos = tile.positions()
     var b2 = 0
     while (b2 < modes.size / 17) {

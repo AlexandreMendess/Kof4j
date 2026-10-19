@@ -900,7 +900,7 @@ class Av1ModeInfo {
                 count = 2
             }
         }
-        var out = listOf()
+        var out = listOf<Int>()
         var i = 0
         while (i < count) {
             var store = this.deltaLfStore.get(0)

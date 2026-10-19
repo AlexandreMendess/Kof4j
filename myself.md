@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 129ª PASSAGEM: a PREDIÇÃO da chroma MEDIDA — `CPRED n=2 [113, 115, 128, 128]` (o U 113/115 = o CFL com alfa_U=1; o V 128/128 = o DC sozinho, alfa_V=0) ⇒ EXACTAMENTE o derivado ⇒ a predição EXONERADA. TODOS os termos da cadeia do V estão agora medidos; com a mesma predição e os mesmos coeficientes o decodificador dá 129/160 e o ffmpeg 130/159 ⇒ o ±1 é um ARREDONDAMENTO (ou uma diferença de níveis multi-coeficiente que a busca de um só coeficiente da 127ª não podia ver). O instrumento foi feito de uma peça só a partir da lista da 128ª (os TRÊS sítios do construtor).
-doing: §3bd — predição da chroma MEDIDA e exonerada; todos os termos da cadeia do V estão medidos ⇒ o ±1 é arredondamento/multi-coeficiente
-next: §3bd — procurar a diferença de ARREDONDAMENTO/multi-coeficiente entre os dois decodificadores (p.ex. o br/coeff_base dos níveis do V em conjunto, ou o estágio de arredondamento do add); depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 130ª PASSAGEM: o ±1 do plano V FECHADO — é o CDEF. Os dois decodificadores de referência (libdav1d e libaom) concordam BYTE A BYTE no `avif_real_cfl32x24.avif`; o quadro activa o CDEF (`CDEF ec=1 bits=0 damp=5 y=[0] uv=[56]`, uv_pri=14/sec=0) e o filtro transcrito do libaom aplicado aos planos PRÉ-CDEF do Kof reproduz o plano V 12x16 INTEIRO do ffmpeg exactamente (130..159) ⇒ toda a cadeia (entropia, desquantização, transformada, predição CFL, soma) está exonerada de ponta a ponta. O `AvifFrameHeader` passou a CAPTURAR damping/forças Y e UV (antes percorridos e descartados). Prova: `python3 scripts/av1_cdef_ref.py` ⇒ `CDEF ok: luma copied, U unchanged, V == ffmpeg (12x16)`.
+doing: §3bd — ±1 do V FECHADO como CDEF (provado); captura dos parâmetros landada; o próximo slice é o filtro CDEF em Kof
+next: §3bd — implementar o CDEF em Kof (busca de direcção + filtro primário/secundário + configuração por 64x64) contra `scripts/av1_cdef_ref.py`; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (130ª) — 3bd: o ±1 do plano V é o CDEF (provado)
+- **MEDIDO:** `libdav1d` e `libaom` produzem YUV byte-idêntico no `avif_real_cfl32x24.avif` ⇒ a hipótese de 'arredondamento entre decodificadores' morre.
+- **O ESTÁGIO NÃO FILTRADO:** CDEF activo na sequência, uma configuração, luma 0, chroma pri 14/sec 0, damping 5. O `AvifFrameHeader` captura agora `cdefDamping`/`cdefYStrengths`/`cdefUvStrengths`.
+- **PROVA:** `scripts/av1_cdef_ref.py` (transcrição do libaom) aplicado aos planos pré-CDEF do Kof ⇒ o plano V 12x16 inteiro bate com o ffmpeg (130..159); a luma é copiada (força 0) e o U é invariante.
+- **CORRIGIDO NO CAMINHO:** o construtor de 39 args da 129ª deixou `AvifRealFileE2ETest`/`Av1PartitionSupport` com 38 (encontrado na execução focada); e o NAT009 da lane do compilador exigiu `listOf<Int>()` em `Av1Partition.kf`/`Av1ModeInfo.kf` nas faces nativas.
+- **CAVEATS:** o filtro CDEF ainda NÃO está implementado em Kof — é o slice seguinte; a prova é o oráculo validado + a asserção dos parâmetros no teste.
 
 ## Sessão 18/10 (129ª) — 3bd: a predição da chroma medida e exonerada
 - **MEDIDO:** `CPRED n=2 [113, 115, 128, 128]`; o V = 128/128 = o DC derivado.

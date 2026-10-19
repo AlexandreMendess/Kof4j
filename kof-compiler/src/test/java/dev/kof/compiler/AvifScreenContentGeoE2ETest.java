@@ -289,6 +289,20 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
     void cflAtAFrameEdgeMatchesReferenceOnJvm() throws Exception {
         var line = runKof(canonical("avif_real_cfl32x24.avif", "cfl.avif"));
         assertTrue(line.contains("uvCFL=1"), () -> "the fixture must reach CFL: " + line);
+        // THE ROOT CAUSE OF THE V PLANE'S +/-1 (130th pass, PROVEN): CDEF. The
+        // sequence header ENABLES cdef (`ec=1`), the frame header carries ONE
+        // configuration (`bits=0`), the luma strengths are ZERO (the luma is
+        // copied untouched — which is why it matched ffmpeg exactly) and the
+        // chroma primary strength is 14 (`uv=[56]` = 14*4 + 0 secondary) with
+        // damping 5. libaom/dav1d filter the chroma with the co-located luma
+        // direction; Kof parses these values but does NOT filter. The fetched
+        // libaom `cdef_block.c` transcription (`scripts/av1_cdef_ref.py`)
+        // applied to Kof's own pre-CDEF V plane reproduces ffmpeg's ENTIRE
+        // 12x16 plane exactly, so the decode chain (entropy, dequant, inverse
+        // transform, prediction) is EXONERATED end to end and the remaining
+        // work is the filter, not a counter bug.
+        assertTrue(line.contains("CDEF ec=1 bits=0 damp=5 y=[0] uv=[56]"),
+                () -> "the CDEF parameters moved: " + line);
         assertTrue(line.contains("blocks=1 covered=48 frame=48 overlap=0 symBits=128 payloadBits=128"),
                 () -> "the frame must decode whole: " + line);
         assertTrue(line.contains("Y 00=3 032=244 063=244 320=3 3232=244 3263=244"),
@@ -342,9 +356,10 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // unmeasured term): 2 transform blocks, the U's (113, 115 — the CFL result
         // with alpha_U = 1) then the V's (128, 128 — the DC ALONE, alpha_V = 0),
         // which is EXACTLY the value the arithmetic derived. The prediction is
-        // therefore exonerated, and with the residual validated against libaom's
-        // transcription the V's ±1 is a ROUNDING (or multi-coefficient) difference
-        // between the two decoders, not a wrong term.
+        // therefore exonerated. The V's ±1 was CLOSED in the 130th pass: it is
+        // the CDEF filter (see the `CDEF` assertion above), not a rounding or
+        // multi-coefficient difference — libaom and libdav1d agree byte for byte
+        // on this file, and the transcribed filter reproduces the plane exactly.
         assertTrue(line.contains("CPRED n=2 [113, 115, 128, 128]"),
                 () -> "the chroma predictions moved: " + line);
         assertTrue(line.contains("QDELTAS [0, 0, 0, 0, 0, 0]"), () -> "the header deltas moved: " + line);

@@ -363,7 +363,7 @@ class Av1Partition {
 // (where `value` is the sub block size). The positions are FRAME-ABSOLUTE 4x4 mi
 // coordinates, which is the space the driver works in.
 List<Int> av1TileBlockGrid(List<Int[]> steps) {
-    var out = listOf()
+    var out = listOf<Int>()
     var i = 0
     while (i < steps.size()) {
         var s = steps.get(i)
