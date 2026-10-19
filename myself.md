@@ -2,11 +2,17 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 130ª PASSAGEM: o ±1 do plano V FECHADO — é o CDEF. Os dois decodificadores de referência (libdav1d e libaom) concordam BYTE A BYTE no `avif_real_cfl32x24.avif`; o quadro activa o CDEF (`CDEF ec=1 bits=0 damp=5 y=[0] uv=[56]`, uv_pri=14/sec=0) e o filtro transcrito do libaom aplicado aos planos PRÉ-CDEF do Kof reproduz o plano V 12x16 INTEIRO do ffmpeg exactamente (130..159) ⇒ toda a cadeia (entropia, desquantização, transformada, predição CFL, soma) está exonerada de ponta a ponta. O `AvifFrameHeader` passou a CAPTURAR damping/forças Y e UV (antes percorridos e descartados). Prova: `python3 scripts/av1_cdef_ref.py` ⇒ `CDEF ok: luma copied, U unchanged, V == ffmpeg (12x16)`.
-doing: §3bd — ±1 do V FECHADO como CDEF (provado); captura dos parâmetros landada; o próximo slice é o filtro CDEF em Kof
-next: §3bd — implementar o CDEF em Kof (busca de direcção + filtro primário/secundário + configuração por 64x64) contra `scripts/av1_cdef_ref.py`; depois (b) tamanhos por tile explícitos, (c) o decodificador de símbolos independente
+last: 18/10 — 3bd 131ª PASSAGEM: o NÚCLEO DO CDEF LANDADO em Kof puro (`libs/image/Av1Cdef.kf`): a busca de direcção (`cdef_find_dir_c`, somas parciais, borda CDEF_VERY_LARGE) e o filtro primário/secundário (`av1_cdef_filter_fb`: packing, `sec==3->4`, damping -1 na chroma, adjust_strength, conversões 4:2:2/4:4:0, fonte->destino fixa). `Av1CdefE2ETest` 2/2 (JVM+Script): `DIRS n=12 6 16201 6 16445 6 16852 6 16411 …`, `YOK true`, `UOK true`, `VOK true` — o plano V iguala o plano pós-CDEF 12x16 inteiro do ffmpeg, o mesmo resultado que `scripts/av1_cdef_ref.py` provou antes do código.
+doing: §3bd — núcleo do CDEF landado e provado; falta a integração no tile (skip-block list + cdef_idx por 64x64 + probe/decodeRaster)
+next: §3bd — integrar o CDEF no tile: a lista de blocos skip (`is_8x8_block_skip`), a configuração por 64x64 (`cdef_idx`) e correr o filtro após o decode do tile na probe; depois o caminho completo do `decodeRaster` AVIF
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (131ª) — 3bd: o núcleo do CDEF landado
+- **LANDADO:** `libs/image/Av1Cdef.kf`; `Av1CdefE2ETest` novo (JVM+Script) com o fixture `av1_cdef_cfl.bin`.
+- **PROVA:** direcções e variâncias exactas, luma copiada, U invariante, V == ffmpeg (12x16 inteiro).
+- **RED-FIRST:** marcador ausente -> `var` como parâmetro (palavra reservada) -> `import image.Av1Symbol` em falta -> verde.
+- **CAVEATS:** falta a integração no tile (skip list, cdef_idx por 64x64) e o `decodeRaster`; o núcleo está provado isolado pelo fixture.
 
 ## Sessão 18/10 (130ª) — 3bd: o ±1 do plano V é o CDEF (provado)
 - **MEDIDO:** `libdav1d` e `libaom` produzem YUV byte-idêntico no `avif_real_cfl32x24.avif` ⇒ a hipótese de 'arredondamento entre decodificadores' morre.
