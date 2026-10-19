@@ -89,7 +89,7 @@ main() {
     // sequence-header switch and the frame header's `cdef_bits` so the next
     // measurement knows whether the filter is even on for this fixture.
     println("CDEF ec=" + ec + " bits=" + h.cdefBits + " damp=" + h.cdefDamping
-        + " y=" + h.cdefYStrengths + " uv=" + h.cdefUvStrengths)
+        + " y=" + h.cdefYStrengths + " uv=" + h.cdefUvStrengths + " bq=" + h.baseQIdx)
     var modes = listOf<Int>()
     var levels = listOf<Int[]>()
     // The CHROMA transform blocks' decoded levels: the V plane's residual is where
@@ -244,7 +244,7 @@ main() {
             lvOut = lvOut + "tx" + li + ":"
             var q3 = 0
             while (q3 < lv.size && q3 < 10) {
-                lvOut = lvOut + lv[q3]
+                lvOut = lvOut + "[" + q3 + "]=" + lv[q3] + " "
                 q3 = q3 + 1
             }
             ln = ln + 1

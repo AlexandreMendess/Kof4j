@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 149ª PASSAGEM: CORREÇÃO — o segundo EOB de 11 vias do trace é válido (txsize_log2_minus4 limita TX_32X32 e TX_64X64 ao EOB de 1024); a suspeita do TX de chroma 64x64 é RETIRADA. ALVO medido: no stream 64x64 de valor 64 (`m_q64`, um bloco, um DC) o ffmpeg dá Y=71 plano / U=V=128 e o Kof dá Y=64 — erro de 7 no bloco mais simples possível.
-doing: §3bd — correção registada; alvo mínimo (Y 71 vs 64, um DC) para resolver a cadeia predição+desquantização+IDCT
-next: §3bd — imprimir predição/DC desquantizado/valor do bloco único do m_q64 e resolver qual termo dá 64 onde o encoder produziu 71
+last: 19/10 — 3bd 150ª PASSAGEM: os TRÊS NÚMEROS do bloco único isolam um NÍVEL errado — `m_q64` (um bloco 64x64, bq=80): predição 128 (certa), nível DC -442, reconstrução 64; a referência Y=71 ⇒ resíduo -57 ⇒ com a escala 512/dc_q e dc_q(80)=74 o nível do encoder é ~-394 — erro de 48 no nível. As tabelas de quantização 8-bit são EXACTAS contra o quant_common.c buscado (256 entradas, zero diffs). O primeiro símbolo errado está na caminhada dos níveis (coeff_base/coeff_base_eob/coeff_br), com o contexto/CDF do coeff_br como principal suspeito.
+doing: §3bd — nível DC isolado (442 vs ~394); próximo = caminhar os símbolos do nível e verificar os contextos do coeff_br
+next: §3bd — percorrer os símbolos do nível DC (base/br/eob-extra) com os seus contextos e comparar a magnitude com 394; suspeito = contexto/CDF do coeff_br
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (150ª) — 3bd: nível DC isolado
+- **NÚMEROS:** p=128, nível -442, r=64; referência Y=71 ⇒ nível ~-394.
+- **EXONERADO:** tabelas de quantização 8-bit exactas.
+- **ALVO:** coeff_base/br do DC; contexto do coeff_br suspeito.
 
 ## Sessão 18/10 (149ª) — 3bd: correção do EOB + alvo mínimo
 - **SHA:** `e9a59fec1` (push 0/0).
