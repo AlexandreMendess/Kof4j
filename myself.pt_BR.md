@@ -2,11 +2,17 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 152ª PASSAGEM: CAMINHO SKIP CORRIGIDO (§760) — um bloco `skip_txfm=1` não lê sintaxe de coeficientes (luma E chroma) e repõe os contextos de entropia (libaom `read_coeffs_tx_intra_block` guarda com `!skip_txfm` + `av1_reset_entropy_context`). PROVA RED-first em stream de encoder REAL `avif_enc_nopal_cu0_2tile192.avif` (xadrez 4x4, `-cpu-used 0`): o primeiro bloco skipped corria 34->528 (494 bits que o encoder nunca escreveu) e o tile lia 32 txbs/366 níveis; com a guarda 34->34 (ZERO bits) e 12 txbs/53 níveis; o tile não-skipped fica intacto (`b32/txb256/nz256`). A anomalia do tile 1 da 151ª era a PROBE a partilhar os arrays de contexto de entropia de chroma entre tiles (corrigido: são estado por tile). §761 catalogado: o caso skip do golden do tile-recon é NÃO-CONFORME (o oráculo chama `av1_read_coeffs_txb` directamente, sem a guarda) e fica EXCLUÍDO por nome até o oráculo ser reconstruído.
-doing: §760 — skip corrigido; próximo = o desync TX_16X64 (tile 0 do mesmo fixture) + reconstrução do oráculo skip-aware (§761)
-next: §760 — (1) TX_16X64: localizar o primeiro símbolo divergente no tile 0 do `avif_enc_nopal_cu0_2tile192.avif` (bloco 1, txSz=17) comparando com um crop standalone do seu payload; (2) §761: reconstruir o caso skip do oráculo com a guarda e regenerar o golden
+last: 19/10 — 153ª PASSAGEM: §760 TX_16X64 — REPRODUTOR MÍNIMO landado (`avif_enc_nopal_128x64_cu0.avif`, 128x64 xadrez 4x4 `-cpu-used 0`, 1 tile; falha com os mesmos 5 blocos e 704/7368 bits que o tile 0 do fixture 192x64) e maquinaria da caminhada AUDITADA LIMPA: 102 contextos base/eob repetem exactamente; `Default_Scan_16x32` da spec 512/512; tabelas EOB/`eobMultiSize`/partição == libaom; auditoria de CDFs de modo verde; inícios de payload provados (o tile 1 do ficheiro 192x64 descodifica exacto; shifts de 1/2 bytes não recuperam a referência). PARADOXO: a referência tem um XADREZ no primeiro bloco (não pode ser `skip=1`) mas o decode lê `skip=1` com a CDF auditada ⇒ a divergência está no primeiro par partição/skip, a montante da caminhada de coeficientes.
+doing: §760 — reprodutor mínimo + auditoria limpa; próximo = oráculo skip-aware (§761) e diff do trace DESDE O PRIMEIRO SÍMBOLO
+next: §760 — reconstruir o oráculo instrumentado skip-aware (sem `av1_read_coeffs_txb` para `skip_txfm`, com `av1_reset_entropy_context`) e comparar o seu trace de símbolos com o do Kof desde o primeiro símbolo (partição e skip do bloco 0); depois o desync do TX_16X64 propriamente dito
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (153ª) — §760 TX_16X64: reprodutor mínimo + auditoria limpa
+- **SHA:** a registar no commit desta passagem.
+- **REPRODUTOR:** `avif_enc_nopal_128x64_cu0.avif` + `AvifFullPlaneE2ETest#cu0SingleTileStreamRecordsTheTx16x64Divergence` (gravado, não correcto).
+- **AUDITORIA:** contextos 102/102, scan 512/512, EOB/partição == libaom, modo-CDF verde, payload certo.
+- **PARADOXO:** referência xadrez vs Kof plano no 1º bloco ⇒ o alvo é o primeiro par partição/skip; instrumento = oráculo §761.
 
 ## Sessão 19/10 (152ª) — §760 caminho skip corrigido + §761 catalogado
 - **SHA:** `53fa866e1` (push 0/0).

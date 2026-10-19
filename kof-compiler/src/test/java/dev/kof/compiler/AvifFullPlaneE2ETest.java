@@ -173,6 +173,40 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
                 () -> "the non-skipped tile must keep its exact decode: " + line);
     }
 
+    /**
+     * RECORDED, not asserted as correct ({@code known-bugs} §760): the SMALLEST
+     * self-contained reproducer of the TX_16X64 desync — 128x64, 4x4-pixel
+     * checkerboard 16/235, {@code -cpu-used 0}, ONE tile (its tile stream is
+     * byte-identical to the 192x64 fixture's tile 0, so it decodes identically
+     * and isolates the failure from the tile split). The walk reads 5 blocks —
+     * the first SB as {@code PARTITION_VERT_4} (four 16x64 strips) plus the
+     * second SB — and stops at 704 of 7368 bits; the reference decodes a
+     * checkerboard while Kof reconstructs a flat ~127.
+     *
+     * <p>Audit trail measured for the next slice: the failing transform block's
+     * 102 base/eob contexts replay EXACTLY against an independent computation
+     * from the decoded levels; the 16x64 effective scan equals the spec's
+     * {@code Default_Scan_16x32} entry for entry (512/512); the EOB group/offset
+     * tables match libaom's; the partition context tables and formulas are
+     * libaom-exact and the mode-CDF audit is green. The reference pixels imply
+     * the FIRST block cannot be {@code skip=1} while the decode says it is, so
+     * the divergence sits at or before the first block's skip symbol —
+     * upstream of the coefficient walk.
+     */
+    @Test
+    void cu0SingleTileStreamRecordsTheTx16x64Divergence() throws Exception {
+        var line = runFullPlaneProbe(
+                Path.of("src/test/resources", "avif_enc_nopal_128x64_cu0.avif")
+                        .toAbsolutePath());
+        assertTrue(line.contains("TILES n=1"), () -> "the stream must be 1 tile: " + line);
+        assertTrue(line.contains("blocks=5 covered=512 frame=512 overlap=0 "
+                        + "symBits=704 payloadBits=7368"),
+                () -> "the recorded TX_16X64 walk moved: " + line);
+        assertTrue(line.contains("MODESA n=5 (1,2,10,0) (0,17,0,0) (0,9,11,0) "
+                        + "(0,17,0,0) (0,3,6,-3)"),
+                () -> "the recorded mode records moved: " + line);
+    }
+
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */
     private static String planeRows(String tag, int offset, int w, int h, String reference)
             throws Exception {
