@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (148ª) — 3bd: trace do bloco + bytes
+- **SHA:** `630e90f12` (push 0/0).
 - **TRACEL:** 34 símbolos; EOB 11:0@22 (classe 0), paragem em 49-50.
 - **BYTES:** prefixo comum 03ce15df… nos dois tiles; tile 0 completo, tile 1 a meio.
 - **LEITURA:** a paragem não é dependente de valor no início; falta sintaxe depois (chroma).
