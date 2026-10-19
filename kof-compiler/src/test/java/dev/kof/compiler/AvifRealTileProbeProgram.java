@@ -137,9 +137,8 @@ main() {
         var t1c = t0c + tileSbW * 16
         if (t1c > miw) { t1c = miw }
         var tsym = sym
-        if (ti > 0) {
-            tsym = Av1Symbol(tiles.get(ti))
-        }
+        if (ti > 0) { tsym = Av1Symbol(tiles.get(ti)) }
+        tsym.enableTrace()
         // The per-block diagnostics are rebuilt per tile as well: they pair a
         // driver's own lists (positions, stages) with `modes`/`levels`, so a
         // SHARED pair across tiles would index one tile's list with another

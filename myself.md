@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 147ª PASSAGEM: o stream mínimo (`m_s64`, plano 64, sem paleta) LOCALIZA a falta do §760 num só bloco — tile 0 EXACTO (104/104), tile 1 (um bloco 64x64, payload 96 bits) para em 49: níveis começam -44,2, a transformada termina no bit 44 e ficam 47 bits por ler. A divisão/leitor de tiles, o primeiro tile e a sintaxe modo/tx estão sãos (`m_solid` consome 8/8 na mesma posição); o caminho eob/all_zero é o alvo.
-doing: §3bd — §760 localizado a um bloco; próximo = caminhada de coeficientes desse bloco (all_zero/eob_pt/posições)
-next: §3bd — imprimir all_zero/eob_pt/níveis do último bloco do m_s64 e comparar o EOB com os 47 bits não lidos
+last: 19/10 — 3bd 148ª PASSAGEM: o TRACE por símbolo do bloco falhante despejado (`TRACEL`, ligado no leitor de cada tile) — 34 símbolos idênticos no stream 64x64 de um SB e no último tile do m_s64; o alfabeto do EOB (1024, 11 símbolos) coincide com o libaom. VISTA BYTE: os dois tiles do m_s64 partilham o prefixo 03ce15df6270e6a34dfe23; o tile 0 é consumido por inteiro e o tile 1 para depois do mesmo prefixo com ~46 bits por ler ⇒ não é uma leitura errada no início do tile; o encoder escreveu sintaxe depois da nossa paragem (provavelmente chroma).
+doing: §3bd — trace e bytes do último tile registados; próximo = percorrer os bytes do tile 1 símbolo a símbolo (coeficientes de chroma)
+next: §3bd — caminhar os bytes do tile 1 contra a sintaxe a partir dos coeficientes de chroma; isolar o primeiro símbolo não lido
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (148ª) — 3bd: trace do bloco + bytes
+- **TRACEL:** 34 símbolos; EOB 11:0@22 (classe 0), paragem em 49-50.
+- **BYTES:** prefixo comum 03ce15df… nos dois tiles; tile 0 completo, tile 1 a meio.
+- **LEITURA:** a paragem não é dependente de valor no início; falta sintaxe depois (chroma).
 
 ## Sessão 18/10 (147ª) — 3bd: §760 localizado num bloco
 - **SHA:** `463741c41` (push 0/0).

@@ -17513,6 +17513,14 @@ tile 1 (SB2, um bloco 64x64, payload de 96 bits): pos 49
   registo de modo (skip,txSz,yMode,ângulo) = (0,4,0,0); níveis começam -44, 2; TX termina no bit 44; a caminhada para em 49
 ```
 Logo a divisão de tiles, os blocos do primeiro tile e a estrutura do quadro estão sãos; a caminhada de coeficientes do ÚLTIMO bloco termina (EOB) com 47 bits do payload por ler — o caminho `eob`/`all_zero` de um bloco com resíduo pequeno é o alvo. O `m_solid` (sem resíduo) consome 8/8 na mesma posição do tile 1, logo a sintaxe de modo/tx não é a falta.
+**QUARTA MEDIÇÃO 19/10 (148ª passagem) — o TRACE por símbolo do último tile e a vista BYTE A BYTE:** com o trace ligado no leitor de CADA tile (`TRACEL`), o stream 64x64 de um SB e o último tile do `m_s64` mostram os MESMOS 34 símbolos e param no bit 50/49:
+```
+partição 10:0@16, skip 2:0@16, y 13:0@17, uv 13:0@18, paleta 2:0@18,
+EOB (1024) 11:0@22 (classe 0 => EOB 1), 3:2@22, 4:3x4 @23..26, 19 x 2-way @27..45,
+11:0@47, 3:0@47, 2:0@49, 2:1@49   [para]
+```
+O alfabeto do EOB coincide com o libaom (`eob_multi_size` 6 => 11 símbolos). AO NÍVEL DOS BYTES: os dois tiles do `m_s64` partilham o prefixo `03 ce 15 df 62 70 e6 a3 4d fe 23`; o tile 0 (13 bytes) é consumido POR INTEIRO, o tile 1 (12 bytes) para depois desse mesmo prefixo com ~46 bits por ler. O encoder escreveu o prefixo de sintaxe idêntico nos dois tiles, logo a paragem precoce do decodificador não é uma leitura errada dependente de valor no início do tile.
+**Próximo passo:** percorrer os bytes do tile 1 símbolo a símbolo contra a sintaxe (o trace e os bytes estão agora ambos despejados), começando pela sintaxe dos coeficientes das planos de chroma depois do EOB da luma; o caminho da luma termina em 44 e os bytes restantes seguem-no.
 **Próximo passo:** imprimir a caminhada de coeficientes do último bloco no `m_s64` — o valor `all_zero`, o símbolo/classe `eob_pt`, as posições dos níveis — e comparar o EOB com os bits que o encoder deixou no tile de 96 bits.
 **Próximo passo:** partir do stream de resíduo plano (um coeficiente DC), imprimir a caminhada dos coeficientes (all_zero/eob/tx_type/posições dos níveis) e encontrar o símbolo que deixa o leitor aquém do payload.
 **Próximo passo:** encontrar o PRIMEIRO símbolo dessincronizado num stream sem paleta a partir das posições de estágio por tile (`TILESTATS`) e dos registos de modo por bloco (`MODESA`); o caminho dos coeficientes (`all_zero` / `eob` / `tx_type`) é o primeiro suspeito.

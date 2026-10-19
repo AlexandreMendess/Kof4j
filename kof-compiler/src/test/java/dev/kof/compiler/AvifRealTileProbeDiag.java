@@ -312,6 +312,16 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         mb = mb + 1
     }
     println("MODESA n=" + (allModes.size / 17) + ma)
+    // The LAST tile reader's per-symbol trace (n:symbol@bit): the coefficient
+    // walk of its blocks, which is where a palette-free stream stops short.
+    var sl2 = tile.reader.log()
+    var sl2line = ""
+    var li2 = 0
+    while (li2 + 2 < sl2.size) {
+        sl2line = sl2line + " " + sl2[li2] + ":" + sl2[li2 + 1] + "@" + sl2[li2 + 2]
+        li2 = li2 + 3
+    }
+    println("TRACEL n=" + (sl2.size / 3) + sl2line)
     var pos = tile.positions()
     var b2 = 0
     while (b2 < modes.size / 17) {

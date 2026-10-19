@@ -20039,6 +20039,14 @@ tile 1 (SB2, one 64x64 block, 96-bit payload): pos 49
   mode record (skip,txSz,yMode,angle) = (0,4,0,0); levels begin -44, 2; TX end at bit 44; walk stops at 49
 ```
 So the tile split, the first tile's blocks and the frame's structure are sound; the LAST block's coefficient walk ends (EOB) with 47 payload bits still unread — the `eob`/`all_zero` path for a block with a small residual is the target. `m_solid` (no residual) consumes 8/8 in the same tile-1 position, so the mode/tx syntax itself is not the shortfall.
+**FOURTH MEASUREMENT 19/10 (148th pass) — the last tile's per-symbol TRACE and the BYTE-LEVEL view:** with the trace enabled on EVERY tile's reader (`TRACEL`), the 64x64 single-SB stream and `m_s64`'s last tile show the SAME 34 symbols and stop at bit 50/49:
+```
+partition 10:0@16, skip 2:0@16, y 13:0@17, uv 13:0@18, palette 2:0@18,
+EOB (1024) 11:0@22 (class 0 => EOB 1), 3:2@22, 4:3x4 @23..26, 19 x 2-way @27..45,
+11:0@47, 3:0@47, 2:0@49, 2:1@49   [stop]
+```
+The EOB alphabet matches libaom (`eob_multi_size` 6 => 11 symbols). BYTE LEVEL: `m_s64`'s two tiles share the prefix `03 ce 15 df 62 70 e6 a3 4d fe 23`; tile 0 (13 bytes) is consumed IN FULL, tile 1 (12 bytes) stops after that same prefix with ~46 bits left. The encoder wrote the identical syntax prefix for both tiles, so the decoder's early stop is not a value-dependent misread at the start of the tile.
+**Next step:** walk the tile-1 bytes symbol by symbol against the syntax (the trace and the bytes are now both dumped), starting from the chroma planes' coefficient syntax after the luma EOB; the luma path ends at 44 and the remaining bytes follow it.
 **Next step:** print the last block's coefficient walk on `m_s64` — the `all_zero` value, the `eob_pt` symbol/class, the level positions — and compare the EOB against the bits the encoder left in the 96-bit tile.
 **Next step:** start from the flat-residual stream (one DC coefficient), print its coefficient walk (all_zero/eob/tx_type/levels positions) and find the symbol that stops the reader short of the payload.
 **Next step:** find the FIRST desynced symbol in a palette-free stream from the per-tile stage positions (`TILESTATS`) and the per-block mode records (`MODESA`); the coefficient path (`all_zero` / `eob` / `tx_type`) is the first suspect.
