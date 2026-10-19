@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (137ª) — 3bd: §754 reduzido ao estado de entropia
+- **SHA:** `f94decc96` (push 0/0).
 - **MEDIDO:** t0 = 2 blocos/16 TXB/0 níveis/[85,357,365,365]/370 de 560 bits; t1 = 1/0/352 de 352.
 - **LEITURA:** bloco 0 paleta 64x64 (272 bits exactos); corpo do bloco 1 = 8 bits; all_zero baratos.
 - **CAVEATS:** nenhuma mudança de comportamento; o fix exige o dump do contexto/CDF do all_zero.
