@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (143ª) — 3bd: §759 (tile size LITTLE-endian) corrigido
+- **SHA:** `44021467b` (push 0/0).
 - **CAUSA:** leitura big-endian de `tile_size_minus_1 le(TileSizeBytes)`.
 - **FIX:** acumulação LE em `AvifGroup.kf`; base de 1 byte inalterada.
 - **PROVA:** `sizes 2 1981 1005` no nopal; RED-first era `truncated avif tile group`.
