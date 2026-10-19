@@ -17497,5 +17497,15 @@ m_ll (lossless)   OFF      -      4977 / 14240
 m_crf40           OFF      -      3259 / 14928
 ```
 A PALETA é o único interruptor: todo o stream COM paleta consome o payload exactamente, todo o stream SEM paleta para nos ~30% seja qual for o CDEF, lossless ou qualidade. `covered=768 overlap=0` NÃO é prova de sincronia — um stream corrompido continua a tilar o quadro por construção (a armadilha documentada pela própria probe). Restoration e intrabc já estavam desligados nestes encodes (os interruptores produziram ficheiros byte-idênticos).
+**SEGUNDA MEDIÇÃO 19/10 (146ª passagem) — a dessincronização ESCALA com o conteúdo do resíduo:** encodes sem paleta do mesmo quadro 192x64:
+```
+conteúdo                        blocos  modo      symBits / payloadBits
+plano 128 (sem resíduo)         3       DC         24 / 24      EXACTO
+plano 64/200 (resíduo só DC)    4       DC/D67     153 / 200    ~23 bits a menos
+rampa horizontal (resíduo AC)   3       DC/H/DC    340 / 1512   ~77% a menos
+xadrez (resíduo denso)          77      misto      7283 / 23888 ~69% a menos
+```
+O caminho skip/all_zero está são (o stream plano consome exactamente); a falta cresce com o número de coeficientes não zero e o seu conteúdo AC. `m_s64`/`m_s200` têm tamanho e estrutura byte-idênticos mas diferem no modo do bloco do meio (DC vs D67) e no seu único nível DC — o corpus falhante mais pequeno (153/200) para o caminho dos coeficientes.
+**Próximo passo:** partir do stream de resíduo plano (um coeficiente DC), imprimir a caminhada dos coeficientes (all_zero/eob/tx_type/posições dos níveis) e encontrar o símbolo que deixa o leitor aquém do payload.
 **Próximo passo:** encontrar o PRIMEIRO símbolo dessincronizado num stream sem paleta a partir das posições de estágio por tile (`TILESTATS`) e dos registos de modo por bloco (`MODESA`); o caminho dos coeficientes (`all_zero` / `eob` / `tx_type`) é o primeiro suspeito.
 <!-- pt-switch --> **PT:** [§760](known-bugs.md#760--a-palette-free-libaom-stream-desyncs-in-the-residual-coded-path-only-~30-of-the-tile-payload-is-consumed-independent-of-cdef-lossless-and-quality)

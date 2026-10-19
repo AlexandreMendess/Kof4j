@@ -20023,5 +20023,15 @@ m_ll (lossless)   OFF      -      4977 / 14240
 m_crf40           OFF      -      3259 / 14928
 ```
 The PALETTE is the only switch: every palette-ON stream consumes its payload exactly, every palette-OFF stream stops at ~30% whatever CDEF, lossless or quality. `covered=768 overlap=0` is NOT sync evidence — a corrupted stream still tiles the frame by construction (the probe's own documented pitfall). Restoration and intrabc were already off in these encodes (their encoder switches produced byte-identical files).
+**SECOND MEASUREMENT 19/10 (146th pass) — the desync SCALES with residual content:** palette-off encodes of the same 192x64 frame:
+```
+content                         blocks  mode      symBits / payloadBits
+flat 128 (no residual)          3       DC         24 / 24      EXACT
+flat 64/200 (DC-only residual)  4       DC/D67     153 / 200    ~23 bits short
+horizontal ramp (AC residual)   3       DC/H/DC    340 / 1512   ~77% short
+checkerboard (dense residual)   77      mixed      7283 / 23888 ~69% short
+```
+The skip/all_zero path is sound (the flat stream consumes exactly); the shortfall grows with the number of nonzero coefficients and their AC content. `m_s64`/`m_s200` are byte-identical in size and structure but differ in the middle block's mode (DC vs D67) and its single DC level — the smallest failing corpus (153/200) for the coefficient path.
+**Next step:** start from the flat-residual stream (one DC coefficient), print its coefficient walk (all_zero/eob/tx_type/levels positions) and find the symbol that stops the reader short of the payload.
 **Next step:** find the FIRST desynced symbol in a palette-free stream from the per-tile stage positions (`TILESTATS`) and the per-block mode records (`MODESA`); the coefficient path (`all_zero` / `eob` / `tx_type`) is the first suspect.
 <!-- pt-switch --> **PT:** [§760 (pt_BR)](known-bugs.pt_BR.md#760--um-stream-libaom-sem-paleta-desincroniza-no-caminho-com-resíduo-só-~30-do-payload-é-consumido-independente-de-cdef-lossless-e-qualidade)

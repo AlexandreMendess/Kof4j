@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 145ª PASSAGEM: a MATRIZ DE FEATURES do §757 isola a PALETA como único interruptor — streams COM paleta consomem o payload exactamente (2376/2376, com CDEF on e off); streams SEM paleta param nos ~30% (7283/23888 com CDEF on/off, 4977/14240 lossless, 3259/14928 crf40). Restoration/intrabc já estavam off (interruptores byte-idênticos) e o CDEF muda bytes mas não o consumo. Catalogado `known-bugs` §760; a cobertura do frame NÃO é prova de sincronia.
-doing: §3bd — paleta isolada como interruptor; próximo = achar o primeiro símbolo dessincronizado no caminho sem paleta
-next: §3bd — achar o primeiro símbolo dessincronizado (TILESTATS/MODESA) no stream sem paleta; o caminho dos coeficientes (all_zero/eob/tx_type) é o primeiro suspeito
+last: 19/10 — 3bd 146ª PASSAGEM: a dessincronização sem paleta ESCALA com o resíduo — plano 24/24 (exacto), só DC 153/200, rampa direcional/AC 340/1512, xadrez denso 7283/23888 (todos 192x64, tiles 2x1). O caminho skip/all_zero está são; a falta cresce com os coeficientes não zero e o conteúdo AC. Menor corpus falhante: `m_s64`/`m_s200` (bloco do meio DC vs D67, um nível DC, 153/200).
+doing: §3bd — §760 refinado com a progressão; o caminho dos coeficientes é o único suspeito; próximo = caminhada do resíduo plano
+next: §3bd — imprimir a caminhada dos coeficientes (all_zero/eob/tx_type/posições) do stream de resíduo plano (um DC) e achar o símbolo que para aquém do payload
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (146ª) — 3bd: progressão do resíduo (§760)
+- **MEDIDO:** plano 24/24; só DC 153/200; rampa 340/1512; xadrez 7283/23888.
+- **SUSPEITO ÚNICO:** o caminho dos coeficientes; o skip/all_zero está são.
+- **MENOR CASO:** m_s64/m_s200 (um DC, 153/200).
 
 ## Sessão 18/10 (145ª) — 3bd: matriz de features, paleta isolada (§760)
 - **SHA:** `2d46be927` (push 0/0).
