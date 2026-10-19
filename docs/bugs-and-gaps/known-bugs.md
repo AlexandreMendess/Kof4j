@@ -19996,3 +19996,11 @@ JVM/Script/JS/native x86-64 print `6` (exit 0); riscv64 and aarch64 exit **139**
 
 **Next step:** trace the cross capture field load (the lambda object's captured `this` field vs the receiver register) with the §620 dump technique.
 <!-- pt-switch --> **PT:** [§758 (pt_BR)](known-bugs.pt_BR.md#758--uma-lambda-que-captura-o-this-da-classe-envolvente-ainda-faz-segfault-nos-nativos-cross-riscv64aarch64-enquanto-o-x86-64-roda---aberto-medido-1810-pela-lane-compiladorjvmnativo-19216815309092)
+
+## §759 — the `-enable-palette 0` libaom stream's TILE GROUP is refused as truncated (the tile-size table does not walk)
+**Status:** 🔴 OPEN — catalogued 19/10; blocks the palette-off variant of the §757 reproducer.
+
+**CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Measuring the §757 variants: a 192x64 checkerboard encoded with `-tiles 2x1 -enable-palette 0` (3300 bytes; the palette-on baseline is 610) parses its FRAME header but `avifItemTileGroups` throws `IMAGE: truncated avif tile group` (`tileGroupWalk`), so `readAvifTilePayloads` cannot split the two tiles. ffmpeg decodes the same file correctly. The palette-off payloads are ~1.6 KB per tile (vs ~300 B), so the per-tile SIZE table (or `tile_size_bytes`) is the first suspect.
+**Reproducer:** `ffmpeg -i check.ppm -c:v libaom-av1 -still-picture 1 -cpu-used 6 -crf 20 -tiles 2x1 -enable-palette 0 -y t_nopal.avif` (same 192x64 checkerboard as §757).
+**Next step:** print the frame header's `tileSizeBytes`/`tileBits` and the first tile-group bytes for both streams and compare with libaom's `read_tile_info`/tile-group size parsing.
+<!-- pt-switch --> **PT:** [§759 (pt_BR)](known-bugs.pt_BR.md#759--o-tile-group-do-stream-libaom-com--enable-palette-0-é-recusado-como-truncado-a-tabela-de-tamanhos-por-tile-não-percorre)

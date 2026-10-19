@@ -17470,3 +17470,11 @@ O stream traz film grain presente com apply_grain 0 (aceite desde a 140ª passag
 
 **Proximo passo:** rastrear o load do campo de captura no cross (o campo `this` capturado do objeto lambda vs o registo do receptor) com a tecnica de dump do §620.
 <!-- pt-switch --> **EN:** [§758 (en)](known-bugs.md#758--a-lambda-that-captures-its-enclosing-this-still-segfaults-on-the-cross-natives-riscv64aarch64-while-x86-64-runs-it---open-measured-1810-by-lane-compilerjvmnative-19216815309092)
+
+## §759 — o TILE GROUP do stream libaom com `-enable-palette 0` é recusado como truncado (a tabela de tamanhos por tile não percorre)
+**Estado:** 🔴 ABERTO — catalogado 19/10; bloqueia a variante sem paleta do reprodutor do §757.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Ao medir as variantes do §757: um xadrez 192x64 codificado com `-tiles 2x1 -enable-palette 0` (3300 bytes; a base com paleta é 610) parseia o cabeçalho de QUADRO mas o `avifItemTileGroups` lança `IMAGE: truncated avif tile group` (`tileGroupWalk`), logo o `readAvifTilePayloads` não consegue dividir os dois tiles. O ffmpeg decodifica o mesmo ficheiro correctamente. Os payloads sem paleta são ~1,6 KB por tile (vs ~300 B), logo a tabela de TAMANHOS por tile (ou `tile_size_bytes`) é o primeiro suspeito.
+**Reprodutor:** `ffmpeg -i check.ppm -c:v libaom-av1 -still-picture 1 -cpu-used 6 -crf 20 -tiles 2x1 -enable-palette 0 -y t_nopal.avif` (o mesmo xadrez 192x64 do §757).
+**Próximo passo:** imprimir o `tileSizeBytes`/`tileBits` do cabeçalho e os primeiros bytes do tile group dos dois streams e comparar com o `read_tile_info`/parsing de tamanhos do libaom.
+<!-- pt-switch --> **PT:** [§759](known-bugs.md#759--the--enable-palette-0-libaom-streams-tile-group-is-refused-as-truncated-the-tile-size-table-does-not-walk)

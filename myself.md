@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 141ª PASSAGEM: a exigência do DELIMITADOR TEMPORAL foi levantada (o TD do AV1 é opcional; um item ISOBMFF é auto-delimitado) — o item CRU de um encoder real (ffmpeg/libaom) decodifica de ponta a ponta: `TILES n=2`, `blocks=94 ... symBits=2376 payloadBits=2376`. O mesmo stream expôs uma divergência de planos CONTROLADA, catalogada `known-bugs` §757: Y 235 vs ffmpeg 218, U/V 238 vs o neutro 129, chroma em xadrez numa fonte cinzenta (com os símbolos a consumir o payload exactamente). Recodificar com variações de paleta/CFL/tiles é o próximo isolamento.
-doing: §3bd — TD opcional landado; reprodutor controlado a divergir (§757), a isolar por variações do encoder
-next: §3bd — recodificar `avif_enc_check192.avif` com `-enable-palette 0`, um só tile e lossless, comparar cada variante e isolar a chroma/CFL do §757
+last: 19/10 — 3bd 142ª PASSAGEM: o reprodutor do §757 VARIADO — a base `-tiles 2x1` é byte-idêntica ao fixture (610 bytes) e confirma a divergência (Y 235 vs 218, U 238 vs 129); encodes sem tiles põem apply_grain=1 (recusados correctamente); a variante `-enable-palette 0` (3300 bytes) parseia o cabeçalho mas a caminhada do tile group falha (`truncated avif tile group`) — catalogado §759 (tabela de tamanhos por tile com payloads ~1,6 KB).
+doing: §3bd — §757 confirmado na base tiled; §759 (tile group sem paleta) bloqueia a variante, próximo fix
+next: §3bd — corrigir §759 (comparar tileSizeBytes/tileBits e os bytes do grupo com o read_tile_info do libaom); depois isolar §757 paleta vs chroma/CFL
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (142ª) — 3bd: variantes do reprodutor (§757/§759)
+- **BASE:** `-tiles 2x1` byte-idêntica ao fixture; divergência confirmada.
+- **§759:** `-enable-palette 0` → `truncated avif tile group` (ffmpeg decodifica).
+- **SEM TILES:** apply_grain=1 (a guarda fiel recusa, correcto).
 
 ## Sessão 18/10 (141ª) — 3bd: TD opcional + reprodutor controlado (§757)
 - **SHA:** `1fdad2b00` (push 0/0).
