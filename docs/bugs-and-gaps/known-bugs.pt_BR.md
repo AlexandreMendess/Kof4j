@@ -17048,6 +17048,7 @@ S.replace("","-")      JVM/Script = [-a-X-b-X-c-]            JS = [-a-X-b-X-c]  
 **Por que CATALOGADO e não corrigido neste ciclo:** a face JS precisa de um helper de runtime (a forma da fatia `kofStr*` do §730); a face NATIVA precisa de split por caractere + inserção em toda posição no asm do runtime x86 (`RuntimeStringEdit`) — nenhuma é uma linha. Sem stub, nenhum teste assevera o valor errado, nenhuma asserção enfraquecida.
 
 **Reprodutor:** `Main.kf` no estilo de `tests/golden/` com as três linhas acima; `java -jar kof-cli/target/kof-cli-*.jar run --target script Main.kf` (oráculo) vs `build --target js` / `--target native`.
+**FIXADO PELO GOLDEN 18/10:** o `string-methods-extended` agora inclui as faces de PADRAO VAZIO — `"abc".split("")` → 3 (`a|c`), `"".split("")` → 1, `"aXbXc".replace("", "-")` → `-a-X-b-X-c-`, `"".replace("", "-")` → `-`, `"abc".replace("", "XY")` → `XYaXYbXYcXY` — medido primeiro no alvo Script, **4/4 PASS** (jvm/native/js/script).
 <!-- pt-switch --> **EN:** [§738 (en)](known-bugs.md#738--string-empty-pattern-divergence-on-native-x86-and-js)
 
 ## §739 — String.trim() diverge em silêncio no trim do host JS e nos backends nativos
@@ -17096,6 +17097,7 @@ char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
 **Desenho do fix (para o próximo ciclo; as peças já existem):** um helper ADITIVO novo `kof_string_split_str(str@rdi, sep@rsi, limit@edx)` que COMPÕE o `kof_string_index_of2` já existente (busca de substring, em code units) com o `kof_string_substring` (fatias em code units) — conta os casamentos não-sobrepostos avançando pelo comprimento do separador em CODE UNITS (contado inline, para não criar dependência de símbolo de outra fatia sob a poda de runtime), aloca o array, corta as fatias e mantém a poda §111 dos vazios à direita quando `limit <= 0`; o emissor roteia as duas sobrecargas para ele, passando o PONTEIRO do separador em vez do primeiro byte (o ramo do separador vazio continua indo para o `kof_string_split_chars` do §738). Atenção: no nativo o `index_of`/`substring` são em code units, então o avanço tem de ser em code units (um separador astral conta 2).
 
 **Nota de fronteira:** `String.split` devolve um ARRAY no Kof (`arr[i]`; não há `.get`, SEM028), então o fix tem de produzir a mesma forma de array de hoje.
+**FIXADO PELO GOLDEN 18/10:** o `string-methods-extended` agora inclui as faces de SEPARADOR MULTI-CHAR — `"aXXbXXc".split("XX")` → `3 a|b|c`, `.split("XX", 2)` → `2 a|bXXc`, e o caso de separadores adjacentes `"aXXXXb".split("XX")` → `3 [a][][b]` — medido no Script primeiro, **4/4 PASS** (jvm/native/js/script); corromper o golden faz 4/4 FAIL.
 <!-- pt-switch --> **EN:** [§740 (en)](known-bugs.md#740--stringsplit-with-a-multi-character-separator-silently-splits-on-its-first-byte-on-the-native-backends)
 
 ## §741 — String.equalsIgnoreCase diverge em silêncio nos backends nativos (fold só ASCII) e no JS (fold completo do host)
