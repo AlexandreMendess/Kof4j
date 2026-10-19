@@ -208,8 +208,36 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
     }
     var cw4 = (mw + 1) / 2
     var ch4 = (mh + 1) / 2
+    // The COMPLETE post-CDEF frame: luma (its own configuration), U and V (the
+    // UV configuration), each block resolved through the driver's maps.
+    var yf4 = av1CdefFilterPlaneBlocks(frame, stride, 1, 1, mw, mh, 0, bpY, bsk, cdefDamping, dirsC, lnbx, 0, 0, 0)
+    var uf4 = av1CdefFilterPlaneBlocks(chroma.u, chroma.strideU, 1, 1, cw4, ch4, 1, bpUv, bsk, cdefDamping, dirsC, lnbx, 1, 1, 0)
     var vf4 = av1CdefFilterPlaneBlocks(chroma.v, chroma.strideV, 1, 1, cw4, ch4, 1, bpUv, bsk, cdefDamping, dirsC, lnbx, 1, 1, 0)
     var rr4 = 0
+    while (rr4 < mh) {
+        var yl4 = ""
+        var cc4 = 0
+        while (cc4 < mw) {
+            yl4 = yl4 + " " + yf4[rr4 * mw + cc4]
+            cc4 = cc4 + 1
+        }
+        println("YROWF " + rr4 + yl4)
+        rr4 = rr4 + 1
+    }
+    // One plane at a time: the golden assertions compare each plane's rows as
+    // contiguous lines.
+    rr4 = 0
+    while (rr4 < ch4) {
+        var ul4 = ""
+        var cc4 = 0
+        while (cc4 < cw4) {
+            ul4 = ul4 + " " + uf4[rr4 * cw4 + cc4]
+            cc4 = cc4 + 1
+        }
+        println("UROWF " + rr4 + ul4)
+        rr4 = rr4 + 1
+    }
+    rr4 = 0
     while (rr4 < ch4) {
         var vl4 = ""
         var cc4 = 0

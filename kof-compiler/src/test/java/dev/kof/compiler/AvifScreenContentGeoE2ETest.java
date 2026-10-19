@@ -390,20 +390,30 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
         // the luma direction drives the taps. The V plane must become ffmpeg's
         // ENTIRE 12x16 plane (130,131,133,...,159), closing the pre-CDEF
         // `UV` record above without changing it.
-        assertTrue(line.contains(postCdefRows()),
+        // The COMPLETE post-CDEF frame, all three planes, through the tile path:
+        // the luma (strength 0 -> copied), the U (invariant) and the V (the
+        // filter's visible effect). The expected planes come from the SAME
+        // binary fixture that feeds the decoder: its luma/U are Kof's pre-CDEF
+        // planes (which libaom equals) and its last plane is ffmpeg's post-CDEF
+        // V (which libaom and libdav1d produce byte for byte).
+        assertTrue(line.contains(postCdefPlane("YROWF", 0, 32, 24)),
+                () -> "the post-CDEF luma moved: " + line);
+        assertTrue(line.contains(postCdefPlane("UROWF", 768, 16, 12)),
+                () -> "the post-CDEF U plane moved: " + line);
+        assertTrue(line.contains(postCdefPlane("VROWF", 1152, 16, 12)),
                 () -> "the post-CDEF V plane moved: " + line);
     }
 
-    /** ffmpeg's post-CDEF V plane (libaom == libdav1d): 12 constant rows. */
-    private static String postCdefRows() {
-        var values = new int[]{130, 131, 133, 136, 139, 143, 147, 150, 154, 156, 158, 159};
+    /** One post-CDEF plane's golden rows, read from the binary fixture. */
+    private static String postCdefPlane(String tag, int offset, int w, int h) throws Exception {
+        var bytes = Files.readAllBytes(Path.of("src/test/resources", "av1_cdef_cfl.bin"));
         var sb = new StringBuilder();
-        for (var r = 0; r < values.length; r++) {
-            sb.append("VROWF ").append(r);
-            for (var c = 0; c < 16; c++) {
-                sb.append(' ').append(values[r]);
+        for (var r = 0; r < h; r++) {
+            sb.append(tag).append(' ').append(r);
+            for (var c = 0; c < w; c++) {
+                sb.append(' ').append(bytes[offset + r * w + c] & 0xff);
             }
-            if (r + 1 < values.length) {
+            if (r + 1 < h) {
                 sb.append('\n');
             }
         }

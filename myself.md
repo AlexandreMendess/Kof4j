@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 132ª PASSAGEM: a INTEGRAÇÃO DO CDEF NO TILE LANDADA — o filtro corre sobre o estado REAL do driver (`skipMap()` por mi + `cdefMap()` por 64x64 + `miCols()`), o núcleo ganha `av1CdefSkip8`/`av1CdefCopyBlock`/`av1CdefFilterPlaneBlocks` (o `av1CdefFilterPlane` delega), e a probe resolve a configuração por unidade e o skip por bloco. PROVA: o teste do CFL assere `VROWF` = as 12 linhas pós-CDEF do ffmpeg (130..159) através dos mapas do driver; RED-first (linha ausente) e GREEN depois.
-doing: §3bd — integração do CDEF no tile landada e provada; falta levar luma/U pelo mesmo caminho, o loop filter e o decodeRaster AVIF
-next: §3bd — levar os planos luma/U pela integração CDEF, o loop filter, e o caminho `decodeRaster` AVIF ponta a ponta
+last: 19/10 — 3bd 133ª PASSAGEM: o QUADRO PÓS-CDEF COMPLETO fixado nos três planos — luma/U/V passam todos pela integração no tile (luma com a sua config, força 0 -> cópia; U/V com a UV), `YROWF` 32x24 + `UROWF`/`VROWF` 16x12 assertados contra o fixture binário (luma/U pré-CDEF que o libaom iguala + V pós-CDEF do ffmpeg). RED-first (U falhou nas linhas ausentes/intercaladas) e GREEN.
+doing: §3bd — quadro pós-CDEF completo provado; falta o loop filter e o decodeRaster AVIF
+next: §3bd — implementar o loop filter (o estágio in-loop restante) e depois a rota `decodeRaster` AVIF com o quadro pós-CDEF como entrada
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (133ª) — 3bd: quadro pós-CDEF completo
+- **LANDADO:** a diag filtra Y, U e V pelo caminho do tile e imprime as linhas contíguas `YROWF`/`UROWF`/`VROWF`.
+- **PROVA:** os três planos completos == ffmpeg (luma/U copiados/invariantes, V filtrado); RED-first e GREEN.
+- **CAVEATS:** o loop filter ainda não existe; fixtures com lf>0 e arestas internas precisam dele para o raster.
 
 ## Sessão 18/10 (132ª) — 3bd: integração do CDEF no tile
 - **LANDADO:** acessores `skipMap()`/`cdefMap()`/`miCols()` no driver; `av1CdefSkip8`, `av1CdefCopyBlock`, `av1CdefFilterPlaneBlocks`; a diag resolve a config por 64x64 e o skip por 8x8.
