@@ -17352,3 +17352,21 @@ A guarda do Kof era `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(b
 
 **Prova (RED-first, no fixture que o isola):** o mapa de índices passa de `1,1,1,1,1,1,1,1` para `0,0,0,0,1,1,1,1` — o padrão de faixas da referência — a pintura lê `16 16` onde lia `235 235`, e os blocos de transformada do bloco de paleta alternam `p=16/r=16` e `p=235/r=235`. Impacto medido, SEM regressão: o quadro testsrc 64x64 vai de 1257 para 1779 bits consumidos de 2344 (54% -> 76%), o quadro 32x32 bate 4 dos seus 6 pixels amostrados (era 1), e `avif_real_cb8.avif`, `avif_real_cb16.avif` e `avif_real_pskip.avif` ficam INALTERADOS e ainda exatos. Suítes: `AvifScreenContentGeoE2ETest` 4/4, `AvifRealFileE2ETest` 11/11.
 <!-- pt-switch --> **EN:** [§752 (en)](known-bugs.md#752--the-filter-intra-guard-was-missing-libaoms-palette-term)
+
+## §753 — o decode AVIF de um quadro NÃO ALINHADO 20x20 erra para além das suas linhas de topo (luma a partir da linha 6, toda a chroma)
+**Estado:** 🔴 ABERTO — catalogado 19/10; a COLOCAÇÃO dos blocos que transbordam o superbloco parcial é o suspeito.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado pela comparação de PLANO INTEIRO da 134ª passagem de `avif_real_ua20.avif` (20x20, um superbloco 64x64 com blocos que transbordam) contra o YUV 4:2:0 decodificado pelo ffmpeg (libdav1d == libaom byte a byte). O `unalignedFrameDecodesToReferenceOnJvm` existente amostra apenas as linhas 0 e 2 do PATCH — que coincidem — logo o defeito era invisível para ele.
+
+**Medido, nos planos PRÉ-CDEF do próprio Kof (as linhas `YROW`/`UROW`/`VROW` da probe):**
+```
+luma linhas 0-5, colunas 0-14: EXACTO
+luma linha 6, primeira divergência em (15,6): Kof `...16 235 16 16 235 235` vs ffmpeg `...16 16 235 235 16 16`
+luma linhas 8-9, primeira divergência na coluna 12; as linhas 10+ alargam mais
+luma 14/20 linhas diferem (linhas 6-19)
+chroma 10x10: TODAS as linhas diferem; U(0,0)=235 onde o ffmpeg tem 16, e o padrão não é um deslocamento
+```
+**Não é o CDEF:** a divergência está presente ANTES do filtro (as forças CDEF do quadro são irrelevantes para ela).
+**Suspeito:** a colocação dos blocos que transbordam (a posição do mode-info/transformada na borda direita/inferior do superbloco parcial) — a mesma classe de overhang que §751/§752 corrigiram para os CONTEXTOS, mas aqui nas POSIÇÕES dos blocos.
+**Próximo passo:** correr os dumps por bloco da probe (`PART`, `B`, `PREDBLK`) no ua20 e comparar o bloco cuja origem cruza x=16 / y=16 com a caminhada de partição.
+<!-- pt-switch --> **PT:** [§753](known-bugs.md#753--the-avif-tile-decode-mis-decodes-the-unaligned-20x20-frame-beyond-its-top-rows-luma-from-row-6-the-whole-chroma)

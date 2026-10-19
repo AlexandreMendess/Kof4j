@@ -19865,3 +19865,21 @@ Kof's guard was `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <
 
 **Proof (RED-first, in the fixture that isolates it):** the index map goes from `1,1,1,1,1,1,1,1` to `0,0,0,0,1,1,1,1` — the reference's stripe pattern — the paint reads `16 16` where it read `235 235`, and the palette block's transform blocks alternate `p=16/r=16` and `p=235/r=235`. Measured impact, with NO regression: the 64x64 testsrc frame goes from 1257 to 1779 consumed bits of 2344 (54% -> 76%), the 32x32 frame matches 4 of its 6 sampled pixels (was 1), and `avif_real_cb8.avif`, `avif_real_cb16.avif` and `avif_real_pskip.avif` are UNCHANGED and still exact. Suites: `AvifScreenContentGeoE2ETest` 4/4, `AvifRealFileE2ETest` 11/11.
 <!-- pt-switch --> **PT:** [§752 (pt_BR)](known-bugs.pt_BR.md#752--a-guarda-do-filter-intra-faltava-o-termo-da-paleta-do-libaom)
+
+## §753 — the AVIF tile decode mis-decodes the UNALIGNED 20x20 frame beyond its top rows (luma from row 6, the whole chroma)
+**Status:** 🔴 OPEN — catalogued 19/10; the overhanging/partial-superblock block PLACEMENT is the suspect.
+
+**CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by the 134th pass's FULL-PLANE comparison of `avif_real_ua20.avif` (20x20, one 64x64 superblock with overhanging blocks) against ffmpeg's decoded YUV 4:2:0 (libdav1d == libaom byte for byte). The existing `unalignedFrameDecodesToReferenceOnJvm` samples only PATCH rows 0 and 2 — which match — so the defect was invisible to it.
+
+**Measured, Kof's own PRE-CDEF planes (the probe's `YROW`/`UROW`/`VROW`):**
+```
+luma rows 0-5, columns 0-14: EXACT
+luma row 6, first divergence at (15,6): Kof `...16 235 16 16 235 235` vs ffmpeg `...16 16 235 235 16 16`
+luma rows 8-9, first divergence at column 12; rows 10+ widen further
+luma 14/20 rows differ (rows 6-19)
+chroma 10x10: ALL rows differ; U(0,0)=235 where ffmpeg has 16, and the pattern is not a shift
+```
+**Not CDEF:** the divergence is present BEFORE the filter (the frame's CDEF strengths are irrelevant to it).
+**Suspect:** the overhanging-block placement (the mode-info/transform position at the right/bottom edge of the partial superblock) — the same overhang class §751/§752 fixed for the CONTEXTS, but here on the block POSITIONS.
+**Next step:** run the probe's per-block dumps (`PART`, `B`, `PREDBLK`) on ua20 and price the block whose origin crosses x=16 / y=16 against the partition walk.
+<!-- pt-switch --> **PT:** [§753 (pt_BR)](known-bugs.pt_BR.md#753--o-decode-avif-de-um-quadro-nao-alinhado-20x20-erra-para-alem-das-suas-linhas-de-topo-luma-a-partir-da-linha-6-toda-a-chroma)

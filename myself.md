@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 133ª PASSAGEM: o QUADRO PÓS-CDEF COMPLETO fixado nos três planos — luma/U/V passam todos pela integração no tile (luma com a sua config, força 0 -> cópia; U/V com a UV), `YROWF` 32x24 + `UROWF`/`VROWF` 16x12 assertados contra o fixture binário (luma/U pré-CDEF que o libaom iguala + V pós-CDEF do ffmpeg). RED-first (U falhou nas linhas ausentes/intercaladas) e GREEN.
-doing: §3bd — quadro pós-CDEF completo provado; falta o loop filter e o decodeRaster AVIF
-next: §3bd — implementar o loop filter (o estágio in-loop restante) e depois a rota `decodeRaster` AVIF com o quadro pós-CDEF como entrada
+last: 19/10 — 3bd 134ª PASSAGEM: conformidade de PLANO INTEIRO do quadro multi-tile fixada — `AvifFullPlaneE2ETest` assere Y 128x128 + U/V 64x64 de `avif_real_mt128.avif` (2x2 tiles) contra o YUV do ffmpeg (libdav1d == libaom), 24.576 amostras byte-exactas. O MESMO instrumento expôs um bug real: o quadro não alinhado `avif_real_ua20.avif` está mal decodificado PRÉ-CDEF (luma da linha 6 em diante, 14/20 linhas; toda a chroma errada, U(0,0)=235 vs 16) — catalogado `known-bugs` §753 ABERTO; o teste amostrado só via as linhas 0/2.
+doing: §3bd — plano inteiro multi-tile provado; §753 (overhang do quadro não alinhado) é o próximo bug a corrigir
+next: §3bd — corrigir §753 a partir dos dumps por bloco (o bloco cuja origem cruza x=16/y=16); depois o loop filter e o `decodeRaster`
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (134ª) — 3bd: plano inteiro multi-tile + §753
+- **PIN:** `AvifFullPlaneE2ETest` (novo) com `avif_ref_mt128.yuv`; 24.576 amostras exactas.
+- **ACHADO:** `avif_real_ua20.avif` divergente pré-CDEF (luma linha 6+, chroma toda) ⇒ `known-bugs` §753 OPEN.
+- **CAVEATS:** o teste geo amostrado continua verde (só vê as linhas 0/2); o §753 é o próximo.
 
 ## Sessão 18/10 (133ª) — 3bd: quadro pós-CDEF completo
 - **LANDADO:** a diag filtra Y, U e V pelo caminho do tile e imprime as linhas contíguas `YROWF`/`UROWF`/`VROWF`.
