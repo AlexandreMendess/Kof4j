@@ -17301,6 +17301,7 @@ println(Dir.valueOf("S")) JVM/JS/native = S   Script = Dir@6b832551 ✗
 **Fix (precise marker, additive):** `kofToString` now returns `kofName` when the object's class carries that field (a normal class has no such field, so nothing else changes); the record shape and the identity fallback stay untouched. Measured after: the Script prints `N`/`S`, and `name()`/`ordinal()`/`values()`/`==`/Map-with-enum-keys are unchanged.
 
 **Proof RED-first:** with the fix reverted ONLY `scriptEnumToStringMatchesTheJvm` fails; `ScriptEnumAsStringE2ETest` 4/4 afterwards (JVM/Script/JS/native x86).
+**FIXADO PELO GOLDEN 18/10:** o caso de equivalencia `enum` agora imprime valores NAKED e um concat — `println(c)` → `RED`, `println(Color.BLUE)` → `BLUE`, `"e=" + Color.GREEN` → `e=GREEN` — medido primeiro no alvo Script e **4/4 PASS** (jvm/native/js/script); corromper o golden faz 4/4 FAIL. Nenhum caso golden imprimia um enum naked antes, portanto o vazamento `Enum@hash` do Script nao tinha guarda de conformidade.
 <!-- pt-switch --> **EN:** [§749 (en)](known-bugs.md#749--the-script-interpreter-leaked-enumhash-where-every-other-target-prints-the-constant-name)
 
 ## §750 — Enum.valueOf(String) faz SEGFAULT nos nativos riscv64/aarch64 (o x86 devolve a constante certa)
