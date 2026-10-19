@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (135ª) — 3bd: §753 corrigido
+- **SHA:** `2a9561500` (push 0/0).
 - **CAUSA:** clamp do mapa de paleta ao quadro em pixels em vez da grelha mi alinhada.
 - **FIX:** codificado = alinhado, pintura = visível; `Av1DecodeTileRecon.kf`.
 - **PROVA:** full-plane ua20 (600 amostras) RED->GREEN; regressão 24/24.
