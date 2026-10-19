@@ -307,7 +307,8 @@ main() {
     while (st3 < steps.size) {
         var s3 = steps.get(st3)
         if (s3[0] == 1) {
-            if (found == 0 && pi2[fi2 * 2] > 0) {
+            // pi2 = the LAST tile's info; steps spans the frame: bound the index.
+            if (found == 0 && fi2 * 2 + 1 < pi2.size && pi2[fi2 * 2] > 0) {
                 fline = fline + "pal(r" + s3[1] + ",c" + s3[2] + ",bs" + s3[3] + ",n" + pi2[fi2 * 2] + ")"
                 var k3 = 0
                 while (k3 < pi2[fi2 * 2]) {

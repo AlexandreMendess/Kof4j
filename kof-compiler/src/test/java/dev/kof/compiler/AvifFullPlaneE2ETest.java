@@ -86,6 +86,23 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
                 () -> "the raw item decode lost its entropy sync: " + line);
     }
 
+    /**
+     * The palette-FREE stream walks the WHOLE probe without crashing: its two
+     * tiles split (known-bugs §759) and the diagnostic tail must index the
+     * LAST tile's palette info with the per-tile block counter, not the
+     * frame-wide one. Before the 144th pass this run threw
+     * {@code Index 34 out of bounds for length 34}. The decode itself DIVERGES
+     * (the §757 family: 7283 of 23888 payload bits consumed) and is recorded,
+     * not asserted.
+     */
+    @Test
+    void encodedPaletteFreeStreamWalksWithoutCrashing() throws Exception {
+        var line = runFullPlaneProbe(
+                Path.of("src/test/resources", "avif_enc_nopal192.avif").toAbsolutePath());
+        assertTrue(line.contains("TILES n=2"), () -> "the stream must be 2 tiles: " + line);
+        assertTrue(line.contains("blocks="), () -> "the walk must reach its summary: " + line);
+    }
+
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */
     private static String planeRows(String tag, int offset, int w, int h, String reference)
             throws Exception {

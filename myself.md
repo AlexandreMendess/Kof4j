@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 143ª PASSAGEM: `known-bugs` §759 CORRIGIDO — o tamanho por tile do tile group é LITTLE-endian (`le(TileSizeBytes)`); a caminhada acumulava big-endian (invisível nos campos de 1 byte da base com paleta, fatal nos 2 bytes do stream sem paleta: `BC 07` lido como 48135). FIX em `AvifGroup.kf` (acumulação LE). PROVA RED-first: `AvifEncodedFilmGrainE2ETest#encodedPaletteFreeStreamSplitsItsTiles` com o novo fixture `avif_enc_nopal192.avif` (3300 bytes) ⇒ `sizes 2 1981 1005`; antes lançava `truncated avif tile group`. Fila aberta 15→14.
-doing: §3bd — §759 corrigido; falta guardar a cauda DIAGNÓSTICA que rebenta na probe do stream sem paleta e depois isolar §757
-next: §3bd — guardar o índice da cauda de diagnóstico (ArrayList.get) na probe do nopal, correr o plano inteiro dessa variante e isolar a paleta vs chroma/CFL do §757
+last: 19/10 — 3bd 144ª PASSAGEM: o crash DIAGNÓSTICO do stream sem paleta corrigido (o laço PALBLK indexava o `palInfos` do ÚLTIMO tile, 34 entradas, com o contador do quadro inteiro ⇒ `pi2[34]`; guarda por tile + guarda do índice da config CDEF). A caminhada completa mede agora o decode SEM paleta: `blocks=77 ... symBits=7283 payloadBits=23888` (69% a menos) e forças CDEF 46/46 vs 0/0 da base — o caminho não-paleta desincroniza grosseiramente (família §757); a diferença de forças CDEF é o novo discriminador.
+doing: §3bd — guardas de diagnóstico landadas; o decode sem paleta desincroniza (7283/23888); próximo = isolar a feature com encodes CDEF off/on
+next: §3bd — codificar o mesmo xadrez com CDEF off/on e outras features (CFL, tx) para isolar a dessincronização do caminho sem paleta e a divergência do §757
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (144ª) — 3bd: guardas do nopal + medição
+- **FIX:** limite por tile do `palInfos` + índice da config CDEF.
+- **MEDIDO:** `blocks=77 ... symBits=7283 payloadBits=23888`; CDEF 46/46 vs 0/0 da base.
+- **PRÓXIMO:** isolar a dessincronização sem paleta com encodes CDEF off/on.
 
 ## Sessão 18/10 (143ª) — 3bd: §759 (tile size LITTLE-endian) corrigido
 - **SHA:** `44021467b` (push 0/0).

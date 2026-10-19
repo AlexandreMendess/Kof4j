@@ -243,7 +243,10 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
             var unitR = ((byc * 2) / 16) * 16
             var unitC = ((bxc * 2) / 16) * 16
             var idx = cdefsC[unitR * miWc + unitC]
-            if (idx < 0) {
+            // An index outside the frame header's configuration list cannot
+            // select a strength: copy the block (and stay in bounds — the
+            // palette-free stream exposed an index past the list).
+            if (idx < 0 || idx >= cdefY.size) {
                 bsk[gi] = 1
             } else {
                 if (av1CdefSkip8(skipsC, miWc, byc * 2, bxc * 2)) {
