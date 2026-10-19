@@ -19586,6 +19586,7 @@ char                 JVM/Script   JS    NATIVE (x86/riscv/arm)
 **Proof RED-first:** with the fix reverted 4 of the 6 faces fail (js, x86, riscv64, aarch64) while JVM/Script pass; `StringTrimContractE2ETest` 6/6 afterwards (JVM/Script/JS/x86 native + riscv64/aarch64 under qemu, the same golden).
 
 **Related (measured, NOT a bug):** `Map.keys()` iteration order differs across targets (JVM/Script vs JS/native insertion order) — `docs/language-reference/semantics.md` §"hash/order of `Map.keys`/`Set`" declares it **Unspecified**, so this is within the documented contract and must NOT be "fixed" without a maintainer decision (frozen `List/Map/Set` semantics).
+**PINNED BY GOLDEN 18/10:** `strings-methods` now pins the BOUNDARY — `"\u00a0x\u00a0".trim().length` → 3 (NBSP is NOT stripped; only chars <= 32) and `"  x  ".trim().length` → 1 — measured on the Script target first and **4/4 PASS** (jvm/native/js/script); corrupting the expected makes 4/4 FAIL.
 <!-- pt-switch --> **PT:** [§739 (pt_BR)](known-bugs.pt_BR.md#739--stringtrim-diverge-em-silencio-no-trim-do-host-js-e-nos-backends-nativos)
 
 ## §740 — String.split with a MULTI-character separator silently splits on its FIRST byte on the native backends
@@ -19634,6 +19635,7 @@ pair                          JVM/Script   NATIVE (x86/riscv/arm)   JS
 **Fix (ADDITIVE on the JS side, a strict reuse-plus-simplification on the native side):** the native helpers now COMPOSE the Unicode per-code-unit fold that `D-STR-UNICODE` had already corrected (`kof_string_to_upper` / `kof_string_to_lower`) with `kof_string_equals` — comparing `upper(a)==upper(b)` OR `lower(a)==lower(b)`, which is exactly the JVM's char-wise rule; the JS branch calls the new `kofStrEqIgnoreCase` helper (`strbounds` slice), whose `kofStrSimpleFold` implements the SIMPLE 1:1 mapping per code unit (an expansion that is a base + combining marks uses the base — the I-dot case; any other expansion keeps the original — the eszett case).
 
 **Proof RED-first:** with the fix reverted FOUR of the six faces fail (js, native x86, riscv64, aarch64) while JVM/Script pass; `StringEqualsIgnoreCaseUnicodeE2ETest` 6/6 afterwards over the nine measured pairs on all six targets.
+**PINNED BY GOLDEN 18/10:** `strings-methods` now pins the FOLD — `"CAFÉ".equalsIgnoreCase("café")` → true, `"straße".equalsIgnoreCase("STRASSE")` → false (simple 1:1, no expansion), `"Σ".equalsIgnoreCase("σ")` → true and `"Σ".equalsIgnoreCase("ς")` → true (final sigma folds to the same uppercase) — measured on Script first and **4/4 PASS** (jvm/native/js/script).
 <!-- pt-switch --> **PT:** [§741 (pt_BR)](known-bugs.pt_BR.md#741--stringequalsignorecase-diverge-em-silencio-nos-backends-nativos-fold-so-ascii-e-no-js-fold-completo-do-host)
 
 ## §742 — String.split diverges on separators with REGEX metacharacters (the JVM/Script oracle is regex, JS/native are literal)
