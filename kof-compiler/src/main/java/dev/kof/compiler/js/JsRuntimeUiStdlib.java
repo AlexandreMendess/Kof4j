@@ -99,17 +99,19 @@ final class JsRuntimeUiStdlib {
             }
             export function kofStringsPadLeft(v, n, pad) {
                 if (v == null) return v;
-                if (pad == null || pad.length === 0 || v.length >= n) return v;
-                const p = pad.charAt(0);
-                while (v.length < n) v = p + v;
-                return v;
+                if (pad == null || pad.length === 0) return v;
+                const vc = Array.from(v).length;
+                if (vc >= n) return v;
+                const p = String.fromCodePoint(pad.codePointAt(0));
+                return p.repeat(n - vc) + v;
             }
             export function kofStringsPadRight(v, n, pad) {
                 if (v == null) return v;
-                if (pad == null || pad.length === 0 || v.length >= n) return v;
-                const p = pad.charAt(0);
-                while (v.length < n) v = v + p;
-                return v;
+                if (pad == null || pad.length === 0) return v;
+                const vc = Array.from(v).length;
+                if (vc >= n) return v;
+                const p = String.fromCodePoint(pad.codePointAt(0));
+                return v + p.repeat(n - vc);
             }
             function kofStringsJoinWords(v, mode) {
                 if (v == null) return v;

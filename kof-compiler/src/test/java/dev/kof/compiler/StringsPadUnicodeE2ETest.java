@@ -32,13 +32,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * padLeft("7",5,"ab")} = {@code aaaa7}), an empty pad or {@code n <= len(s)}
  * returns the string unchanged.
  *
- * <p>Fix: both helpers (`RuntimeStringsConv` x86, `NativeRiscvAsmRtB9` riscv;
- * aarch64 inherits through the translator) now measure the victim in CODE
- * POINTS, take the pad char's 1-4 UTF-8 bytes from its lead byte, and set the
- * result's BYTE length to {@code vBytes + pads*padBytes}. ADDITIVE: the ASCII
- * outputs are byte-identical to before.
+ * <p>NON-BMP FACE (found 18/10 while authoring the equivalence case): a pad
+ * CHARACTER is a CODE POINT, not a UTF-16 code unit. Native already did this
+ * (§747 fix); JVM/Script/JS used {@code charAt(0)}/`length`, so an emoji pad
+ * printed {@code ??} on those three where native printed the emoji, and a
+ * non-BMP VICTIM was counted as two characters. Fixed in
+ * {@code JvmStringMathRuntime} (JVM + Script) and {@code JsRuntimeUiStdlib}
+ * (JS) with {@code codePointCount}/{@code codePointAt} — the native path is
+ * unchanged.
  *
- * <p>Oracle is the JVM (≡ Script ≡ JS, all measured).
+ * <p>Oracle is the CODE-POINT contract, first measured on the native path
+ * (which already implemented it); the other three targets were brought to it.
  */
 class StringsPadUnicodeE2ETest {
 
@@ -58,6 +62,9 @@ class StringsPadUnicodeE2ETest {
                 println(strings.padLeft("7", 2, "xyz"))
                 println(strings.padRight("caf\\u00e9", 6, '-'))
                 println(strings.padLeft("7", 3, '\\u20ac'))
+                println(strings.padLeft("ab", 4, "\uD83D\uDE00"))
+                println(strings.padRight("ab", 4, "\uD83D\uDE00"))
+                println(strings.padRight("\uD83D\uDE00", 3, "-"))
             }
             """;
 
@@ -70,7 +77,10 @@ class StringsPadUnicodeE2ETest {
             "7",
             "x7",
             "caf\u00e9--",
-            "\u20ac\u20ac7");
+            "\u20ac\u20ac7",
+            "\uD83D\uDE00\uD83D\uDE00ab",
+            "ab\uD83D\uDE00\uD83D\uDE00",
+            "\uD83D\uDE00--");
 
     @Test
     void jvmIsTheContractForStringsPad() throws Exception {
