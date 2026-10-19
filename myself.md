@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (146ª) — 3bd: progressão do resíduo (§760)
+- **SHA:** `3724c7f1a` (push 0/0).
 - **MEDIDO:** plano 24/24; só DC 153/200; rampa 340/1512; xadrez 7283/23888.
 - **SUSPEITO ÚNICO:** o caminho dos coeficientes; o skip/all_zero está são.
 - **MENOR CASO:** m_s64/m_s200 (um DC, 153/200).
