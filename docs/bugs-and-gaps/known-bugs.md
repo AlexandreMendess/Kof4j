@@ -19791,6 +19791,7 @@ math.abs(minInt())   JVM/Script/x86 = -2147483648 ✓   JS = 2147483648 ✗   ri
 **Proof RED-first:** with the JS helper reverted ONLY `jsAbsOverflowMatchesTheJvm` fails; the cross face was caught by the six-face test itself (my earlier probe had only built the x86 native, where `negl` was already correct — the lesson being that a one-target probe can hide a cross face). `MathAbsIntOverflowE2ETest` 6/6 afterwards. The value is derived at RUNTIME (a small function) so constant folding cannot mask it.
 
 **Related (measured, NOT bugs):** the rest of the probed math surface agrees on the JVM/Script/x86/JS — `roundTo` half-away-from-zero (`roundTo(-2.5,0)` = -3, `roundTo(0.5,0)` = 1), the binary-float artifact `roundTo(1.005,2)` = 1.0, `sqrt(-1)` = NaN, `pow`/`percentage`/`lerp`/`toDegrees(pi)` — and `math.toDegrees`/`toRadians` are refused on the native targets with an HONEST `MATH001`.
+**PINNED BY GOLDEN 18/10:** the official equivalence case `math-namespace` now includes `math.abs(0 - 2147483647 - 1)` → `-2147483648`, measured on the Script target first and **4/4 PASS** (jvm/native/js/script); corrupting that expected line makes 4/4 FAIL. The JS `|0` fix is therefore guarded by the conformance suite, not only by `MathAbsIntOverflowE2ETest`.
 <!-- pt-switch --> **PT:** [§748 (pt_BR)](known-bugs.pt_BR.md#748--mathabsintmin_value-divergia-no-js-e-nos-nativos-cross-sem-estouro-de-32-bits-jvm-e-x86-voltam-a-min_value)
 
 ## §749 — the Script interpreter leaked Enum@hash where every other target prints the constant NAME
@@ -19922,7 +19923,7 @@ tall (64x256): luma from x=48 (236,237,238 vs 16); all 256 rows affected
 ```
 **Not CDEF**, and not the palette extent (these are residual-coded blocks). The first divergences sit exactly at the frames' block/transform boundaries (row 16 / x=48): the overhanging bottom/right blocks' PREDICTION or RESIDUAL placement.
 **Next step:** the probe's per-block records (`MODESA`, `STAGES`, `BLKY`) on sq1 (the simplest 32x32), starting with the block whose origin crosses y=16.
-<!-- pt-switch --> **PT:** [§755 (pt_BR)](known-bugs.pt_BR.md#755--o-decode-dos-blocos-que-transbordam-em-baixoà-direita-ainda-diverge-para-alem-das-linhas-amostradas-oh24-oh40-sq1-tall-o-fix-753-cobriu-so-paletas)
+<!-- pt-switch --> **PT:** [§755 (pt_BR)](known-bugs.pt_BR.md#755--o-decode-dos-blocos-que-transbordam-em-baixoa-direita-ainda-diverge-oh24-oh40-sq1-tall-o-fix-753-cobriu-so-paletas)
 
 ## §756 — the LOSSLESS 32x32 fixture diverges in its bottom half (ll, from row 16 at x=4)
 **Status:** 🔴 OPEN — catalogued 19/10.

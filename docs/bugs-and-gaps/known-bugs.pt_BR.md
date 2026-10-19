@@ -17278,6 +17278,7 @@ math.abs(minInt())   JVM/Script/x86 = -2147483648 ✓   JS = 2147483648 ✗   ri
 **Prova RED-first:** com o helper JS revertido SO `jsAbsOverflowMatchesTheJvm` falha; a face cross foi apanhada pelo proprio teste de seis faces (a minha sonda anterior so construia o nativo x86, onde o `negl` ja estava certo — a licao e que uma sonda de um alvo pode esconder uma face cross). `MathAbsIntOverflowE2ETest` 6/6 depois. O valor e derivado em RUNTIME (uma funcao pequena) para o constant folding nao o mascarar.
 
 **Relacionado (medido, NAO e bug):** o resto da superficie math sondada concorda entre JVM/Script/x86/JS — `roundTo` half-away-from-zero, o artefacto de binario `roundTo(1.005,2)` = 1.0, `sqrt(-1)` = NaN, `pow`/`percentage`/`lerp`/`toDegrees(pi)` — e `math.toDegrees`/`toRadians` sao recusados nos nativos com um `MATH001` HONESTO.
+**FIXADO PELO GOLDEN 18/10:** o caso oficial de equivalencia `math-namespace` agora inclui `math.abs(0 - 2147483647 - 1)` → `-2147483648`, medido primeiro no alvo Script e **4/4 PASS** (jvm/native/js/script); corromper essa linha do expected faz 4/4 FAIL. O fix `|0` do JS fica portanto guardado pela suite de conformidade, nao apenas pelo `MathAbsIntOverflowE2ETest`.
 <!-- pt-switch --> **EN:** [§748 (en)](known-bugs.md#748--mathabsintmin_value-diverged-on-js-and-on-the-cross-natives-no-32-bit-overflow-the-jvm-and-x86-wrap-back-to-min_value)
 
 ## §749 — o interpretador Script vazava Enum@hash onde todos os outros alvos imprimem o NOME da constante
