@@ -17403,6 +17403,15 @@ t1: 1 bloco, 0 TXB, estágios [85, 352], pos 352 de 352 (totalmente consumido)
 ```
 O bloco 0 é o bloco PALETA 64x64 (o seu mapa de cores custa 85..357 = 272 bits e pinta o xadrez de referência exactamente). O corpo de mode-info do bloco 1 custa depois só **8 bits** (357..365), os seus 16 blocos de transformada decodificam **todos zero** (~5 bits), e o tile PARA 190 bits antes do fim do payload. Uma decodificação correcta deveria consumir esses bits: as flags all-zero são baratas precisamente porque o decodificador acredita que nenhum dos 16 blocos tem coeficientes. O suspeito é portanto o ESTADO DE ENTROPIA depois do bloco de paleta — a linha de contexto/CDF do `all_zero` dos coeficientes ou o contexto do mode-info do bloco 1 — não a colocação dos blocos, o mapa de paleta ou a reconstrução (a predição é aplicada, o resíduo é simplesmente decodificado como ausente).
 **Próximo passo:** capturar a primeira leitura `all_zero` do bloco 1 (a sua linha de contexto e as probabilidades da CDF) e comparar com a presença esperada de resíduo; o tratamento do contexto de coeficientes do bloco de paleta (`av1_set_entropy_contexts` não é chamado para ele) é o primeiro sítio a verificar contra o decodificador buscado.
+**SEGUNDA MEDIÇÃO 19/10 (138ª passagem):** os spans de leitura por bloco e a auditoria de cada tabela/contexto na janela:
+```
+ySpans: bloco 0 [16, 0, 17] (y-mode no bit 16, DC, termina em 17); bloco 1 [361, 9, 364] (y-mode em 361, SMOOTH, termina em 364)
+bodyFields: [17, 17, 85, 85, 364, 364, 365, 365] — o corpo inteiro do bloco 1 termina em 365, um bit depois do y-mode
+```
+EXCLUÍDOS por comparação directa com as fontes buscadas: `partition_cdf_length` (`PARTITION_TYPES`=4 até 8x8, `EXT_PARTITION_TYPES`=10, `-2`=8 para 128x128 — o Kof coincide), o lookup do contexto de partição e o byte esquerdo na fronteira de SB, `av1_get_skip_txfm_context` (above+left), as guardas e contagens de delta-Q e delta-LF (`FRAME_LF_COUNT` 4/2), o contexto do MODO de paleta (o broadcast do `palSizeYMap` cobre a extensão mi do bloco) e a extensão codificada da paleta, `is_cfl_allowed` (um bloco 64x64 não é CFL-allowed, logo usa-se a CDF UV de 13 símbolos), e a adaptação das CDFs in-place nos stores.
+SUSPEITO RESTANTE: uma tabela de CDF DEFAULT (ou o seu layout/intervalo) para um símbolo lido na janela 357..370 — o y mode em 361 decodifica 9 (SMOOTH) onde o SB0 (o mesmo quadrante de xadrez) é um bloco de paleta com DC.
+**Próximo passo:** extrair as CDFs default de `kf_y_cdf`, `uv_mode_cdf`, `palette_y_mode_cdf`/`palette_y_size_cdf`, `tx_size_cdf` e `txb_skip_cdf` do `av1/common/entropymode.c` BUSCADO e compará-las entrada a entrada com `libs/image/Av1ModeCdf.kf` / `Av1CoeffCdf.kf`.
+
 
 <!-- pt-switch --> **PT:** [§754](known-bugs.md#754--a-tile-that-spans-multiple-superblocks-mis-decodes-its-later-superblock-mt192-tile-0s-second-sb-is-a-flat-prediction)
 

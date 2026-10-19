@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 137ª PASSAGEM: §754 REDUZIDO — o segundo bloco do tile multi-SB (mt192) decodifica 16 TXBs TODOS ZERO (0 níveis não zero) e o tile para 190 bits antes do fim do payload (370/560). O bloco 0 é a paleta 64x64 (272 bits, xadrez exacto); o corpo do bloco 1 custa só 8 bits. Logo o resíduo perde-se no ESTADO DE ENTROPIA depois do bloco de paleta, não na colocação/recon. Instrumento novo: `TILESTATS` (blocos/TXBs/nz/estágios/posições/payload por tile).
-doing: §3bd — §754 reduzido ao estado de entropia pós-paleta; falta a medição do contexto/CDF do primeiro all_zero do bloco 1
-next: §3bd — capturar a primeira leitura all_zero do bloco 1 (linha de contexto + CDF) e o tratamento do contexto de coeficientes do bloco de paleta; depois §755/§756, o loop filter e o decodeRaster
+last: 19/10 — 3bd 138ª PASSAGEM: a janela do §754 fixada nos bits 357..370 e TODAS as tabelas/contextos nela auditados contra as fontes buscadas do libaom (partition_cdf_length, contexto de partição, skip, delta-Q/LF, contexto/store/extensão da paleta, is_cfl_allowed, adaptação in-place) — TODOS coincidem. Spans: y-mode do bloco 1 em 361 = 9 (SMOOTH), corpo termina em 365, tx size + 16 all_zero = 365..370, tile para 190 bits antes (370/560). Suspeito restante: uma tabela de CDF DEFAULT (kf_y, uv_mode, paleta modo/tamanho, tx_size, txb_skip).
+doing: §3bd — §754 com a janela e as tabelas auditadas; falta a comparação das CDFs default entrada-a-entrada
+next: §3bd — comparar kf_y_cdf/uv_mode_cdf/palette mode-size/tx_size_cdf/txb_skip_cdf entrada a entrada entre o entropymode.c buscado e Av1ModeCdf/Av1CoeffCdf
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (138ª) — 3bd: janela do §754 e auditoria das tabelas
+- **SPANS:** y-mode do bloco 1 em 361 = 9, corpo até 365, tx+all_zero até 370, payload 560 (190 por consumir).
+- **AUDITADO:** todas as tabelas/contextos da janela coincidem com o libaom buscado.
+- **RESTA:** uma CDF default errada (layout/valor) na janela — próxima medição.
 
 ## Sessão 18/10 (137ª) — 3bd: §754 reduzido ao estado de entropia
 - **SHA:** `f94decc96` (push 0/0).

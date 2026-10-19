@@ -19916,6 +19916,15 @@ t1: 1 block, 0 TXB, stages [85, 352], pos 352 of 352 (fully consumed)
 ```
 Block 0 is the 64x64 PALETTE block (its colour map costs 85..357 = 272 bits and paints the reference checkerboard exactly). Block 1's whole mode-info body then costs only **8 bits** (357..365), its 16 transform blocks decode **all-zero** (about 5 bits), and the tile STOPS 190 bits before the payload end. A correct decode should consume those bits: the all-zero flags are cheap precisely because the decoder believes none of the 16 blocks has coefficients. The suspect is therefore the ENTROPY STATE after the palette block — the coefficient `all_zero` context/CDF row or the block-1 mode-info context — not the block placement, the palette map, or the reconstruction (the prediction is applied, the residual is simply decoded as absent).
 **Next step:** capture the first `all_zero` read of block 1 (its context row and the CDF probabilities) and compare with the expected residual presence; the palette block's coefficient-context treatment (`av1_set_entropy_contexts` is not called for it) is the first place to check against the fetched decoder.
+**SECOND MEASUREMENT 19/10 (138th pass):** the per-block read spans and the audit of every table/context in the window:
+```
+ySpans: block 0 [16, 0, 17] (y-mode at bit 16, DC, ends 17); block 1 [361, 9, 364] (y-mode at 361, SMOOTH, ends 364)
+bodyFields: [17, 17, 85, 85, 364, 364, 365, 365] — block 1's whole body ends at 365, one bit after the y-mode
+```
+RULED OUT by direct comparison with the fetched sources: `partition_cdf_length` (`PARTITION_TYPES`=4 up to 8x8, `EXT_PARTITION_TYPES`=10, `-2`=8 for 128x128 — Kof matches), the partition context lookup and the SB-boundary left byte, `av1_get_skip_txfm_context` (above+left), the delta-Q and delta-LF gates and counts (`FRAME_LF_COUNT` 4/2), the palette MODE context (`palSizeYMap` broadcast covers the block's mi extent) and the palette coded extent, `is_cfl_allowed` (a 64x64 block is not CFL-allowed, so the 13-symbol UV CDF is used), and the stores' in-place CDF adaptation.
+REMAINING SUSPECT: a DEFAULT CDF table (or its layout/range) for a symbol read in the 357..370 window — the y mode at 361 decoding 9 (SMOOTH) where SB0 (the same checkerboard quadrant) is a palette block with DC.
+**Next step:** extract the default CDFs for `kf_y_cdf`, `uv_mode_cdf`, `palette_y_mode_cdf`/`palette_y_size_cdf`, `tx_size_cdf` and `txb_skip_cdf` from the FETCHED `av1/common/entropymode.c` and compare them entry by entry with `libs/image/Av1ModeCdf.kf` / `Av1CoeffCdf.kf`.
+
 
 <!-- pt-switch --> **PT:** [§754 (pt_BR)](known-bugs.pt_BR.md#754--um-tile-que-abrange-varios-superblocos-desdecodifica-o-superbloco-seguinte-mt192-o-segundo-sb-do-tile-0-e-uma-predicao-plana)
 

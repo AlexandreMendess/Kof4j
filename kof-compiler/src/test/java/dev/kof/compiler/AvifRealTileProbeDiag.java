@@ -49,8 +49,22 @@ String av1TileStatsLine(Int ti, List<Int> modes, List<Int[]> levels,
         stv = stv + "," + stl.get(sv)
         sv = sv + 1
     }
+    var ys2 = ""
+    var yl2 = tile.ySpans()
+    var yi2 = 0
+    while (yi2 < yl2.size) {
+        ys2 = ys2 + "," + yl2.get(yi2)
+        yi2 = yi2 + 1
+    }
+    var bf2 = ""
+    var bl2 = tile.bodyFields()
+    var bi2 = 0
+    while (bi2 < bl2.size) {
+        bf2 = bf2 + "," + bl2.get(bi2)
+        bi2 = bi2 + 1
+    }
     return " t" + ti + ":b" + (modes.size / 17) + "/txb" + levels.size + "/nz" + tz
-        + "/st" + stl.size() + stv + "/pos" + walk.position() + "/pay" + payBytes * 8
+        + "/st" + stl.size() + stv + "/y" + ys2 + "/bf" + bf2 + "/pos" + walk.position() + "/pay" + payBytes * 8
 }
 
 void probeTail(Int[] frame, Int stride, Int mw, Int mh,
