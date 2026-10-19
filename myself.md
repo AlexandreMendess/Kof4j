@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 138ª PASSAGEM: a janela do §754 fixada nos bits 357..370 e TODAS as tabelas/contextos nela auditados contra as fontes buscadas do libaom (partition_cdf_length, contexto de partição, skip, delta-Q/LF, contexto/store/extensão da paleta, is_cfl_allowed, adaptação in-place) — TODOS coincidem. Spans: y-mode do bloco 1 em 361 = 9 (SMOOTH), corpo termina em 365, tx size + 16 all_zero = 365..370, tile para 190 bits antes (370/560). Suspeito restante: uma tabela de CDF DEFAULT (kf_y, uv_mode, paleta modo/tamanho, tx_size, txb_skip).
-doing: §3bd — §754 com a janela e as tabelas auditadas; falta a comparação das CDFs default entrada-a-entrada
-next: §3bd — comparar kf_y_cdf/uv_mode_cdf/palette mode-size/tx_size_cdf/txb_skip_cdf entrada a entrada entre o entropymode.c buscado e Av1ModeCdf/Av1CoeffCdf
+last: 19/10 — 3bd 139ª PASSAGEM: as CDFs DEFAULT do §754 EXONERADAS — 13 tabelas (skip, delta-Q/LF, kf_y, uv, paleta modo/tamanho, tx_size, txb_skip nos 4 Q contexts, color-index de paleta com padding) comparadas entrada a entrada com o entropymode.c/token_cdfs.h buscados: ZERO diferenças. Resta a SELECÇÃO/estado (lookup da linha + posição do leitor após o mapa de índices de cor). Reprodutor: ffmpeg codifica AVIF aqui; libaom sinaliza film-grain=1 (recusado) e o tile-group do rav1e dá 'group end incomplete' — próxima instrumentação.
+doing: §3bd — tabelas default exoneradas; falta isolar a selecção/estado pós-paleta (reprodutor controlado)
+next: §3bd — instrumentar o contexto/colorOrder do mapa de índices de cor e o tx-size do bloco 1; habilitar o reprodutor (tratar film-grain ou o grupo do rav1e)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (139ª) — 3bd: CDFs default exoneradas
+- **AUDITADAS:** 13 tabelas da janela contra o entropymode.c/token_cdfs.h buscados — zero diferenças.
+- **RESTA:** selecção/estado (lookup + posição do leitor pós-mapa de cor).
+- **REPRODUTOR:** ffmpeg codifica AVIF; film-grain do libaom e o grupo do rav1e precisam de tratamento.
 
 ## Sessão 18/10 (138ª) — 3bd: janela do §754 e auditoria das tabelas
 - **SHA:** `ba96c19c1` (push 0/0).
