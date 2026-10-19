@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (141ª) — 3bd: TD opcional + reprodutor controlado (§757)
+- **SHA:** `1fdad2b00` (push 0/0).
 - **LANDADO:** `avifItemObus` aceita um item sem delimitador temporal (OBUs validados).
 - **PROVA:** `AvifFullPlaneE2ETest#encodedLibaomStreamDecodesItsWholePayload` (2376/2376) — RED-first era a recusa antiga.
 - **ACHADO §757:** planos divergentes do ffmpeg no stream controlado; próximo passo = variações do encoder.
