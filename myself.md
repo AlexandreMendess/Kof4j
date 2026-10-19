@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 148ª PASSAGEM: o TRACE por símbolo do bloco falhante despejado (`TRACEL`, ligado no leitor de cada tile) — 34 símbolos idênticos no stream 64x64 de um SB e no último tile do m_s64; o alfabeto do EOB (1024, 11 símbolos) coincide com o libaom. VISTA BYTE: os dois tiles do m_s64 partilham o prefixo 03ce15df6270e6a34dfe23; o tile 0 é consumido por inteiro e o tile 1 para depois do mesmo prefixo com ~46 bits por ler ⇒ não é uma leitura errada no início do tile; o encoder escreveu sintaxe depois da nossa paragem (provavelmente chroma).
-doing: §3bd — trace e bytes do último tile registados; próximo = percorrer os bytes do tile 1 símbolo a símbolo (coeficientes de chroma)
-next: §3bd — caminhar os bytes do tile 1 contra a sintaxe a partir dos coeficientes de chroma; isolar o primeiro símbolo não lido
+last: 19/10 — 3bd 149ª PASSAGEM: CORREÇÃO — o segundo EOB de 11 vias do trace é válido (txsize_log2_minus4 limita TX_32X32 e TX_64X64 ao EOB de 1024); a suspeita do TX de chroma 64x64 é RETIRADA. ALVO medido: no stream 64x64 de valor 64 (`m_q64`, um bloco, um DC) o ffmpeg dá Y=71 plano / U=V=128 e o Kof dá Y=64 — erro de 7 no bloco mais simples possível.
+doing: §3bd — correção registada; alvo mínimo (Y 71 vs 64, um DC) para resolver a cadeia predição+desquantização+IDCT
+next: §3bd — imprimir predição/DC desquantizado/valor do bloco único do m_q64 e resolver qual termo dá 64 onde o encoder produziu 71
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (149ª) — 3bd: correção do EOB + alvo mínimo
+- **CORREÇÃO:** o EOB de 11 vias é válido para 32x32 e 64x64; suspeita retirada.
+- **ALVO:** ffmpeg Y=71 plano, U=V=128; Kof Y=64 (7 de erro, um bloco, um DC).
+- **PRÓXIMO:** predição/DC desquantizado/valor do bloco único.
 
 ## Sessão 18/10 (148ª) — 3bd: trace do bloco + bytes
 - **SHA:** `630e90f12` (push 0/0).
