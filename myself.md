@@ -10,6 +10,7 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 
 ## Sessão 18/10 (133ª) — 3bd: quadro pós-CDEF completo
 - **LANDADO:** a diag filtra Y, U e V pelo caminho do tile e imprime as linhas contíguas `YROWF`/`UROWF`/`VROWF`.
+- **SHA:** `3a5496b6d` (push 0/0).
 - **PROVA:** os três planos completos == ffmpeg (luma/U copiados/invariantes, V filtrado); RED-first e GREEN.
 - **CAVEATS:** o loop filter ainda não existe; fixtures com lf>0 e arestas internas precisam dele para o raster.
 
