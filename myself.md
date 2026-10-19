@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (142ª) — 3bd: variantes do reprodutor (§757/§759)
+- **SHA:** `e37050a52` (push 0/0).
 - **BASE:** `-tiles 2x1` byte-idêntica ao fixture; divergência confirmada.
 - **§759:** `-enable-palette 0` → `truncated avif tile group` (ffmpeg decodifica).
 - **SEM TILES:** apply_grain=1 (a guarda fiel recusa, correcto).
