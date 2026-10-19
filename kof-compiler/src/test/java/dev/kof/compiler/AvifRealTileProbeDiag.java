@@ -21,7 +21,8 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
                Int dcq, Int acq, Int baseQIdx, Int bitDepth,
                Av1TileDecode tile, List<Int> modes, List<Int> txTypesV,
                List<Int[]> levelsU, List<Int> txTypesU, List<Int> quantDeltas,
-               List<Int> chromaPreds) {
+               List<Int> chromaPreds, Int cdefDamping, List<Int> cdefY,
+               List<Int> cdefUv) {
         // The sample positions are clamped to the frame: they were hardcoded for a
     // 64x64 frame and read out of range on anything smaller (a 32x32 frame put
     // the (32,63) sample at index 1186 of a 1156-entry plane+border buffer).
@@ -168,6 +169,56 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         println("UROW " + cr3 + ul3)
         println("VROW " + cr3 + vl3)
         cr3 = cr3 + 1
+    }
+    // POST-CDEF through the TILE's own state: the per-mi skip grid
+    // (`is_8x8_block_skip`) and the per-64x64 cdef configuration index select
+    // the strengths, and the luma direction drives the taps. This is the tile
+    // integration of the core `Av1CdefE2ETest` proves; the V plane below must
+    // become ffmpeg's entire 12x16 post-CDEF plane.
+    var dirsC = av1CdefDirs(frame, stride, 1, 1, mw, mh, 0)
+    var lnbx = (mw + 7) / 8
+    var lnby = (mh + 7) / 8
+    var skipsC = tile.skipMap()
+    var cdefsC = tile.cdefMap()
+    var miWc = tile.miCols()
+    var bpY = new Int[lnbx * lnby]
+    var bpUv = new Int[lnbx * lnby]
+    var bsk = new Int[lnbx * lnby]
+    var byc = 0
+    while (byc < lnby) {
+        var bxc = 0
+        while (bxc < lnbx) {
+            var gi = byc * lnbx + bxc
+            var unitR = ((byc * 2) / 16) * 16
+            var unitC = ((bxc * 2) / 16) * 16
+            var idx = cdefsC[unitR * miWc + unitC]
+            if (idx < 0) {
+                bsk[gi] = 1
+            } else {
+                if (av1CdefSkip8(skipsC, miWc, byc * 2, bxc * 2)) {
+                    bsk[gi] = 1
+                } else {
+                    bpY[gi] = cdefY.get(idx)
+                    bpUv[gi] = cdefUv.get(idx)
+                }
+            }
+            bxc = bxc + 1
+        }
+        byc = byc + 1
+    }
+    var cw4 = (mw + 1) / 2
+    var ch4 = (mh + 1) / 2
+    var vf4 = av1CdefFilterPlaneBlocks(chroma.v, chroma.strideV, 1, 1, cw4, ch4, 1, bpUv, bsk, cdefDamping, dirsC, lnbx, 1, 1, 0)
+    var rr4 = 0
+    while (rr4 < ch4) {
+        var vl4 = ""
+        var cc4 = 0
+        while (cc4 < cw4) {
+            vl4 = vl4 + " " + vf4[rr4 * cw4 + cc4]
+            cc4 = cc4 + 1
+        }
+        println("VROWF " + rr4 + vl4)
+        rr4 = rr4 + 1
     }
     var pos = tile.positions()
     var b2 = 0

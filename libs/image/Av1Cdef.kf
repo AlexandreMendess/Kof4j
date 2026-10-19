@@ -375,21 +375,52 @@ void av1CdefFilterBlock(Int[] src, Int[] out, Int stride, Int ox, Int oy,
 // `yPacked`/`uvPacked` are the frame header's `pri * 4 + sec` values (the
 // classic `sec == 3 -> 4` adjustment and the `layer != Y` damping -1 live
 // here); `coeffShift = Max(0, bitDepth - 8)`.
-Int[] av1CdefFilterPlane(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
-                         Int plane, Int yPacked, Int uvPacked, Int damping,
-                         Int[] dirs, Int dirsNbx, Int ssX, Int ssY,
-                         Int coeffShift) {
-    var packed = yPacked
-    if (plane != 0) {
-        packed = uvPacked
+// Whether an 8x8 block is fully skipped: ALL FOUR of its mi carry the skip
+// flag (libaom `is_8x8_block_skip`). `miR`/`miC` are the block's top-left mi;
+// the grid is the aligned one, so the four cells always exist.
+Bool av1CdefSkip8(Int[] skipMap, Int miW, Int miR, Int miC) {
+    var r = 0
+    while (r < 2) {
+        var c = 0
+        while (c < 2) {
+            if (skipMap[(miR + r) * miW + miC + c] == 0) {
+                return false
+            }
+            c = c + 1
+        }
+        r = r + 1
     }
-    var priRaw = packed >> 2
-    var pri = priRaw << coeffShift
-    var secRaw = packed & 3
-    if (secRaw == 3) {
-        secRaw = 4
+    return true
+}
+
+// Copies one block's in-frame cells (the skipped-block path: CDEF leaves those
+// pixels as the reconstruction produced them).
+void av1CdefCopyBlock(Int[] src, Int[] out, Int stride, Int ox, Int oy,
+                      Int w, Int h, Int bx0, Int by0, Int bsW, Int bsH) {
+    var i = 0
+    while (i < bsH) {
+        var j = 0
+        while (j < bsW) {
+            var px = bx0 + j
+            var py = by0 + i
+            if (px < w && py < h) {
+                out[py * w + px] = src[(oy + py) * stride + (ox + px)]
+            }
+            j = j + 1
+        }
+        i = i + 1
     }
-    var sec = secRaw << coeffShift
+}
+
+// The per-plane driver with the TILE's per-block state: `blockPacked` holds the
+// `pri * 4 + sec` value selected for each 8x8 block (the per-64x64 `cdef_idx`
+// resolved by the caller) and `blockSkip` is 1 for a block the skip rule
+// excludes. Both are indexed by the LUMA 8x8 grid (`by * dirsNbx + bx`), which
+// every chroma subsampling maps onto one block.
+Int[] av1CdefFilterPlaneBlocks(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
+                               Int plane, Int[] blockPacked, Int[] blockSkip,
+                               Int damping, Int[] dirs, Int dirsNbx, Int ssX,
+                               Int ssY, Int coeffShift) {
     var damp = damping
     var xdec = 0
     var ydec = 0
@@ -407,8 +438,9 @@ Int[] av1CdefFilterPlane(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
     while (by < nby) {
         var bx = 0
         while (bx < nbx) {
-            var dir = dirs[(by * dirsNbx + bx) * 2]
-            var v = dirs[(by * dirsNbx + bx) * 2 + 1]
+            var gi = by * dirsNbx + bx
+            var dir = dirs[gi * 2]
+            var v = dirs[gi * 2 + 1]
             // The 4:2:2 / 4:4:0 direction conversion (`conv422` / `conv440`).
             if (plane != 0 && ssX != ssY) {
                 if (ssX == 1) {
@@ -417,15 +449,50 @@ Int[] av1CdefFilterPlane(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
                     dir = listOf(1, 2, 2, 2, 3, 4, 6, 0).get(dir)
                 }
             }
-            var t = pri
-            if (plane == 0) {
-                t = av1CdefAdjustStrength(pri, v)
+            if (blockSkip[gi] != 0) {
+                av1CdefCopyBlock(src, out, stride, ox, oy, w, h, bx * bsW, by * bsH, bsW, bsH)
+            } else {
+                var packed = blockPacked[gi]
+                var priRaw = packed >> 2
+                var pri = priRaw << coeffShift
+                var secRaw = packed & 3
+                if (secRaw == 3) {
+                    secRaw = 4
+                }
+                var sec = secRaw << coeffShift
+                var t = pri
+                if (plane == 0) {
+                    t = av1CdefAdjustStrength(pri, v)
+                }
+                av1CdefFilterBlock(src, out, stride, ox, oy, w, h, bx * bsW, by * bsH,
+                                   bsW, bsH, t, sec, priRaw, dir, damp, coeffShift)
             }
-            av1CdefFilterBlock(src, out, stride, ox, oy, w, h, bx * bsW, by * bsH,
-                               bsW, bsH, t, sec, priRaw, dir, damp, coeffShift)
             bx = bx + 1
         }
         by = by + 1
     }
     return out
+}
+
+// The single-configuration entry point (the CDEF core's own test and the
+// callers without a tile state): every block uses the same plane strengths and
+// none is skipped.
+Int[] av1CdefFilterPlane(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
+                         Int plane, Int yPacked, Int uvPacked, Int damping,
+                         Int[] dirs, Int dirsNbx, Int ssX, Int ssY,
+                         Int coeffShift) {
+    var packed = yPacked
+    if (plane != 0) {
+        packed = uvPacked
+    }
+    var n = dirs.size / 2
+    var bp = new Int[n]
+    var bs = new Int[n]
+    var i = 0
+    while (i < n) {
+        bp[i] = packed
+        i = i + 1
+    }
+    return av1CdefFilterPlaneBlocks(src, stride, ox, oy, w, h, plane, bp, bs,
+                                    damping, dirs, dirsNbx, ssX, ssY, coeffShift)
 }

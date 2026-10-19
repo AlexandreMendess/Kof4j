@@ -18,6 +18,7 @@ final class AvifRealTileProbeProgram {
     static String program(String path) {
         return """
 import image.Av1Block
+import image.Av1Cdef
 import image.Av1DecodeChroma
 import image.Av1DecodeTileRecon
 import image.Av1IntraBlock
@@ -485,7 +486,7 @@ main() {
         uc = uc + 1
     }
     println("blocks=" + blocks + " covered=" + covered + " frame=" + (miw * mih) + " overlap=" + overlap + " symBits=" + totalSymBits + " payloadBits=" + totalPayloadBits + " txb=" + levels.size + " nzTot=" + totNz + " nzHead=" + head + " uvCFL=" + uvCfl)
-    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas, chromaPreds)
+    probeTail(frame, stride, mw, mh, chroma, levelsV, steps, dcq, acq, h.baseQIdx, seq.bitDepth, tile, modes, txTypesV, levelsU, txTypesU, h.quantDeltas, chromaPreds, h.cdefDamping, h.cdefYStrengths, h.cdefUvStrengths)
 }
 """.formatted(path).replace("//#DIAG", AvifRealTileProbeDiag.source());
     }

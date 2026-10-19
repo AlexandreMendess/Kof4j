@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 18/10 — 3bd 131ª PASSAGEM: o NÚCLEO DO CDEF LANDADO em Kof puro (`libs/image/Av1Cdef.kf`): a busca de direcção (`cdef_find_dir_c`, somas parciais, borda CDEF_VERY_LARGE) e o filtro primário/secundário (`av1_cdef_filter_fb`: packing, `sec==3->4`, damping -1 na chroma, adjust_strength, conversões 4:2:2/4:4:0, fonte->destino fixa). `Av1CdefE2ETest` 2/2 (JVM+Script): `DIRS n=12 6 16201 6 16445 6 16852 6 16411 …`, `YOK true`, `UOK true`, `VOK true` — o plano V iguala o plano pós-CDEF 12x16 inteiro do ffmpeg, o mesmo resultado que `scripts/av1_cdef_ref.py` provou antes do código.
-doing: §3bd — núcleo do CDEF landado e provado; falta a integração no tile (skip-block list + cdef_idx por 64x64 + probe/decodeRaster)
-next: §3bd — integrar o CDEF no tile: a lista de blocos skip (`is_8x8_block_skip`), a configuração por 64x64 (`cdef_idx`) e correr o filtro após o decode do tile na probe; depois o caminho completo do `decodeRaster` AVIF
+last: 18/10 — 3bd 132ª PASSAGEM: a INTEGRAÇÃO DO CDEF NO TILE LANDADA — o filtro corre sobre o estado REAL do driver (`skipMap()` por mi + `cdefMap()` por 64x64 + `miCols()`), o núcleo ganha `av1CdefSkip8`/`av1CdefCopyBlock`/`av1CdefFilterPlaneBlocks` (o `av1CdefFilterPlane` delega), e a probe resolve a configuração por unidade e o skip por bloco. PROVA: o teste do CFL assere `VROWF` = as 12 linhas pós-CDEF do ffmpeg (130..159) através dos mapas do driver; RED-first (linha ausente) e GREEN depois.
+doing: §3bd — integração do CDEF no tile landada e provada; falta levar luma/U pelo mesmo caminho, o loop filter e o decodeRaster AVIF
+next: §3bd — levar os planos luma/U pela integração CDEF, o loop filter, e o caminho `decodeRaster` AVIF ponta a ponta
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (132ª) — 3bd: integração do CDEF no tile
+- **LANDADO:** acessores `skipMap()`/`cdefMap()`/`miCols()` no driver; `av1CdefSkip8`, `av1CdefCopyBlock`, `av1CdefFilterPlaneBlocks`; a diag resolve a config por 64x64 e o skip por 8x8.
+- **PROVA:** `VROWF` = ffmpeg exacto (12 linhas, 130..159) no teste do CFL; RED-first antes da integração.
+- **CAVEATS:** a probe filtra só o plano V (o U é invariante e a luma tem força 0); luma/U e o `decodeRaster` continuam como próximo slice.
 
 ## Sessão 18/10 (131ª) — 3bd: o núcleo do CDEF landado
 - **LANDADO:** `libs/image/Av1Cdef.kf`; `Av1CdefE2ETest` novo (JVM+Script) com o fixture `av1_cdef_cfl.bin`.

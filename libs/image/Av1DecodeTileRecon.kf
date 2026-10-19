@@ -606,6 +606,22 @@ class Av1TileDecode {
         return this.posOut
     }
 
+    // The per-mi SKIP grid and the per-64x64 CDEF configuration index, the two
+    // inputs `av1_cdef_compute_sb_list` and `cdef_fb_col` read. Exposed so the
+    // CDEF integration never re-derives state the tile walk already owns.
+    Int[] skipMap() {
+        return this.modeInfo.skipMap
+    }
+
+    Int[] cdefMap() {
+        return this.modeInfo.cdefMap
+    }
+
+    // The mi grid's width (the aligned one the maps are indexed with).
+    Int miCols() {
+        return this.miW
+    }
+
     // The palette COLOUR TABLE of a block (diagnostic): `palColorYAt` indexed by
     // the decoded map value. Paired with `palIndexAt` it settles whether a wrong
     // paint comes from the COLOURS or from the INDICES.

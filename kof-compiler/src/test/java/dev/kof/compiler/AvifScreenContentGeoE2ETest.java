@@ -385,6 +385,29 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
                 () -> "the V residual moved: " + line);
         assertTrue(line.contains("UV 00=129,129 032=159,129 063=159,129 320=129,160 3232=159,160 3263=159,160"),
                 () -> "the chroma moved (U must be 129/159, V is RECORDED at 129/160 vs ffmpeg's 130/159): " + line);
+        // POST-CDEF: the filter runs on the REAL tile state — the driver's own
+        // skip grid and per-64x64 cdef configuration select the strengths, and
+        // the luma direction drives the taps. The V plane must become ffmpeg's
+        // ENTIRE 12x16 plane (130,131,133,...,159), closing the pre-CDEF
+        // `UV` record above without changing it.
+        assertTrue(line.contains(postCdefRows()),
+                () -> "the post-CDEF V plane moved: " + line);
+    }
+
+    /** ffmpeg's post-CDEF V plane (libaom == libdav1d): 12 constant rows. */
+    private static String postCdefRows() {
+        var values = new int[]{130, 131, 133, 136, 139, 143, 147, 150, 154, 156, 158, 159};
+        var sb = new StringBuilder();
+        for (var r = 0; r < values.length; r++) {
+            sb.append("VROWF ").append(r);
+            for (var c = 0; c < 16; c++) {
+                sb.append(' ').append(values[r]);
+            }
+            if (r + 1 < values.length) {
+                sb.append('\n');
+            }
+        }
+        return sb.toString();
     }
 
     /** The fixture with a temporal delimiter prepended (the canonical OBU order). */
