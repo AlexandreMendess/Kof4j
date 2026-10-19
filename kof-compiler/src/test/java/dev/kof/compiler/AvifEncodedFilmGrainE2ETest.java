@@ -14,6 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
+ * Real-encoder streams: the FILM-GRAIN gate and the TILE-GROUP size fields.
+ * <p>
  * The FRAME HEADER of a stream from a REAL encoder that signals
  * {@code film_grain_params_present = 1} (ffmpeg {@code -c:v libaom-av1}, a
  * 192x64 checkerboard encoded with {@code -tiles 2x1}). Before the 140th pass
@@ -49,6 +51,27 @@ main() {
 }
 """.formatted(Path.of("src/test/resources", "avif_enc_check192.avif").toAbsolutePath());
         assertEquals("hdr 192x64 bq=80 lf=0 ll=0 tx=1 dfl=0 cdef=0", runEncodedHeader(code));
+    }
+
+    /**
+     * A palette-FREE stream's TILE GROUP: the per-tile size is
+     * {@code tile_size_minus_1 le(TileSizeBytes)} — LITTLE-endian. The 1-byte
+     * fields of the palette baseline hid the byte order; this stream's 2-byte
+     * fields do not (known-bugs §759). Before the 143rd pass the walk read them
+     * big-endian and refused the group as truncated; the two payloads must now
+     * split as 1981 + 1005 bytes.
+     */
+    @Test
+    void encodedPaletteFreeStreamSplitsItsTiles() throws Exception {
+        var code = """
+import image.AvifGroup
+
+main() {
+    var tiles = readAvifTilePayloads("%s")
+    println("sizes " + tiles.size + " " + tiles.get(0).size + " " + tiles.get(1).size)
+}
+""".formatted(Path.of("src/test/resources", "avif_enc_nopal192.avif").toAbsolutePath());
+        assertEquals("sizes 2 1981 1005", runEncodedHeader(code));
     }
 
     private String runEncodedHeader(String code) throws Exception {

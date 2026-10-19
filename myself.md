@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 142ª PASSAGEM: o reprodutor do §757 VARIADO — a base `-tiles 2x1` é byte-idêntica ao fixture (610 bytes) e confirma a divergência (Y 235 vs 218, U 238 vs 129); encodes sem tiles põem apply_grain=1 (recusados correctamente); a variante `-enable-palette 0` (3300 bytes) parseia o cabeçalho mas a caminhada do tile group falha (`truncated avif tile group`) — catalogado §759 (tabela de tamanhos por tile com payloads ~1,6 KB).
-doing: §3bd — §757 confirmado na base tiled; §759 (tile group sem paleta) bloqueia a variante, próximo fix
-next: §3bd — corrigir §759 (comparar tileSizeBytes/tileBits e os bytes do grupo com o read_tile_info do libaom); depois isolar §757 paleta vs chroma/CFL
+last: 19/10 — 3bd 143ª PASSAGEM: `known-bugs` §759 CORRIGIDO — o tamanho por tile do tile group é LITTLE-endian (`le(TileSizeBytes)`); a caminhada acumulava big-endian (invisível nos campos de 1 byte da base com paleta, fatal nos 2 bytes do stream sem paleta: `BC 07` lido como 48135). FIX em `AvifGroup.kf` (acumulação LE). PROVA RED-first: `AvifEncodedFilmGrainE2ETest#encodedPaletteFreeStreamSplitsItsTiles` com o novo fixture `avif_enc_nopal192.avif` (3300 bytes) ⇒ `sizes 2 1981 1005`; antes lançava `truncated avif tile group`. Fila aberta 15→14.
+doing: §3bd — §759 corrigido; falta guardar a cauda DIAGNÓSTICA que rebenta na probe do stream sem paleta e depois isolar §757
+next: §3bd — guardar o índice da cauda de diagnóstico (ArrayList.get) na probe do nopal, correr o plano inteiro dessa variante e isolar a paleta vs chroma/CFL do §757
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (143ª) — 3bd: §759 (tile size LITTLE-endian) corrigido
+- **CAUSA:** leitura big-endian de `tile_size_minus_1 le(TileSizeBytes)`.
+- **FIX:** acumulação LE em `AvifGroup.kf`; base de 1 byte inalterada.
+- **PROVA:** `sizes 2 1981 1005` no nopal; RED-first era `truncated avif tile group`.
 
 ## Sessão 18/10 (142ª) — 3bd: variantes do reprodutor (§757/§759)
 - **SHA:** `e37050a52` (push 0/0).

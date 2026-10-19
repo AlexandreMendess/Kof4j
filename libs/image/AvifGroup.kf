@@ -240,10 +240,13 @@ AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
         if (p + tsb > limit) {
             throw "IMAGE: truncated avif tile group"
         }
+        // tile_size_minus_1 le(TileSizeBytes): LITTLE-endian (§5.11.1 `le(n)`).
+        // A 1-byte field hides the byte order; the 2-byte fields of a
+        // palette-free stream do not (known-bugs §759).
         var v = 0
         var k = 0
         while (k < tsb) {
-            v = (v << 8) | u8(b, p)
+            v = v | (u8(b, p) << (8 * k))
             p = p + 1
             k = k + 1
         }

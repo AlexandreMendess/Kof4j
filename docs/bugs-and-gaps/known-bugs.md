@@ -19998,9 +19998,13 @@ JVM/Script/JS/native x86-64 print `6` (exit 0); riscv64 and aarch64 exit **139**
 <!-- pt-switch --> **PT:** [§758 (pt_BR)](known-bugs.pt_BR.md#758--uma-lambda-que-captura-o-this-da-classe-envolvente-ainda-faz-segfault-nos-nativos-cross-riscv64aarch64-enquanto-o-x86-64-roda---aberto-medido-1810-pela-lane-compiladorjvmnativo-19216815309092)
 
 ## §759 — the `-enable-palette 0` libaom stream's TILE GROUP is refused as truncated (the tile-size table does not walk)
-**Status:** 🔴 OPEN — catalogued 19/10; blocks the palette-off variant of the §757 reproducer.
+**Status:** ✅ FIXED 19/10 — `tile_size_minus_1` is `le(TileSizeBytes)`: the walk read the field BIG-endian.
 
 **CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Measuring the §757 variants: a 192x64 checkerboard encoded with `-tiles 2x1 -enable-palette 0` (3300 bytes; the palette-on baseline is 610) parses its FRAME header but `avifItemTileGroups` throws `IMAGE: truncated avif tile group` (`tileGroupWalk`), so `readAvifTilePayloads` cannot split the two tiles. ffmpeg decodes the same file correctly. The palette-off payloads are ~1.6 KB per tile (vs ~300 B), so the per-tile SIZE table (or `tile_size_bytes`) is the first suspect.
 **Reproducer:** `ffmpeg -i check.ppm -c:v libaom-av1 -still-picture 1 -cpu-used 6 -crf 20 -tiles 2x1 -enable-palette 0 -y t_nopal.avif` (same 192x64 checkerboard as §757).
 **Next step:** print the frame header's `tileSizeBytes`/`tileBits` and the first tile-group bytes for both streams and compare with libaom's `read_tile_info`/tile-group size parsing.
+
+**ROOT CAUSE + FIX 19/10 (lane pipeline/image-vision `192.168.15.21:0`):** the spec codes each non-last tile's size as `tile_size_minus_1 le(TileSizeBytes)` — LITTLE-endian (§5.11.1 `le(n)`). `tileGroupWalk` accumulated the bytes BIG-endian (`v = (v << 8) | byte`): identical for the 1-byte fields of the palette baseline, wrong for this stream's 2-byte fields (its first field `BC 07` was read `0xBC07` = 48135, far past the group, hence `truncated`). The fix accumulates little-endian (`v |= byte << (8*k)`).
+**Proof (RED-first):** `AvifEncodedFilmGrainE2ETest#encodedPaletteFreeStreamSplitsItsTiles` — the palette-free stream's group now splits `sizes 2 1981 1005`; before the fix the same read threw `IMAGE: truncated avif tile group` (measured). The fixture is `avif_enc_nopal192.avif` (3300 bytes, `-enable-palette 0`).
+**Follow-up recorded:** running the FULL tile probe on this stream now reaches the block decode but crashes inside the DIAGNOSTIC tail (`ArrayList.get` index) — the diagnostic path, not the library walk — which must be guarded before the palette-off variant can isolate §757.
 <!-- pt-switch --> **PT:** [§759 (pt_BR)](known-bugs.pt_BR.md#759--o-tile-group-do-stream-libaom-com--enable-palette-0-é-recusado-como-truncado-a-tabela-de-tamanhos-por-tile-não-percorre)
