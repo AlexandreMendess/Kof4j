@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 19/10 (152ª) — §760 caminho skip corrigido + §761 catalogado
+- **SHA:** `53fa866e1` (push 0/0).
 - **FIX:** guarda `skip_txfm=1` na luma e nos dois planos de chroma (sem coeficientes, resíduo zero, reset de contextos).
 - **PROVA:** `AvifFullPlaneE2ETest#skippedBlockReadsNoCoefficientSymbols` (stream real, RED-first 34→528 ⇒ 34→34; controlo `t1:b32/txb256/nz256`).
 - **HARNESS:** probe com contextos de chroma por tile (o `Av1ChromaPlanes` compartilhado mascarava a anomalia); diag VRES com índices clampados por largura E altura (16x4/4x16).
