@@ -17506,6 +17506,14 @@ rampa horizontal (resíduo AC)   3       DC/H/DC    340 / 1512   ~77% a menos
 xadrez (resíduo denso)          77      misto      7283 / 23888 ~69% a menos
 ```
 O caminho skip/all_zero está são (o stream plano consome exactamente); a falta cresce com o número de coeficientes não zero e o seu conteúdo AC. `m_s64`/`m_s200` têm tamanho e estrutura byte-idênticos mas diferem no modo do bloco do meio (DC vs D67) e no seu único nível DC — o corpus falhante mais pequeno (153/200) para o caminho dos coeficientes.
+**TERCEIRA MEDIÇÃO 19/10 (147ª passagem) — o stream mínimo LOCALIZA a falta numa só caminhada de coeficientes:** `m_s64` (plano 64, sem paleta, 2 tiles):
+```
+tile 0 (SB0+SB1 = payload de 104 bits): pos 104  EXACTO
+tile 1 (SB2, um bloco 64x64, payload de 96 bits): pos 49
+  registo de modo (skip,txSz,yMode,ângulo) = (0,4,0,0); níveis começam -44, 2; TX termina no bit 44; a caminhada para em 49
+```
+Logo a divisão de tiles, os blocos do primeiro tile e a estrutura do quadro estão sãos; a caminhada de coeficientes do ÚLTIMO bloco termina (EOB) com 47 bits do payload por ler — o caminho `eob`/`all_zero` de um bloco com resíduo pequeno é o alvo. O `m_solid` (sem resíduo) consome 8/8 na mesma posição do tile 1, logo a sintaxe de modo/tx não é a falta.
+**Próximo passo:** imprimir a caminhada de coeficientes do último bloco no `m_s64` — o valor `all_zero`, o símbolo/classe `eob_pt`, as posições dos níveis — e comparar o EOB com os bits que o encoder deixou no tile de 96 bits.
 **Próximo passo:** partir do stream de resíduo plano (um coeficiente DC), imprimir a caminhada dos coeficientes (all_zero/eob/tx_type/posições dos níveis) e encontrar o símbolo que deixa o leitor aquém do payload.
 **Próximo passo:** encontrar o PRIMEIRO símbolo dessincronizado num stream sem paleta a partir das posições de estágio por tile (`TILESTATS`) e dos registos de modo por bloco (`MODESA`); o caminho dos coeficientes (`all_zero` / `eob` / `tx_type`) é o primeiro suspeito.
 <!-- pt-switch --> **PT:** [§760](known-bugs.md#760--a-palette-free-libaom-stream-desyncs-in-the-residual-coded-path-only-30-of-the-tile-payload-is-consumed-independent-of-cdef-lossless-and-quality)

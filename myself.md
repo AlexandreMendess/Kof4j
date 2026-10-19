@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 146ª PASSAGEM: a dessincronização sem paleta ESCALA com o resíduo — plano 24/24 (exacto), só DC 153/200, rampa direcional/AC 340/1512, xadrez denso 7283/23888 (todos 192x64, tiles 2x1). O caminho skip/all_zero está são; a falta cresce com os coeficientes não zero e o conteúdo AC. Menor corpus falhante: `m_s64`/`m_s200` (bloco do meio DC vs D67, um nível DC, 153/200).
-doing: §3bd — §760 refinado com a progressão; o caminho dos coeficientes é o único suspeito; próximo = caminhada do resíduo plano
-next: §3bd — imprimir a caminhada dos coeficientes (all_zero/eob/tx_type/posições) do stream de resíduo plano (um DC) e achar o símbolo que para aquém do payload
+last: 19/10 — 3bd 147ª PASSAGEM: o stream mínimo (`m_s64`, plano 64, sem paleta) LOCALIZA a falta do §760 num só bloco — tile 0 EXACTO (104/104), tile 1 (um bloco 64x64, payload 96 bits) para em 49: níveis começam -44,2, a transformada termina no bit 44 e ficam 47 bits por ler. A divisão/leitor de tiles, o primeiro tile e a sintaxe modo/tx estão sãos (`m_solid` consome 8/8 na mesma posição); o caminho eob/all_zero é o alvo.
+doing: §3bd — §760 localizado a um bloco; próximo = caminhada de coeficientes desse bloco (all_zero/eob_pt/posições)
+next: §3bd — imprimir all_zero/eob_pt/níveis do último bloco do m_s64 e comparar o EOB com os 47 bits não lidos
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (147ª) — 3bd: §760 localizado num bloco
+- **MEDIDO:** m_s64 tile0 104/104 exacto; tile1 49/96.
+- **EXCLUÍDO:** divisão/leitor de tiles, primeiro tile, modo/tx (m_solid 8/8).
+- **ALVO:** eob/all_zero do bloco com resíduo pequeno.
 
 ## Sessão 18/10 (146ª) — 3bd: progressão do resíduo (§760)
 - **SHA:** `3724c7f1a` (push 0/0).

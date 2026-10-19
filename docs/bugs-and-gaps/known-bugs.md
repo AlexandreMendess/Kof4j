@@ -20032,6 +20032,14 @@ horizontal ramp (AC residual)   3       DC/H/DC    340 / 1512   ~77% short
 checkerboard (dense residual)   77      mixed      7283 / 23888 ~69% short
 ```
 The skip/all_zero path is sound (the flat stream consumes exactly); the shortfall grows with the number of nonzero coefficients and their AC content. `m_s64`/`m_s200` are byte-identical in size and structure but differ in the middle block's mode (DC vs D67) and its single DC level — the smallest failing corpus (153/200) for the coefficient path.
+**THIRD MEASUREMENT 19/10 (147th pass) — the minimal stream LOCALIZES the shortfall to ONE block's coefficient walk:** `m_s64` (flat 64, palette off, 2 tiles):
+```
+tile 0 (SB0+SB1 = 104-bit payload): pos 104  EXACT
+tile 1 (SB2, one 64x64 block, 96-bit payload): pos 49
+  mode record (skip,txSz,yMode,angle) = (0,4,0,0); levels begin -44, 2; TX end at bit 44; walk stops at 49
+```
+So the tile split, the first tile's blocks and the frame's structure are sound; the LAST block's coefficient walk ends (EOB) with 47 payload bits still unread — the `eob`/`all_zero` path for a block with a small residual is the target. `m_solid` (no residual) consumes 8/8 in the same tile-1 position, so the mode/tx syntax itself is not the shortfall.
+**Next step:** print the last block's coefficient walk on `m_s64` — the `all_zero` value, the `eob_pt` symbol/class, the level positions — and compare the EOB against the bits the encoder left in the 96-bit tile.
 **Next step:** start from the flat-residual stream (one DC coefficient), print its coefficient walk (all_zero/eob/tx_type/levels positions) and find the symbol that stops the reader short of the payload.
 **Next step:** find the FIRST desynced symbol in a palette-free stream from the per-tile stage positions (`TILESTATS`) and the per-block mode records (`MODESA`); the coefficient path (`all_zero` / `eob` / `tx_type`) is the first suspect.
 <!-- pt-switch --> **PT:** [§760 (pt_BR)](known-bugs.pt_BR.md#760--um-stream-libaom-sem-paleta-desincroniza-no-caminho-com-residuo-so-30-do-payload-e-consumido-independente-de-cdef-lossless-e-qualidade)
