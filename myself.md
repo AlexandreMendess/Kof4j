@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (140ª) — 3bd: film grain + reprodutor controlado
+- **SHA:** `2f5af376e` (push 0/0).
 - **LANDADO:** `AvifSeqHeader.filmGrainPresent`, `showable_frame`, `apply_grain` (recusa só quando aplicado).
 - **PROVA:** `AvifEncodedFilmGrainE2ETest` (RED-first) com um AVIF real do ffmpeg/libaom; 29/29 no batch.
 - **CAVEAT:** a comparação de plano inteiro do stream controlado usa um wrap fiel do item (próximo passo).
