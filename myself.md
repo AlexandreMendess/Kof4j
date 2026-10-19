@@ -10,6 +10,7 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 
 ## Sessão 18/10 (132ª) — 3bd: integração do CDEF no tile
 - **LANDADO:** acessores `skipMap()`/`cdefMap()`/`miCols()` no driver; `av1CdefSkip8`, `av1CdefCopyBlock`, `av1CdefFilterPlaneBlocks`; a diag resolve a config por 64x64 e o skip por 8x8.
+- **SHA:** `609ff2eb3` (após rebase com o tip do compilador; push 0/0).
 - **PROVA:** `VROWF` = ffmpeg exacto (12 linhas, 130..159) no teste do CFL; RED-first antes da integração.
 - **CAVEATS:** a probe filtra só o plano V (o U é invariante e a luma tem força 0); luma/U e o `decodeRaster` continuam como próximo slice.
 
