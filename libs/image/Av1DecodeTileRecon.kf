@@ -112,6 +112,11 @@ class Av1TileDecode {
     Int disableEdgeFilter
     Int intraEdgeFilterType
     Int reducedTxSet
+    // The tile's mi origin (`setTileOrigin` from the partition walk). Above/left
+    // availability is TILE-relative in libaom (`set_offsets`), so a tile's first
+    // row/column is an edge for both the tx-size context and the prediction.
+    Int tileRow0
+    Int tileCol0
     Av1Symbol reader
     Av1CoeffCdfStore store
     Av1TxType txTypeStore
@@ -231,6 +236,8 @@ class Av1TileDecode {
         // disagree with the walk's coordinates at the frame's edge.
         this.miW = 2 * ((this.frameW + 7) >> 3)
         this.miH = 2 * ((this.frameH + 7) >> 3)
+        this.tileRow0 = 0
+        this.tileCol0 = 0
         this.modeInfo = Av1ModeInfo(this.reader, this.miW, this.miH)
         this.txSize = Av1TxSize(this.reader, this.miW, this.miH)
         this.maxX = this.frameW
@@ -260,6 +267,15 @@ class Av1TileDecode {
             this.cdefUnits[ci] = -1
             ci = ci + 1
         }
+    }
+
+    // The tile's mi origin, handed in by the partition walk (`walkTile`).
+    // libaom's above/left availability is tile-relative (`set_offsets`), so the
+    // transform-size context must see the tile boundary as an edge.
+    void setTileOrigin(Int r, Int c) {
+        this.tileRow0 = r
+        this.tileCol0 = c
+        this.txSize.setTileOrigin(r, c)
     }
 
     // Decodes and reconstructs ONE mode-info block.  The body is the tile
@@ -485,11 +501,11 @@ class Av1TileDecode {
             var x = bc << 2
             var y = br << 2
             var haveTop = 0
-            if (br != 0) {
+            if (br > this.tileRow0) {
                 haveTop = 1
             }
             var haveLeft = 0
-            if (bc != 0) {
+            if (bc > this.tileCol0) {
                 haveLeft = 1
             }
 

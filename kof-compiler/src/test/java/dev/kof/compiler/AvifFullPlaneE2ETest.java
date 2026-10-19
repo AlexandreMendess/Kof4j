@@ -72,18 +72,27 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
      * ISOBMFF item is already self-delimited, so the walker now accepts a
      * sequence/frame OBU directly (before the 141st pass it threw
      * `IMAGE: avif item does not begin with a temporal delimiter`, which is why
-     * every earlier real fixture had to be re-wrapped). The assertion pins the
-     * ENTROPY SYNC: 94 blocks and the symbol consumption exactly equal to the
-     * payload (2376/2376) — the encoder's own tile stream reads to its end.
+     * every earlier real fixture had to be re-wrapped).
+     *
+     * <p>The 141st pass asserted "the symbol consumption exactly equal to the
+     * payload (2376/2376) — the encoder's own tile stream reads to its end".
+     * That claim is RETRACTED (151st pass): the instrument SATURATES on this
+     * stream. Corrupting one byte of the payload tail changes the decode
+     * (blocks 70 -> 76 / 67, txb 34 -> 13 / 35, different levels) while
+     * {@code symBits} stays exactly 2376/2376 — the reader's position clamps at
+     * the payload end, so "consumed == payload" is NOT evidence of sync here.
+     * The palette plane of this stream is a recorded §757 divergence (Y 235 vs
+     * the reference's 218), so no pixel assertion is made. The VALIDATED
+     * consumption instrument now lives in
+     * {@link #paletteFreeMultiTileStreamDecodesItsWholePayload}, where a tail
+     * corruption moves {@code symBits} 11400 -> 11379.
      */
     @Test
     void encodedLibaomStreamDecodesItsWholePayload() throws Exception {
         var line = runFullPlaneProbe(
                 Path.of("src/test/resources", "avif_enc_check192.avif").toAbsolutePath());
         assertTrue(line.contains("TILES n=2"), () -> "the stream must be 2 tiles: " + line);
-        assertTrue(line.contains("blocks=94 covered=768 frame=768 overlap=0 "
-                        + "symBits=2376 payloadBits=2376"),
-                () -> "the raw item decode lost its entropy sync: " + line);
+        assertTrue(line.contains("blocks="), () -> "the walk must reach its summary: " + line);
     }
 
     /**
@@ -101,6 +110,39 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
                 Path.of("src/test/resources", "avif_enc_nopal192.avif").toAbsolutePath());
         assertTrue(line.contains("TILES n=2"), () -> "the stream must be 2 tiles: " + line);
         assertTrue(line.contains("blocks="), () -> "the walk must reach its summary: " + line);
+    }
+
+    /**
+     * A palette-FREE 2-tile stream from KNOWN source content decodes BOTH tiles
+     * to their last payload bit. Fixture: 192x64 YUV420p, 4x4-pixel checkerboard
+     * 16/235, encoded with {@code -c:v libaom-av1 -still-picture 1 -cpu-used 6
+     * -crf 20 -tiles 2x1 -enable-palette 0}.
+     *
+     * <p>The root cause this pins is TILE-RELATIVE availability: libaom's
+     * {@code set_offsets} computes {@code up_available = mi_row >
+     * tile->mi_row_start} (and likewise for the left edge), so a tile's first
+     * column has NO left neighbour even though its frame column is non-zero.
+     * The transform-size context ({@code get_tx_size_context}) and the intra
+     * prediction both read those flags. With frame-relative checks the second
+     * tile (mi col 32) selected a different tx-size CDF and desynced after
+     * 2140 of 3976 bits, reconstructing 123/255 where the reference decodes
+     * 17/234. Measured after the fix: both tiles consume exactly
+     * (7424 + 3976 = 11400 bits) and the luma plane matches ffmpeg on every
+     * sample (the probe's YROW rows were diffed). The consumption instrument is
+     * DISCRIMINATING here, unlike the palette-ON fixture's (which saturates):
+     * corrupting one payload-tail byte moves {@code symBits} 11400 -> 11379.
+     */
+    @Test
+    void paletteFreeMultiTileStreamDecodesItsWholePayload() throws Exception {
+        var line = runFullPlaneProbe(
+                Path.of("src/test/resources", "avif_enc_nopal_2tile192.avif").toAbsolutePath());
+        assertTrue(line.contains("TILES n=2"), () -> "the stream must be 2 tiles: " + line);
+        assertTrue(line.contains("blocks=192 covered=768 frame=768 overlap=0 "
+                        + "symBits=11400 payloadBits=11400"),
+                () -> "the second tile must read its payload to the end: " + line);
+        assertTrue(line.contains("TILEY t0(0,0)=17(4,0)=234 t1(128,0)=17(132,0)=234"),
+                () -> "the tile-1 reconstruction must not use the other tile as a neighbour: "
+                        + line);
     }
 
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */

@@ -2,11 +2,17 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 150ª PASSAGEM: os TRÊS NÚMEROS do bloco único isolam um NÍVEL errado — `m_q64` (um bloco 64x64, bq=80): predição 128 (certa), nível DC -442, reconstrução 64; a referência Y=71 ⇒ resíduo -57 ⇒ com a escala 512/dc_q e dc_q(80)=74 o nível do encoder é ~-394 — erro de 48 no nível. As tabelas de quantização 8-bit são EXACTAS contra o quant_common.c buscado (256 entradas, zero diffs). O primeiro símbolo errado está na caminhada dos níveis (coeff_base/coeff_base_eob/coeff_br), com o contexto/CDF do coeff_br como principal suspeito.
-doing: §3bd — nível DC isolado (442 vs ~394); próximo = caminhar os símbolos do nível e verificar os contextos do coeff_br
-next: §3bd — percorrer os símbolos do nível DC (base/br/eob-extra) com os seus contextos e comparar a magnitude com 394; suspeito = contexto/CDF do coeff_br
+last: 19/10 — 151ª PASSAGEM: a CAUSA RAIZ do §760 está CORRIGIDA (DISPONIBILIDADE RELATIVA AO TILE) e o nível `-442` da 150ª está RETRACTADO (instalação de probe obsoleta; o `m_q64` regenerado dá `-394`/`Y=71`/32-32 bits). libaom `set_offsets`: `up_available = mi_row > tile->mi_row_start` — a primeira linha/coluna de um tile é uma borda de frame; `Av1TxSize`/`Av1TileDecode` transportam agora a origem do tile, definida por `Av1Partition.walkTile`, e o contexto do tx-size + a predição usam-na. Fixture novo `avif_enc_nopal_2tile192.avif` (xadrez 4x4, 2 tiles, sem paleta): antes o tile 1 parava em 2140/3976 com amostras 123/255; depois 11400/11400 e TODAS as linhas de luma iguais ao ffmpeg. Consistência: o decode in-tile corrigido do tile 1 (18 blocos) iguala o crop standalone (18), onde o antigo dava 42. RETRACTADO também: o "2376/2376 exact" da 141ª no stream com paleta era FALSO VERDE — a posição do reader SATURA (corromper a cauda muda o decode, symBits não).
+doing: §760 — disponibilidade tile-relative landada (Av1TxSize/Av1DecodeTileRecon/Av1Partition); próximos = `skip_txfm=1` (os coeficientes não são lidos) e o desync do TX_16X64
+next: §760 — (1) guardar a caminhada de coeficientes com `skip_txfm=1` (libaom `read_coeffs_tx_intra_block` com `!skip_txfm` + `av1_reset_entropy_context`), prova: o bloco skip não consome bits de coeficientes; (2) o desync do TX_16X64 na família `-cpu-used 0`; prova alvo = consumo exacto + plano == ffmpeg
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (151ª) — §760: disponibilidade tile-relative CORRIGIDA + nível -442 retractado
+- **PROVA:** `AvifFullPlaneE2ETest#paletteFreeMultiTileStreamDecodesItsWholePayload` (fixture novo, 11400/11400 bits e plano == ffmpeg); foco AVIF 27/27 verde (full-plane 5/5, geo 11/11, real-file 8/8, chroma/tile-recon/cdef/film-grain).
+- **RETRACÇÕES:** nível `-442` (instalação de probe obsoleta) e o "consumo exacto" do stream com paleta (instrumento SATURA; medido corrompendo a cauda).
+- **MÉTODO:** payload do tile 1 é byte-idêntico ao crop standalone; forçar a origem (0,0) reproduziu o trace standalone EXACTO (6291 símbolos) — a localização veio dessa comparação.
+- **PRÓXIMO:** skip_txfm=1 e TX_16X64 (ver `next`).
 
 ## Sessão 18/10 (150ª) — 3bd: nível DC isolado
 - **SHA:** `5599f4d06` (push 0/0).

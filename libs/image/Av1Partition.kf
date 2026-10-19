@@ -122,6 +122,14 @@ class Av1Partition {
     // never cross a tile boundary — tiles are superblock-aligned), and the
     // `left` context is zeroed per superblock row by the loop.
     List<Int[]> walkTile(Int r0, Int c0, Int r1, Int c1) {
+        // The bound decoder's availability margins are TILE-relative (libaom
+        // `set_offsets`: `up_available = mi_row > tile->mi_row_start`), so it
+        // must know this tile's origin before the first block is decoded — a
+        // tile's first column has no left neighbour even at frame col > 0.
+        var dec0 = this.decoder
+        if (dec0 != null) {
+            dec0.setTileOrigin(r0, c0)
+        }
         var r = r0
         while (r < r1) {
             this.zeroLeft()
