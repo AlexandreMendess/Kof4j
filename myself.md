@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (134ª) — 3bd: plano inteiro multi-tile + §753
+- **SHA:** `062319e9e` (push 0/0).
 - **PIN:** `AvifFullPlaneE2ETest` (novo) com `avif_ref_mt128.yuv`; 24.576 amostras exactas.
 - **ACHADO:** `avif_real_ua20.avif` divergente pré-CDEF (luma linha 6+, chroma toda) ⇒ `known-bugs` §753 OPEN.
 - **CAVEATS:** o teste geo amostrado continua verde (só vê as linhas 0/2); o §753 é o próximo.
