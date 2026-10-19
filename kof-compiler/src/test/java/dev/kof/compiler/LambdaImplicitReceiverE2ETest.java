@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -43,12 +44,12 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * O oráculo é a JVM (rule 5): a MESMA saída tem de valer em Script e JS.
  *
- * <p><b>O alvo NATIVE não está aqui de propósito — e não é este defeito:</b>
- * MEDIDO (15/10), o controle EXPLÍCITO `this.somar(n)` também morre com SIGSEGV
- * (rc=139) no native x86-64, enquanto uma lambda SEM captura roda normal
- * (`6/6`) — ou seja, o crash é de "lambda que CAPTURA algo" no backend nativo,
- * pré-existente e independente do receptor implícito (issue própria). Travar a
- * face nativa aqui seria travar um defeito de OUTRA família.
+ * <p><b>NATIVE:</b> the x86-64 face joined 18/10 — the old exclusion's blocker
+ * (a capturing lambda SIGSEGV) no longer reproduces there, measured with the
+ * 0.6.7 jar (this shape prints `6`, exit 0). The CROSS targets (riscv64/
+ * aarch64) still DIE with exit 139 on the same `this`-capture shape — a
+ * separate, now-catalogued gap (`known-bugs` §758), so those faces stay out of
+ * this test.
  */
 class LambdaImplicitReceiverE2ETest {
 
@@ -131,6 +132,33 @@ class LambdaImplicitReceiverE2ETest {
         KofInterpreter.Result script = driver.interpret(java.util.List.of(src), tempDir, new String[0]);
         assertEquals(0, script.exitCode(), "Script exit, stderr=" + script.stderr());
         assertEquals(oracle, script.stdout().trim(), "Script must match the JVM oracle (rule 5)");
+    }
+
+    @Test
+    void implicitReceiverOnNativeX86(@TempDir Path tempDir) throws Exception {
+        Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
+        Path src = write(tempDir, "implicit-native", IMPLICIT);
+        Path out = tempDir.resolve("out-native");
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), "x86 compile: " + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(out.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        String o = NativeRiscv64E2ETest.runBounded(p, "x86-lambda-implicit");
+        assertEquals(0, p.exitValue(), () -> "x86 saída (SIGSEGV here before 18/10): " + o);
+        assertEquals(GOLDEN, o);
+    }
+
+    private static boolean has(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                if (p.waitFor() != 0) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

@@ -16979,6 +16979,7 @@ O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância
 
 **RE-MEDIDO 15/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (os QUATRO alvos):** o `VerifyError` do JVM é só UMA das faces — `class Contador { Int somar(Int n) { return n + 1 }  (Int) -> Int implicito() { return (n: Int) -> somar(n) } }` + `c.implicito()(5)` diverge em toda parte: **JVM** `VerifyError: Bad type on operand stack` (a face registrada); **Script** imprime `Lambda0.somar` (um valor ERRADO, silencioso); **JS** lança em runtime (`return this.somar(n)` — `this` é a lambda); **native x86 dá SIGSEGV (rc=139)**. O caminho explícito `this.somar(n)` devolve `6` correto nos quatro, confirmando o diagnóstico do capture-scanner.
 
+**FIXADO PELO GOLDEN 18/10:** o novo caso de equivalencia `lambda-implicit-receiver` (`class Contador { (Int) -> Int implicito() { return (n: Int) -> somar(n) } }`, `println(c.implicito()(5))`) imprime `6` nos quatro alvos do golden — **4/4 PASS** (jvm/native/js/script) — medido primeiro no alvo Script; corromper o golden faz 4/4 FAIL. A face x86-64 do `LambdaImplicitReceiverE2ETest` tambem entrou (o bloqueio nativo da exclusao antiga ja nao reproduz la); o crash CROSS esta catalogado no §757.
 <!-- en-switch --> **EN:** [§735 (en)](known-bugs.md#735--bug-846-a-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---fixed-1510-lane-issuestooling-192168100219093)
 
 ## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — ✅ CORRIGIDO 15/10 (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
@@ -17458,3 +17459,14 @@ fixture: kof-compiler/src/test/resources/avif_enc_check192.avif (610 bytes)
 O stream traz film grain presente com apply_grain 0 (aceite desde a 140ª passagem), paletas (blocos `palY2`) e CFL (`uvCFL=9`).
 **Próximo passo:** recodificar com `-enable-palette 0`, com um só tile, e lossless, e comparar cada variante — o xadrez da chroma aponta ao caminho CFL/paleta, os valores de Y à interpretação da cor da paleta ou do intervalo.
 <!-- pt-switch --> **PT:** [§757](known-bugs.md#757--a-raw-ffmpeglibaom-avif-decodes-to-the-end-of-its-payload-but-its-planes-diverge-y-235-vs-ffmpeg-218-chroma-a-checkerboard-where-the-source-is-gray)
+
+## §758 — uma lambda que CAPTURA o `this` da classe envolvente ainda faz SEGFAULT nos nativos CROSS (riscv64/aarch64) enquanto o x86-64 roda — 🟡 ABERTO (medido 18/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 18/10, `kof-cli-0.6.7.jar` no tip):** o mesmo programa do lado EN — JVM/Script/JS/nativo x86-64 imprimem `6` (exit 0); riscv64 e aarch64 saem com **139** (SIGSEGV sob qemu). A forma EXPLICITA `this.somar(n)` morre igual, portanto o gatilho e a CAPTURA da instancia envolvente, nao a resolucao do receptor implicito — o §735 esta CORRIGIDO, o teste dele excluia o nativo por causa deste crash e agora roda a face x86, e o golden `lambda-implicit-receiver` fixa os quatro alvos do runner.
+
+**Estreitamento (medido):** a face x86-64 deixou de crashar depois do trabalho de captura de lambda nativo que pousou depois de 15/10 (a mesma forma fazia SIGSEGV la em 15/10); os emissores CROSS ainda crasham. Distinto do §620 (uma lambda que captura passada como ARGUMENTO de tipo funcao tinha um shift de registo, CORRIGIDO 07/10): aqui o VALOR lambda captura `this` e e invocado pelo tipo funcao devolvido.
+
+**Fronteira:** so riscv64/aarch64; x86-64/JVM/Script/JS corretos.
+
+**Proximo passo:** rastrear o load do campo de captura no cross (o campo `this` capturado do objeto lambda vs o registo do receptor) com a tecnica de dump do §620.
+<!-- pt-switch --> **EN:** [§758 (en)](known-bugs.md#758--a-lambda-that-captures-its-enclosing-this-still-segfaults-on-the-cross-natives-riscv64aarch64-while-x86-64-runs-it---open-measured-1810-by-lane-compilerjvmnative-19216815309092)

@@ -19492,6 +19492,7 @@ O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância
 
 
 **Fix (15/10, lane issues/tooling `192.168.100.21:9093` — DOIS sítios, medidos):** (a) `CompilerCaptures` passa a tratar a chamada nua de um método de INSTÂNCIA da classe envolvente como uso do `this` EXTERNO, resolvida pela **CLASSE + aridade** (`semanticAnalyzer.getClass` + `members().resolve`) — o lookup por nome simples não bastava (os dois attempts revertidos pararam aqui e o instrumentado mostrava `captures=[]`; agora o membro resolve e o `this` externo entra nas capturas); (b) **`ExpressionBareCallLowerer` carregava SEMPRE o slot 0 FIXO como receptor** (`new KofLoadLocal(ownerType, 0)`) — É AQUI que morava o `aload_0` da issue, e não em `ExpressionMethodCallLowerer:107`; agora resolve pelo NOME (`findLocalVar("this", locals)`), que varre de trás para frente e por isso encontra a captura re-hospedada depois de `locals[0]`. **Prova RED-first (executada):** `LambdaImplicitReceiverE2ETest` **2/2** — oráculo da JVM (`6`) asserted byte-idêntico em **Script** e **JS**, mais o controle explícito; antes do fix: JVM rc=1 (`VerifyError`) e Script rc=1. Não-regressão: `LambdaE2ETest` 38/38, `LambdaBranchUnificationE2ETest` 3/3, `CapturedFunctionTypeE2ETest` 2/2, `LambdaInGenericContainerE2ETest` 5/5; golden 328 passed (as 12 falhas da suíte são da família cobol, outra lane). **FACE NATIVA SEPARADA (§876, aberta):** no native x86-64 o controle EXPLÍCITO `this.somar(n)` TAMBÉM dá SIGSEGV (rc=139) e uma lambda SEM captura roda (`6/6`) — o crash é de "lambda que CAPTURA" no backend nativo, NÃO deste sítio; a face nativa não é travada no teste desta issue de propósito.
+**PINNED BY GOLDEN 18/10:** the new equivalence case `lambda-implicit-receiver` (`class Contador { (Int) -> Int implicito() { return (n: Int) -> somar(n) } }`, `println(c.implicito()(5))`) prints `6` on all four golden targets — **4/4 PASS** (jvm/native/js/script) — measured on the Script target first; corrupting the golden makes 4/4 FAIL. The x86-64 face of `LambdaImplicitReceiverE2ETest` also joined (the old exclusion's native blocker no longer reproduces there); the CROSS crash is catalogued as §757.
 <!-- pt-switch --> **PT:** [§735 (pt_BR)](known-bugs.pt_BR.md#735--bug-846-uma-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---corrigido-1510-lane-issuestooling-192168100219093)
 
 ## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — ✅ FIXED 15/10 (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
@@ -19970,4 +19971,28 @@ fixture: kof-compiler/src/test/resources/avif_enc_check192.avif (610 bytes)
 ```
 The stream carries film grain present with apply_grain 0 (accepted since the 140th pass), palettes (`palY2` blocks) and CFL (`uvCFL=9`).
 **Next step:** re-encode with `-enable-palette 0`, with a single tile, and lossless, and compare each variant — the chroma checkerboard points at the CFL/palette path, the Y values at the palette-colour or range interpretation.
-<!-- pt-switch --> **PT:** [§757 (pt_BR)](known-bugs.pt_BR.md#757--um-avif-cru-do-ffmpeg-libaom-decoda-até-ao-fim-do-payload-mas-os-seus-planos-diverge-y-235-vs-ffmpeg-218-chroma-em-xadrez-onde-a-fonte-é-cinzenta)
+<!-- pt-switch --> **PT:** [§757 (pt_BR)](known-bugs.pt_BR.md#757--um-avif-cru-do-ffmpeglibaom-decoda-ate-ao-fim-do-payload-mas-os-seus-planos-divergem-y-235-vs-ffmpeg-218-chroma-em-xadrez-onde-a-fonte-e-cinzenta)
+
+## §758 — a lambda that CAPTURES its enclosing `this` still SEGFAULTS on the CROSS natives (riscv64/aarch64) while x86-64 runs it — 🟡 OPEN (measured 18/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Symptom (measured 18/10, `kof-cli-0.6.7.jar` at the tip):**
+
+```kof
+class Contador {
+    Int somar(Int n) { return n + 1 }
+    (Int) -> Int implicito() { return (n: Int) -> somar(n) }
+}
+main() {
+    var c = Contador()
+    println(c.implicito()(5))
+}
+```
+
+JVM/Script/JS/native x86-64 print `6` (exit 0); riscv64 and aarch64 exit **139** (SIGSEGV under qemu). The EXPLICIT `this.somar(n)` spelling dies the same way, so the trigger is the CAPTURE of the enclosing instance, not the implicit-receiver resolution — §735 is FIXED, its test excluded native because of this crash and now runs the x86 face, and the golden `lambda-implicit-receiver` pins the four runner targets.
+
+**Narrowing (measured):** the x86-64 face stopped crashing after the native lambda-capture work that landed after 15/10 (the same shape SIGSEGVed there on 15/10); the CROSS emitters still crash. Distinct from §620 (a capturing lambda passed as a function-typed ARGUMENT had a register shift, FIXED 07/10): here the lambda VALUE captures `this` and is invoked through the returned function type.
+
+**Boundary:** riscv64/aarch64 only; x86-64/JVM/Script/JS correct.
+
+**Next step:** trace the cross capture field load (the lambda object's captured `this` field vs the receiver register) with the §620 dump technique.
+<!-- pt-switch --> **PT:** [§758 (pt_BR)](known-bugs.pt_BR.md#758--uma-lambda-que-captura-o-this-da-classe-envolvente-ainda-faz-segfault-nos-nativos-cross-riscv64aarch64-enquanto-o-x86-64-roda---aberto-medido-1810-pela-lane-compiladorjvmnativo-19216815309092)
