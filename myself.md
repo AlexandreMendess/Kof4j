@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (145ª) — 3bd: matriz de features, paleta isolada (§760)
+- **SHA:** `2d46be927` (push 0/0).
 - **MATRIZ:** paleta ON = 2376/2376 exacto; paleta OFF = ~30% (7283/23888) em todas as variantes.
 - **CDEF/lossless/qualidade:** não são o interruptor; restoration/intrabc já estavam off.
 - **NOVO:** §760 catalogado; cobertura não é sincronia.
