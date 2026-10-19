@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (138ª) — 3bd: janela do §754 e auditoria das tabelas
+- **SHA:** `ba96c19c1` (push 0/0).
 - **SPANS:** y-mode do bloco 1 em 361 = 9, corpo até 365, tx+all_zero até 370, payload 560 (190 por consumir).
 - **AUDITADO:** todas as tabelas/contextos da janela coincidem com o libaom buscado.
 - **RESTA:** uma CDF default errada (layout/valor) na janela — próxima medição.
