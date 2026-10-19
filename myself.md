@@ -9,6 +9,7 @@ location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
 
 ## Sessão 18/10 (149ª) — 3bd: correção do EOB + alvo mínimo
+- **SHA:** `e9a59fec1` (push 0/0).
 - **CORREÇÃO:** o EOB de 11 vias é válido para 32x32 e 64x64; suspeita retirada.
 - **ALVO:** ffmpeg Y=71 plano, U=V=128; Kof Y=64 (7 de erro, um bloco, um DC).
 - **PRÓXIMO:** predição/DC desquantizado/valor do bloco único.
