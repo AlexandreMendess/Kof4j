@@ -80,7 +80,7 @@ AvifFrameHeader readAvifFrameHeader(String path) {
 AvifFrameHeader avifItemFrameHeader(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
                             false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
-                            false, false, false, false)
+                            false, false, false, false, false)
     var haveSeq = false
     var pos = 0
     var n = item.length
@@ -150,6 +150,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     }
     var frameType = 0
     var showFrame = 1
+    var showableFrame = 0
     var errorResilient = 1
     if (reduced == 0) {
         if (seqRead(b, bits, 1) == 1) {
@@ -163,8 +164,13 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
         }
         showFrame = seqRead(b, bits, 1)
         bits = bits + 1
+        // showable_frame: read when show_frame is 0, else
+        // `frame_type != KEY_FRAME` (libaom's uncompressed_header).
         if (showFrame == 0) {
+            if (seqRead(b, bits, 1) == 1) { showableFrame = 1 }
             bits = bits + 1
+        } else {
+            if (frameType != 0) { showableFrame = 1 }
         }
         if (frameType == 0 && showFrame == 1) {
             errorResilient = 1
@@ -267,7 +273,9 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     if (seq.monochrome) {
         numPlanes = 1
     }
-    var tail = frameTailWalk(b, bits, limit, seq, allowSct, allowIntrabc, numPlanes)
+    var filmReadable = 0
+    if (showFrame == 1 || showableFrame == 1) { filmReadable = 1 }
+    var tail = frameTailWalk(b, bits, limit, seq, allowSct, allowIntrabc, numPlanes, filmReadable)
     bits = tail[0]
     var hb = bits
     while ((hb & 7) != 0) {
@@ -326,7 +334,8 @@ Int[] segAltQOut(Int[] tail) {
 }
 
 Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
-                    Int allowSct, Int allowIntrabc, Int numPlanes) {
+                    Int allowSct, Int allowIntrabc, Int numPlanes,
+                    Int filmReadable) {
     var separateUv = 0
     if (seq.separateUvDeltaQ) {
         separateUv = 1
@@ -578,6 +587,16 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     // reduced_tx_set (frame_reference_mode/skip_mode_params inferred for intra)
     var reducedTxSet = seqRead(b, bits, 1)
     bits = bits + 1
+    // film_grain_params(): the FIRST bit is apply_grain; when it is 0 the
+    // parameters end there (libaom memsets and returns). Only an actually
+    // APPLIED grain is refused — the sequence flag alone is not a gap.
+    if (seq.filmGrainPresent == true && filmReadable == 1) {
+        var applyGrain = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (applyGrain == 1) {
+            throw "IMAGE: avif film grain not covered"
+        }
+    }
     if (bits > limit * 8) {
         throw "IMAGE: truncated avif frame header"
     }

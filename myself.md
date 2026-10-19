@@ -2,11 +2,16 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 139ª PASSAGEM: as CDFs DEFAULT do §754 EXONERADAS — 13 tabelas (skip, delta-Q/LF, kf_y, uv, paleta modo/tamanho, tx_size, txb_skip nos 4 Q contexts, color-index de paleta com padding) comparadas entrada a entrada com o entropymode.c/token_cdfs.h buscados: ZERO diferenças. Resta a SELECÇÃO/estado (lookup da linha + posição do leitor após o mapa de índices de cor). Reprodutor: ffmpeg codifica AVIF aqui; libaom sinaliza film-grain=1 (recusado) e o tile-group do rav1e dá 'group end incomplete' — próxima instrumentação.
-doing: §3bd — tabelas default exoneradas; falta isolar a selecção/estado pós-paleta (reprodutor controlado)
-next: §3bd — instrumentar o contexto/colorOrder do mapa de índices de cor e o tx-size do bloco 1; habilitar o reprodutor (tratar film-grain ou o grupo do rav1e)
+last: 19/10 — 3bd 140ª PASSAGEM: a GUARDA DE FILM GRAIN ficou FIEL — o `AvifSeqHeader` transporta `filmGrainPresent`, o `frameWalk` lê `showable_frame`, a cauda lê o primeiro bit de `film_grain_params()` e só `apply_grain==1` é recusado. PROVA: `AvifEncodedFilmGrainE2ETest` (novo) sobre um AVIF real do ffmpeg/libaom (xadrez 192x64, `-tiles 2x1`, film grain presente): `hdr 192x64 bq=80 lf=0 ll=0 tx=1 dfl=0 cdef=0`; RED-first (o walk antigo lançava antes de imprimir). O mesmo stream decodifica pela probe com `symBits == payloadBits` (2376/2376) e resíduos reais; a comparação de plano inteiro aguarda um wrap fiel do item.
+doing: §3bd — guarda de film grain landada e provada; reprodutor controlado a funcionar (falta o wrap fiel do item)
+next: §3bd — envolver o item com `avifItemBytes`, comparar os planos do stream controlado com o ffmpeg e isolar a selecção/estado de entropia do §754
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (140ª) — 3bd: film grain + reprodutor controlado
+- **LANDADO:** `AvifSeqHeader.filmGrainPresent`, `showable_frame`, `apply_grain` (recusa só quando aplicado).
+- **PROVA:** `AvifEncodedFilmGrainE2ETest` (RED-first) com um AVIF real do ffmpeg/libaom; 29/29 no batch.
+- **CAVEAT:** a comparação de plano inteiro do stream controlado usa um wrap fiel do item (próximo passo).
 
 ## Sessão 18/10 (139ª) — 3bd: CDFs default exoneradas
 - **SHA:** `6266cf130` (push 0/0).

@@ -93,7 +93,7 @@ List<Int[]> readAvifTilePayloads(String path) {
 List<AvifTileGroup> avifItemTileGroups(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
                             false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
-                            false, false, false, false)
+                            false, false, false, false, false)
     var haveSeq = false
     var groups = listOf<AvifTileGroup>()
     var totalTileNum = 0
