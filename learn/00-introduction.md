@@ -17,7 +17,6 @@ Kof keeps the power of the JVM and the Java ecosystem, but removes most of the c
 Kof is not just a language for the JVM. It is a language that can compile to different targets:
 
 ```mermaid
-
 ---
 config:
   theme: default
@@ -94,7 +93,6 @@ flowchart TD
     KofIR ==> PathNative
     KofIR ==> PathJS
     KofIR ==> PathScript
-
 ```
 
 **The language does not change. The target changes.**
