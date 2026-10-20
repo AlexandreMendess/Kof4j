@@ -220,23 +220,81 @@ The name is short, easy to type, and does not conflict with any known Java libra
 
 ## How it works under the hood
 
-```
-You write:        record User(String name)          // intention
-                        ↓
-Kof compiler:     lexer → parser → AST → IR → backend   // intention->Kof->frontend->IR->backend->runtime
-                        ↓
-                  ┌──────┼──────┐
-                  │      │      │
-               JVM    Native   JS
-                  │      │      │
-                  ▼      ▼      ▼
-             User.class ELF*  .mjs
-                  │      │      │
-                  ▼      ▼      ▼
-              works    executable ES Module
-              as a     directly on in the
-              class    Linux       embedded engine
-              Java normal (x86-64/riscv/arm)
+```mermaid
+---
+config:
+  theme: default
+  themeVariables:
+    darkMode: false
+    background: "#ffffff"
+    textColor: "#000000"
+    lineColor: "#333333"
+---
+flowchart TD
+    %% Estilos
+    classDef spec fill:#f9f2f4,stroke:#d0a0b0,stroke-width:2px,stroke-dasharray: 5 5
+    classDef compiler fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef module fill:#e8eaf6,stroke:#3f51b5,stroke-width:1px
+    classDef sub fill:#ffffff,stroke:#9e9e9e,stroke-width:1px
+    classDef backend fill:#f3e5f5,stroke:#8e24aa,stroke-width:1px
+
+    %% Elementos Principais
+    A["Start (Intent)"]:::spec
+    B{"You write: record User(String name) // intention"}:::sub
+    
+    subgraph Pipeline ["Compilation Pipeline"]
+        direction TB
+        C[lexer]:::sub
+        D[parser]:::sub
+        E[AST]:::sub
+        F[IR]:::sub
+        G[backend]:::compiler
+    end
+
+    subgraph Targets ["Backend Targets & Outputs"]
+        direction TB
+        subgraph JVM_Target ["JVM"]
+            direction TB
+            J["JVM backend"]:::backend
+            K["User.class"]:::module
+            L["works as a class<br>Java normal"]:::sub
+        end
+        
+        subgraph Native_Target ["Native"]
+            direction TB
+            M["Native backend"]:::backend
+            N["ELF*"]:::module
+            O["executable directly on Linux<br>(x86-64/riscv/arm)"]:::sub
+        end
+        
+        subgraph JS_Target ["JavaScript"]
+            direction TB
+            P["JS backend"]:::backend
+            Q[".mjs"]:::module
+            R["ES Module in the<br>embedded engine"]:::sub
+        end
+    end
+
+    %% Fluxo de Conexões
+    A --> B
+    B --> C
+    B --> E
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    
+    G --> J
+    J --> K
+    K --> L
+    
+    G --> M
+    M --> N
+    N --> O
+    
+    G --> P
+    P --> Q
+    Q --> R
 ```
 
 `*` Native includes `native` (x86-64), `native.risc` (riscv64) and `native.arm` (aarch64) — selection via the `Target` enum.
