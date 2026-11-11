@@ -3,7 +3,7 @@
 # stdlib web — Stack Web Nativa do Kof
 
 **Última atualização:** 4 de setembro de 2026
-**Versão:** 0.6.4 (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
+**Versão:** 0.6.7 (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
 **Status:** implementado (Fase 1 do plano de independência do Spring) — `kof serve` + `kof.http` JVM+JS + `app.ws`/`app.sse` JVM + limites/contadores
 
 ---
@@ -206,6 +206,7 @@ app.get("/api/hide") { return "hide" }                          // herda desliga
 | Chamada | Descrição |
 |---------|-----------|
 | `app.listen(port)` | Inicia o servidor (bloqueante) em `0.0.0.0` |
+| `app.listen("127.0.0.1", port)` | Liga UMA interface (serviços somente-locais) — \`app.listen(port)\` mantém o wildcard (#1114) |
 | `app.listenSecure(port)` | Idem, com TLS (JVM; self-signed `keytool` + `SSLServerSocket`) |
 | `app.port()` | Porta efetivamente vinculada (útil com `listen(0)`) |
 | `app.close()` | Encerra o servidor (graceful shutdown) |
@@ -341,6 +342,7 @@ globais por JVM e devolvidas como `String`.
 | `body()` | Corpo cru da request |
 | `method()` | Método HTTP ("GET", "POST", ...) |
 | `path()` | Caminho da request |
+| `remoteAddr()` | Endereço TCP do peer da request (`""` quando desconhecido) — atrás de um proxy o cliente é o header `x-forwarded-for` (#1110) |
 | `status(code, body)` | Define o status da resposta e retorna o corpo — use como retorno (ex.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adiciona um header de resposta (ex.: `headerSet("X-Total", "42")`) |
 

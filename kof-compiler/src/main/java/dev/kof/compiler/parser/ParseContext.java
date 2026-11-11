@@ -113,6 +113,22 @@ public class ParseContext {
      * aditivo/retro-compatível). `D-VALUE-RECORDS-GO` resolveu: `value` aplica
      * SÓ a `record` (nunca `class`).
      */
+    /**
+     * #1068/#1138 — {@code audited} é keyword CONTEXTUAL (IDENTIFIER no
+     * lexer): só é modificador de declaração quando precede um
+     * {@code entity}. Sem este despacho o IDENTIFIER {@code audited} caía no
+     * ramo de FUNÇÃO do topo (parseFunctionDeclaration o engolia como tipo de
+     * retorno e o expectId morria na coluna de {@code entity} — PARSE010).
+     * Espelha {@code sealedModifierAhead}/{@code valueModifierAhead}.
+     */
+    public boolean auditedModifierAhead() {
+        if (!wordIs("audited")) return false;
+        int i = pos + 1;
+        while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
+        if (i >= tokens.size()) return false;
+        return tokens.get(i).type() == TokenType.ENTITY;
+    }
+
     public boolean valueModifierAhead() {
         if (!wordIs("value")) return false;
         int i = pos + 1;
@@ -133,6 +149,63 @@ public class ParseContext {
         return tokens.get(pos + 1).type() == TokenType.IDENTIFIER
                 && tokens.get(pos + 2).type() == TokenType.IDENTIFIER
                 && tokens.get(pos + 3).type() == TokenType.LBRACE;
+    }
+
+    /**
+     * #981 — um modificador puro (`public`/`private`/`protected`/`static`/...)
+     * no nível de TOPO, quando o que vem depois de TODOS eles não é uma keyword
+     * de declaração de tipo (`class`/`interface`/`record`/`enum`/`entity`): é
+     * uma FUNÇÃO de módulo, não um tipo. {@code ClassMemberParser.parseClassMember}
+     * já consome modificadores ANTES de decidir o que segue (mesmo padrão de
+     * {@link #sealedModifierAhead()}); o dispatcher de topo ({@code Parser.parse()})
+     * decidia pelo token ANTES do modificador, então `private Int f(...)` e
+     * `private f(...): Int` caíam sempre no ramo de tipo
+     * ({@code TypeDeclarations.parseTypeDeclaration}, que exige um desses
+     * keywords) e morriam com `PARSE007` (em cascata, na forma sufixada).
+     */
+    public boolean modifierPrefixedFunctionAhead() {
+        if (!MODIFIER_TOKENS.contains(peek().type())) return false;
+        int i = pos;
+        while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
+        if (i >= tokens.size()) return false;
+        TokenType t = tokens.get(i).type();
+        if (t == TokenType.CLASS || t == TokenType.INTERFACE || t == TokenType.RECORD
+                || t == TokenType.ENUM || t == TokenType.ENTITY) {
+            return false;
+        }
+        return t == TokenType.IDENTIFIER || t == TokenType.VOID || t == TokenType.LPAREN
+                || TypeParser.isPrimitiveTypeToken(t);
+    }
+
+    /**
+     * Kof.expr spike-0 (`D-KOF-EXPR`) — {@code expr} é keyword CONTEXTUAL
+     * (IDENTIFIER no lexer), como {@code sealed}: só é o início de uma
+     * declaração de padrão quando vem IDENTIFIER(expr) + IDENTIFIER(nome) + `{`.
+     * Em qualquer outro lugar `expr` segue um identificador comum, então código
+     * existente que nomeia algo `expr` continua compilando (R2 aditivo).
+     */
+    public boolean exprDeclarationAhead() {
+        if (!wordIs("expr")) return false;
+        if (pos + 2 >= tokens.size()) return false;
+        if (tokens.get(pos + 1).type() == TokenType.IDENTIFIER) {
+            return tokens.get(pos + 2).type() == TokenType.LBRACE;
+        }
+        // O nome do padrão é um NOME, não um slot estrutural: não passa pelo
+        // vocabulário do perfil. Uma palavra PT que coincide com keyword da
+        // superfície (`digito`, `letra`) segue sendo nome válido — traduzir um
+        // identificador é a violação da regra-ouro PARTE 5.
+        return isPatternNameToken(pos + 1) && tokens.get(pos + 2).type() == TokenType.LBRACE;
+    }
+
+    /** O token em {@code i} pode nomear um padrão: qualquer palavra, inclusive uma keyword léxica (`digito`, `letra` em PT). */
+    private boolean isPatternNameToken(int i) {
+        if (i < 0 || i >= tokens.size()) return false;
+        String old = tokens.get(i).type().name();
+        return old.endsWith("_TYPE");
+    }
+
+    private boolean isPatternNameToken() {
+        return isPatternNameToken(pos);
     }
 
     boolean atEnd() {
@@ -167,7 +240,10 @@ public class ParseContext {
     }
 
     public String expectId(String message, String code) {
-        if (check(TokenType.IDENTIFIER)) return advance().value();
+        // Nome de padrão (`expr NOME {`): o valor TIPADO da palavra é aceito
+        // como nome — a superfície PT usa `digito`/`letra`, que são keywords
+        // léxicas daquele perfil. O vocabulário não dita nomes de usuário.
+        if (check(TokenType.IDENTIFIER) || isPatternNameToken()) return advance().value();
         // #330: `fn`/`fun`/`func` são RESERVADAS (SG-001) — em posição de nome
         // o diagnóstico certo é PARSE085 com a forma correta, não o genérico
         // do chamador. Lexer + Parser (topo de arquivo) já fazem o mesmo.

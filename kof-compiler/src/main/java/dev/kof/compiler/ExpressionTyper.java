@@ -46,6 +46,8 @@ public final class ExpressionTyper {
                         yield lv.type();
                     }
                 }
+                FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, ie, locals);
+                if (outerFa != null) yield inferExprType(driver, outerFa, locals);
                 if ("super".equals(ie.name()) && driver.semanticAnalyzer != null
                         && !locals.isEmpty()
                         && locals.get(0).type() instanceof Type.ClassType selfType
@@ -122,8 +124,8 @@ public final class ExpressionTyper {
                     // acreditar no tipo certo (a regra antiga forçava `Bool` e
                     // o join de arcs boxed virava VerifyError invertido).
                     if ("&&".equals(be.operator()) || "||".equals(be.operator())) {
-                        boolean anyBool = CompilerComparisons.isNullableBool(leftType)
-                                || CompilerComparisons.isNullableBool(
+                        boolean anyBool = CompilerTroolean.isNullableBool(leftType)
+                                || CompilerTroolean.isNullableBool(
                                         ExpressionTyper.inferExprType(driver, be.right(), locals));
                         leftType = anyBool ? new Type.NullableType(Type.PrimitiveType.BOOL)
                                 : Type.PrimitiveType.BOOL;
@@ -263,7 +265,10 @@ public final class ExpressionTyper {
                     // (closures.md §1: corpo-bloco exige return EXPLÍCITO — o
                     // implícito só vale no caminho do spawn, ver
                     // inferLambdaBodyType, GitHub #141.)
-                    returnType = Type.PrimitiveType.VOID;
+                    // A body whose only returns are `return null` still returns a value.
+                    returnType = LambdaReturns.hasValueReturn(le.body())
+                            ? new Type.NullableType(new Type.ClassType("java.lang", "Object", List.of()))
+                            : Type.PrimitiveType.VOID;
                 }
                 yield new Type.FunctionType(paramTypes, returnType, driver.lambdaClassNames.get(le));
             }

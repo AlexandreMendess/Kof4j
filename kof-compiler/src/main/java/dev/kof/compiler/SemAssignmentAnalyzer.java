@@ -123,6 +123,24 @@ public final class SemAssignmentAnalyzer {
                     : (recvType instanceof Type.ClassType rct ? rct.name() : null);
             if (ownerName != null) {
                 SymbolTable.Symbol wf = MemberResolver.resolveFieldInHierarchy(sa, ownerName, fa.fieldName());
+                // #1099: a ESCRITA de campo não-declarado caía em silêncio aqui
+                // (o resolve devolve null e o analyzer seguia) — o JVM morria
+                // NoSuchFieldError na primeira construção e Script/JS
+                // armazenavam campos FANTASMAS. A LEITURA do mesmo campo já
+                // reporta SEM025 (SemFieldAccessTyper); a escrita reporta o
+                // MESMO diagnóstico quando a hierarquia é toda-Kof (a cadeia
+                // não alcança java.*: uma subclasse de ArrayList pode escrever
+                // campo Java herdado que a caminhada Kof não vê) e a classe é
+                // nossa; dono externo (classpath) fica fora do alcance da
+                // caminhada e segue solto.
+                if (wf == null && sa.diagnostics() != null
+                        && hierarchyIsAllKof(sa, ownerName)) {
+                    sa.diagnostics().error(fa,
+                            "Cannot resolve field '" + fa.fieldName() + "' on type '"
+                                    + (onThis ? sa.currentClassName() : ownerName) + "'",
+                            "SEM025");
+                    return Type.UnknownType.UNKNOWN;
+                }
                 if (wf instanceof SymbolTable.FieldSymbol wfs) {
                     MemberAccessChecks.checkFieldAccess(sa, wfs);
                     MemberAccessChecks.checkFinalFieldWrite(sa, wfs);
@@ -178,10 +196,84 @@ public final class SemAssignmentAnalyzer {
                         "`[]` assignment only works on arrays in Kof; for a List use l.set(i, v)",
                         "SEM054");
             }
+            // ARRAY-1 (27/10, #776): o §368 para ELEMENTO de array real — a
+            // store SIMPLES `a[i] = v` passa pelo MESMO gate de
+            // atributibilidade do local e do campo. Sem isto, `a[0] =
+            // 3000000000L` (Long em Int[]) compila "clean" e morre em
+            // VerifyError na carga da classe (o launcher JVM disfarça de
+            // "JavaFX runtime missing" — o diagnóstico da mensagem nunca é
+            // benigno). MESMO código do gate da variável (o N2 mediu SEM021).
+            // #976 (28/10, a suíte estampada 7560/2F): a store COMPOSTA
+            // (`+=`, `*=`) NÃO passa aqui — ela é leitura+op+loja com o
+            // PRÓPRIO caminho de conversão (emitCompoundRhsConv): o operando
+            // combina pela ARITMÉTICA/concat (o golden `ab9`: `names[0] += 9`
+            // → concat; `chars[i] += 1` → Char trunc), não pela loja direta —
+            // gatear o operando cru contra o tipo do ELEMENTO rejeitava o que
+            // TODOS os backends executam. O gate da variável/local já sabe
+            // disso (o `stringConcat`); aqui o gate INTEIRO fica na store
+            // simples.
+            Type arrT = unwrapped instanceof Type.ArrayType aat ? aat.componentType() : null;
+            if (sa.diagnostics() != null && arrT != null && "=".equals(ae.operator())) {
+                Type vT = SemExpressionTyper.inferType(sa, ae.value(), scope);
+                // #976 face 2 (a suíte estampada 7560/2F): o §184/§187 da
+                // matriz de conformance PINA a store de estreitamento
+                // i32→i32 (`c[0] = 70000` em Char[], `b[0] = 130` em Byte[])
+                // como LEGAL — BASTORE/SASTORE/CASTORE truncam em TODOS os
+                // alvos (o expected `4464`). A única classe que NENHUM
+                // backend executa = o valor de 64 bits NO slot i32 (o
+                // lastore pede i64 e o lowering não emite l2i — o
+                // VerifyError que fundou o gate). O gate recusa SÓ ela.
+                boolean elemTruncNarrow = (Type.PrimitiveType.BYTE.equals(arrT)
+                        || Type.PrimitiveType.SHORT.equals(arrT)
+                        || Type.PrimitiveType.CHAR.equals(arrT))
+                        && (Type.PrimitiveType.INT.equals(vT)
+                        || Type.PrimitiveType.BYTE.equals(vT)
+                        || Type.PrimitiveType.SHORT.equals(vT)
+                        || Type.PrimitiveType.CHAR.equals(vT));
+                if (!Type.isUnknown(vT) && !Type.isUnknown(arrT)
+                        && !elemTruncNarrow
+                        && !TypeChecker.isAssignable(sa, vT, arrT)) {
+                    SourcePosition apos = aa.position();
+                    sa.diagnostics().error(apos != null ? apos.file() : "",
+                            apos != null ? apos.line() : 0, apos != null ? apos.column() : 0, 0,
+                            "type mismatch: cannot assign " + Type.display(vT)
+                                    + " to array element of " + Type.display(arrT),
+                            "SEM021");
+                }
+            }
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         } else if (ae.target() != null) {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         }
         return targetType;
+    }
+
+    /**
+     * #1099 — a cadeia de superclasses de `className` é toda-Kof (cada
+     * superclass resolve para uma classe no analyzer)? Uma classe com
+     * ancestral java.* fica DE FORA: pode escrever um campo Java herdado
+     * que a caminhada Kof não enxerga (`this.modCount` numa subclasse de
+     * ArrayList).
+     */
+    private static boolean hierarchyIsAllKof(SemanticAnalyzer sa, String className) {
+        String cur = className;
+        int hops = 0;
+        while (cur != null && hops++ < 32) {
+            SymbolTable.ClassSymbol cs = sa.getClass(cur);
+            if (cs == null) return false;
+            String sup = cs.superClass();
+            if (sup == null || sup.isEmpty()) return true;
+            // a RAIZ do Kof (`Object` sem pacote) fecha a cadeia como toda-Kof;
+            // um ancestral java.*/dev.kof/kof. (ex.: ArrayList) abre o carve-out.
+            if ("Object".equals(sup)) return true;
+            if (sup.startsWith("java.") || sup.startsWith("java/")
+                    || sup.startsWith("dev.kof") || sup.startsWith("dev/kof")
+                    || sup.startsWith("kof.")) {
+                return false;
+            }
+            cur = sup.contains(".") && !sup.contains("/")
+                    ? sup.substring(sup.lastIndexOf('.') + 1) : sup;
+        }
+        return false;
     }
 }

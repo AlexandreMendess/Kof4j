@@ -19,11 +19,35 @@ final class WasmTypeOracle {
     }
 
     static boolean isScalarSignature(IRMethod m) {
+        return isScalarSignature(m, false);
+    }
+
+    /** 15.2-STRSIG (02/11, #776 — round 87): o String entra na assinatura
+     *  das funções top-level do frontend WASI. A maquinaria do String
+     *  (handle i32 do bump heap + kof.strLit/kof.strConcat/kof.writeStr)
+     *  pousou nas fatias 15.3b/15.3c/15.3d — o valor JÁ anda no MESMO
+     *  handle i32 dos params/retornos de classe (CLASS-2b, 29/10), então o
+     *  gate era o único lugar que ainda recusava. O `allowString` é
+     *  WASI-only: o alvo WASM puro não registra o runtime de string
+     *  (printIntrinsic=false) e continua recusando honesto (WASM002). */
+    static boolean isScalarSignature(IRMethod m, boolean allowString) {
         for (Type t : m.parameterTypes()) {
-            if (!(t instanceof Type.PrimitiveType pt) || !scalar(pt.name())) return false;
+            if (t instanceof Type.PrimitiveType pt && scalar(pt.name())) continue;
+            if (allowString && isStringType(t)) continue;
+            return false;
         }
-        return m.returnType() instanceof Type.PrimitiveType pr
-                && (scalar(pr.name()) || "void".equalsIgnoreCase(pr.name()));
+        if (m.returnType() instanceof Type.PrimitiveType pr) {
+            return scalar(pr.name()) || "void".equalsIgnoreCase(pr.name());
+        }
+        return allowString && isStringType(m.returnType());
+    }
+
+    /** O `String` bare (java.lang.String) — o `String?` fica FORA (o handle
+     *  0 já imprime `null`, mas o retorno nullable de helper segue sem
+     *  sonda: a recusa honesta fica). */
+    static boolean isStringType(Type t) {
+        return t instanceof Type.ClassType ct
+                && "String".equals(ct.name()) && "java.lang".equals(ct.packageName());
     }
 
     private static boolean scalar(String name) {
@@ -71,6 +95,11 @@ final class WasmTypeOracle {
                 if (kc.kind() == KofCallKind.CONSTRUCTOR && kc.ownerType() instanceof Type.ClassType oct) {
                     return oct.name(); // record: o handle fica na pilha apesar do ret void
                 }
+                // Fase E (27/10, #776): o produtor CAIXA (join heterogeneo do
+                // if-expression) — imprimivel via kof.boxToStr no emitPrintln.
+                if (WasmBoxRuntime.NAMES.contains(kc.methodName())) {
+                    return "box";
+                }
                 if ("valueOf".equals(kc.methodName()) && !kc.parameterTypes().isEmpty()
                         && kc.parameterTypes().get(0) instanceof Type.PrimitiveType) {
                     return typeName(kc.parameterTypes().get(0));
@@ -93,6 +122,276 @@ final class WasmTypeOracle {
                         return true;
                     }
                     if (op instanceof KofLoadField lf && WasmRecordOps.isStringField(lf.fieldType())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 15.3d fatia F: algum `==`/`!=` de String foi baixado para `kof_string_equals`.
+     *  Cobre a comparacao entre duas VARIAVEIS, que nao passa por
+     *  {@link #usesStringOps} (nao ha literal de string no codigo). */
+    static boolean usesStringEquals(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "kof_string_equals".equals(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 15.3d fatia F face 2b: algum `String.length()` (ou `.length` como campo)
+     *  foi baixado para `kof.strLen`. */
+    static boolean usesStringLength(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "length".equals(kc.methodName())
+                            && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 15.3d fatia F face 2c: faces de String cujo helper e' `kof.strIsEmpty` /
+     *  `kof.strEq` / `kof.strConcat` conforme o metodo chamado. */
+    /** Fase E (27/10, #776): algum String.valueOf com parametro Char (o
+     *  kof.strChar do runtime atende o concat/valor — o mesmo dos campos
+     *  Char de record). */
+    static boolean usesCharValueOf(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "valueOf".equals(kc.methodName())
+                            && !kc.parameterTypes().isEmpty()
+                            && kc.parameterTypes().get(0) instanceof Type.PrimitiveType pt
+                            && "char".equalsIgnoreCase(pt.name())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Fase E (27/10, #776): algum String.valueOf com parametro Double (o
+     *  kof.doubleToStr do Schubfach atende o concat/valor — o mesmo do
+     *  println; o registro das tabelas/funcoes segue este gancho). O
+     *  parametro pode vir boxed/ausente (o desugar do concat com literal
+     *  negativo) — o MESMO operandTypeBefore do despacho decide. */
+    static boolean usesDoubleValueOf(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                List<KofOperation> ops = bb.operations();
+                for (int i = 0; i < ops.size(); i++) {
+                    if (!(ops.get(i) instanceof KofCall kc)
+                            || !"valueOf".equals(kc.methodName())) {
+                        continue;
+                    }
+                    Type p0 = kc.parameterTypes().isEmpty() ? null : kc.parameterTypes().get(0);
+                    String vt = (p0 instanceof Type.PrimitiveType)
+                            ? typeName(p0)
+                            : operandTypeBefore(ops, i);
+                    if ("double".equalsIgnoreCase(vt)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** FATIA R-CHAR (28/10, #776): algum String.replace com parametro Char
+     *  (a forma (Char, Char)) — o registro do kof.strReplaceChar + do
+     *  kof.strChar segue este gancho (o programa pode NAO ter valueOf de
+     *  char nem records, entao o strChar nao entraria por eles). */
+    static boolean usesStringReplaceChar(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !"replace".equals(kc.methodName())) {
+                        continue;
+                    }
+                    for (Type pt : kc.parameterTypes()) {
+                        if (pt instanceof Type.PrimitiveType prim
+                                && "char".equalsIgnoreCase(prim.name())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+
+    /** Fase E (27/10, #776): algum desugar de List (kof_list_*) no metodo —
+     *  o registro da familia WasmListRuntime segue este gancho. */
+    /** ARRAY-1 (27/10): o modulo aloca array? (o heapAlloc compartilhado
+     *  entra junto — os ops de array sao memoria pura, so o alocador falta). */
+    static boolean usesArray(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofNewArray) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static boolean usesList(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && WasmListRuntime.NAMES.contains(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Fase E (27/10, #776): algum desugar de Map (kof_map_*) no metodo —
+     *  o registro da familia WasmMapRuntime (com a caixa + strEq) segue
+     *  este gancho. */
+    static boolean usesMap(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && WasmMapRuntime.NAMES.contains(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Fase E (27/10, #776): algum desugar de Set (kof_set_*) no metodo —
+     *  o registro da familia WasmSetRuntime segue este gancho. */
+    static boolean usesSet(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && WasmSetRuntime.NAMES.contains(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** SET-REC (29/10, #776): os RECORDS usados como ELEMENTO de set (o
+     *  owner `Set<Point>` dos kof_set_add/contains/remove) — o registro da
+     *  familia WasmSetRecRuntime (o fold + os ops por record) segue este
+     *  gancho; a ordem e' a da primeira aparição (determinística). */
+    static List<ClassLayout> setRecordElems(Iterable<IRMethod> ms,
+            Map<String, ClassLayout> records) {
+        List<ClassLayout> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !WasmSetRuntime.NAMES.contains(kc.methodName())
+                            || !(kc.ownerType() instanceof Type.ClassType ct)
+                            || ct.typeArguments().isEmpty()) {
+                        continue;
+                    }
+                    Type e = ct.typeArguments().get(0);
+                    String en = typeName(e);
+                    if (!(e instanceof Type.ClassType) || !records.containsKey(en)
+                            || !seen.add(en)) {
+                        continue;
+                    }
+                    out.add(records.get(en));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** LIST-REC (29/10, #776): os RECORDS usados como ELEMENTO de lista
+     *  (o owner `List<Point>` de qualquer kof_list_*) — o registro da
+     *  familia WasmListRecRuntime (o fold compartilhado + as três buscas
+     *  por conteudo) segue este gancho; a ordem e' a da primeira aparição
+     *  (determinística). */
+    static List<ClassLayout> listRecordElems(Iterable<IRMethod> ms,
+            Map<String, ClassLayout> records) {
+        List<ClassLayout> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !WasmListRuntime.NAMES.contains(kc.methodName())
+                            || !(kc.ownerType() instanceof Type.ClassType ct)
+                            || ct.typeArguments().isEmpty()) {
+                        continue;
+                    }
+                    Type e = ct.typeArguments().get(0);
+                    String en = typeName(e);
+                    if (!(e instanceof Type.ClassType) || !records.containsKey(en)
+                            || !seen.add(en)) {
+                        continue;
+                    }
+                    out.add(records.get(en));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** MAP-REC (29/10, #776): os RECORDS usados como CHAVE de mapa (o
+     *  owner `Map<Point, X>` dos kof_map_put/get/contains/remove) — o
+     *  registro da familia WasmMapRecRuntime (o fold compartilhado + os
+     *  quatro ops) segue este gancho; a ordem e' a da primeira aparição
+     *  (determinística). */
+    static List<ClassLayout> mapRecordKeys(Iterable<IRMethod> ms,
+            Map<String, ClassLayout> records) {
+        List<ClassLayout> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !WasmMapRuntime.NAMES.contains(kc.methodName())
+                            || !(kc.ownerType() instanceof Type.ClassType ct)
+                            || ct.typeArguments().size() < 1) {
+                        continue;
+                    }
+                    Type e = ct.typeArguments().get(0);
+                    String en = typeName(e);
+                    if (!(e instanceof Type.ClassType) || !records.containsKey(en)
+                            || !seen.add(en)) {
+                        continue;
+                    }
+                    out.add(records.get(en));
+                }
+            }
+        }
+        return out;
+    }
+
+    static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && method.equals(kc.methodName())
+                            && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
                         return true;
                     }
                 }
@@ -133,8 +432,20 @@ final class WasmTypeOracle {
 
     static boolean printableScalar(String name) {
         if ("string".equals(name.toLowerCase())) return true; // 15.3b (literal)
+        // FATIA MV (28/10, #776): o String? (o valor do map.get) imprime
+        // com o check do handle null (o JVM imprime `null`)
+        if ("nullablestring".equals(name.toLowerCase())) return true;
+        // FATIA MAP-D (28/10, #776): o Double? (a caixa) imprime pelo boxToStr
+        if ("nullabledouble".equals(name.toLowerCase())) return true;
+        if ("nullablebool".equals(name.toLowerCase())) return true;
+        if ("nullablechar".equals(name.toLowerCase())) return true;
+        // FATIA MAP-KI-VAL (28/10, #776): o Int? = a caixa (o boxInt)
+        if ("nullableint".equals(name.toLowerCase())) return true;
+        if ("box".equals(name.toLowerCase())) return true; // caixa §284 (27/10)
         return switch (name.toLowerCase()) {
-            case "int", "long", "bool", "boolean", "char" -> true;
+            // double: so' o subconjunto INTEGRAL esta implementado (kof.writeDouble
+            // trapa em valor fracionario) — o Schubfach completo e' multi-ciclo.
+            case "int", "long", "bool", "boolean", "char", "double" -> true;
             default -> false;
         };
     }

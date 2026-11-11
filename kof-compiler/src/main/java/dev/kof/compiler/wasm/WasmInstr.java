@@ -8,8 +8,8 @@ import java.util.Locale;
  * mantem o lowering independente da ordem final do modulo.
  */
 public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
-        WasmInstr.Simple, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
-        WasmInstr.Mem, WasmInstr.Global {
+        WasmInstr.Simple, WasmInstr.SimpleExt, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
+        WasmInstr.Mem, WasmInstr.Global, WasmInstr.Throw, WasmInstr.TryTable {
 
     /** @param funcIdx mapa nome→indice para resolver `call` (null quando nao ha calls). */
     public abstract void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> funcIdx);
@@ -87,6 +87,26 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         }
     }
 
+    /** opcode + o byte reservado (memory.size/grow = 0x3f/0x40 + 0x00) —
+     *  GC-1 (29/10, #776): o coletor consulta/cresce a memória linear. */
+    public static final class SimpleExt extends WasmInstr {
+        public final int opcode;
+        public final int imm;
+        public final String watName;
+
+        public SimpleExt(int opcode, int imm, String watName) { this.opcode = opcode; this.imm = imm; this.watName = watName; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(opcode);
+            out.write(imm);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append('(').append(watName).append(")\n");
+        }
+    }
+
     /** i32.store8 em offset estatico: empilha (addr)(value) antes. */
     public static final class Store8 extends WasmInstr {
         public final int offset;
@@ -144,6 +164,55 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         }
     }
 
+    /** TRY-1 (01/11, #776 — round 85): `throw <tagidx>` — a exceção de
+     *  String do wasm EH: o handle da msg entra como parâmetro do tag. */
+    public static final class Throw extends WasmInstr {
+        public final int tagIdx;
+
+        public Throw(int tagIdx) { this.tagIdx = tagIdx; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(0x08);
+            WasmBinary.writeUleb(out, tagIdx);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append("(throw $kof.exc)\n");
+        }
+    }
+
+    /** TRY-1 (01/11, #776 — round 85): `try_table` do wasm EH — o bloco
+     *  protegido com as cláusulas de catch (kind 0 = `catch <tag>
+     *  <labeldepth>`; a profundidade resolve NO CONTEXTO DE FORA do
+     *  try_table — medido no round-trip do wasm-tools). */
+    public static final class TryTable extends WasmInstr {
+        /** {kind, tagIdx, labelDepth} por cláusula. */
+        public final int[][] clauses;
+        public final int blockType;
+
+        public TryTable(int blockType, int[][] clauses) {
+            this.blockType = blockType;
+            this.clauses = clauses;
+        }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(0x1f);
+            out.write(blockType);
+            WasmBinary.writeUleb(out, clauses.length);
+            for (int[] c : clauses) {
+                out.write(c[0]);
+                WasmBinary.writeUleb(out, c[1]);
+                WasmBinary.writeUleb(out, c[2]);
+            }
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append("(try_table (catch $kof.exc)  ;; abrir\n");
+        }
+    }
+
     /** i32 util do host (add/sub/const ja existem via Simple/Const). */
     /** i32.get / i32.set num global mutavel (heap bump pointer da 15.3c). */
     public static final class Global extends WasmInstr {
@@ -192,23 +261,35 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         }
     }
 
-    /** block / loop / if / else / end (blocktype VOID nos dispatchers) */
+    /** block / loop / if / else / end (blocktype VOID nos dispatchers;
+     *  CLASS-2: o if do despacho virtual usa TYPEIDX multi-valor — os
+     *  params = o receiver + os args na pilha, os bracos os consomem) */
     public static final class Blocking extends WasmInstr {
         public static final int BLOCK = 4, LOOP = 0, IF = 1, ELSE = 2, END = 3;
         public final int op;
         public final String label;
         public final int blockType; // 0x40 void
+        public final boolean typeIndex; // blockType = indice na type section (s33)
 
-        public Blocking(int op, String label, int blockType) { this.op = op; this.label = label; this.blockType = blockType; }
+        public Blocking(int op, String label, int blockType) { this(op, label, blockType, false); }
+
+        public Blocking(int op, String label, int blockType, boolean typeIndex) {
+            this.op = op; this.label = label; this.blockType = blockType; this.typeIndex = typeIndex;
+        }
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             switch (op) {
-                case BLOCK -> { out.write(0x02); out.write(blockType); }
-                case LOOP -> { out.write(0x03); out.write(blockType); }
-                case IF -> { out.write(0x04); out.write(blockType); }
+                case BLOCK -> { out.write(0x02); writeBt(out); }
+                case LOOP -> { out.write(0x03); writeBt(out); }
+                case IF -> { out.write(0x04); writeBt(out); }
                 case ELSE -> out.write(0x05);
                 default -> out.write(0x0b);
             }
+        }
+
+        private void writeBt(java.io.ByteArrayOutputStream out) {
+            if (typeIndex) WasmBinary.writeSleb(out, blockType); // s33: o typeidx
+            else out.write(blockType);                           // valtype (0x7f/0x7e/0x7c/0x40)
         }
 
         @Override public void wat(StringBuilder sb, int n) {

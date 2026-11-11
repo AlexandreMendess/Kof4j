@@ -75,6 +75,10 @@ public final class ExpressionLowerer {
                         yield localIdx;
                     }
                 }
+                FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, ie, locals);
+                if (outerFa != null) {
+                    yield emitExpression(driver, outerFa, ops, owner, localIdx, locals);
+                }
                 if (!owner.isEmpty() && driver.semanticAnalyzer != null) {
                     String className = owner.substring(owner.lastIndexOf('/') + 1);
                     // #639 face 2 (D-DECISION-BATCH-2709B): o `owner` é o nome
@@ -156,8 +160,8 @@ public final class ExpressionLowerer {
                 }
                 // D-TROOL: `!` de `Troolean` — Kleene (!U = U). O NOT cru do
                 // operando boxed era VerifyError (JVM) / "not an int" (Script).
-                if ("!".equals(ue.operator()) && CompilerComparisons.isNullableBool(operandType)) {
-                    yield CompilerComparisons.lowerTrooleanNot(driver, ue, ops, owner, localIdx, locals);
+                if ("!".equals(ue.operator()) && CompilerTroolean.isNullableBool(operandType)) {
+                    yield CompilerTroolean.lowerTrooleanNot(driver, ue, ops, owner, localIdx, locals);
                 }
                 localIdx = ExpressionLowerer.emitExpression(driver, ue.operand(), ops, owner, localIdx, locals);
                 if ("-".equals(ue.operator())) {
@@ -343,7 +347,7 @@ public final class ExpressionLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), thenLabel, elseLabel));
                 } else {
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, ie.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, ie.condition(),
                             ops, owner, localIdx, locals, thenLabel, elseLabel);
                 }
                 ops.add(new KofLabel(thenLabel));
@@ -356,52 +360,102 @@ public final class ExpressionLowerer {
                         ? ExpressionBranchJoin.ifBranchTypes(driver, ie, locals) : List.of();
                 boolean differ = !bts.isEmpty() && ExpressionBranchJoin.branchTypesDiffer(bts);
                 Type thenPhys = ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals);
+                Type elsePhys = ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals);
+                // Fase E (26/10, #776): o JOIN do if-expression vai para um
+                // TEMPORARIO quando os dois ramos convergem no MESMO tipo — o
+                // valor nao pode atravessar a fronteira de bloco (a maquina de
+                // estados do WASI nao transporta a pilha entre estados: o
+                // frontend tem de comportar IGUAL em todos os backends). Mesma
+                // maquina de temporario unico do troolean e das cadeias logicas.
+                Type joinT = null;
+                // O alvo JS dobra o shape de if-expression por PARSER proprio
+                // (stores entre os arcos quebram a deteccao — mesmo achado do
+                // troolean 19/09); la o caminho antigo de pilha fica.
+                if (driver.target != Target.JS) {
+                    if (!differ && !bts.isEmpty() && bts.get(0).equals(bts.get(1))) {
+                        joinT = bts.get(0);
+                    } else if (!differ && bts.isEmpty() && elsePhys != null && thenPhys.equals(elsePhys)) {
+                        joinT = thenPhys;
+                    }
+                }
+                // Fase E (27/10, #776): o join HETEROGENEO no WASI — o LUB
+                // unifica em Object com os ramos primitivos BOXEADOS (contrato
+                // §284, terceiro backend; o bytecode JVM mede Integer.valueOf
+                // + String.valueOf). Sem o temporario o valor cru/boxeado
+                // atravessa a fronteira de bloco e a maquina de estados recusa
+                // (refuseLiveStack) — a familia INTEIRA (`if (c) 1 else "x"`)
+                // estava fechada no WASI. O temp do LUB engata a MESMA maquina
+                // de stores/loads do join homogeneo (logo abaixo).
+                if (joinT == null && differ && driver.target == Target.WASI) {
+                    Type lub = ExpressionTyper.inferExprType(driver, ie, locals);
+                    if (lub instanceof Type.ClassType) {
+                        joinT = lub;
+                    }
+                }
+                int tmpIdx = -1;
+                if (joinT != null) {
+                    tmpIdx = Math.max(localIdx, CompilerTroolean.nextFreeLocalIndex(locals));
+                    locals.add(new IRLocalVariable(tmpIdx, "$kif" + tmpIdx, joinT));
+                    localIdx = tmpIdx + 1;
+                }
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
-                else if (!bts.isEmpty()) {
+                if (differ) {
+                    ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
+                    emitWasiBox(driver, ops, thenPhys);
+                } else if (!bts.isEmpty()) {
                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, thenPhys, bts.get(0));
                 }
+                if (joinT != null) ops.add(new KofStoreLocal(joinT, tmpIdx));
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
-                Type elsePhys = ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals);
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
-                else if (!bts.isEmpty()) {
+                if (differ) {
+                    ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
+                    emitWasiBox(driver, ops, elsePhys);
+                } else if (!bts.isEmpty()) {
                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, elsePhys, bts.get(1));
                 }
+                if (joinT != null) ops.add(new KofStoreLocal(joinT, tmpIdx));
                 ops.add(new KofLabel(endLabel));
+                if (joinT != null) ops.add(new KofLoadLocal(joinT, tmpIdx));
                 yield localIdx;
             }
             case SwitchExpr se -> {
                 localIdx = SwitchExprLowerer.emitSwitchExpr(driver, se, ops, owner, localIdx, locals);
                 yield localIdx;
             }
-            case LambdaExpr le -> {
-                Type.FunctionType ft = (Type.FunctionType) ExpressionTyper.inferExprType(driver, le, locals);
-                List<IRLocalVariable> captures = driver.collectCaptures(le, locals);
-                String lambdaClass = driver.lambdaClass(le, ft, captures);
-                CompilerLambdaClass.propagateCapturePins(driver, lambdaClass, captures, locals);
-                List<IRLocalVariable> effective = driver.lambdaEffectiveCaptures.get(le);
-                if (effective != null) captures = effective;
-                if (ft.className() == null) {
-                    ft = new Type.FunctionType(ft.parameterTypes(), ft.returnType(), lambdaClass);
-                }
-                Type lambdaType = new Type.ClassType("", lambdaClass, List.of());
-                List<Type> captureTypes = new ArrayList<>();
-                for (IRLocalVariable cap : captures) captureTypes.add(cap.type());
-                ops.add(new KofNewObject(lambdaType, captureTypes));
-                ops.add(new KofDup());
-                for (IRLocalVariable cap : captures) {
-                    CompilerCaptures.pushCapture(driver, ops, cap);
-                }
-                ops.add(new KofCall(lambdaType, "<init>", captureTypes,
-                        Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                yield localIdx;
-            }
+            case LambdaExpr le -> CompilerLambdaClass.emitLambdaObject(driver, le,
+                    (Type.FunctionType) ExpressionTyper.inferExprType(driver, le, locals), ops, localIdx, locals);
             case QueryDslExpr q -> {
                 yield driver.lowerQueryDsl(q, ops, owner, localIdx, locals);
             }
             default -> localIdx;
         };
+    }
+
+    /**
+     * Fase E (27/10, #776): a CAIXA WASI do ramo heterogeneo — o MESMO
+     * contrato da nativa §284 ({@code kof_box_*}, 24B [MAGIC][tag][valor]).
+     * O JVM/native boxeiam via {@code emitErasureBox} (gate needsErasureBoxing);
+     * o WASI NAO boxeia globalmente (o subset escalar nao tem caixa nos
+     * consumidores legados) — so o join heterogeneo do if-expression boxea,
+     * aqui, explicitamente. Ramo referencia (String/record): sem box — o
+     * handle passa cru e o MAGIC e o que distingue no despacho.
+     */
+    private static void emitWasiBox(CompilerDriver driver, List<KofOperation> ops, Type branchT) {
+        if (driver.target != Target.WASI) return;
+        if (!(branchT instanceof Type.PrimitiveType pt) || TypeMetrics.isNullablePrimitive(branchT)) return;
+        String name = switch (pt.name().toLowerCase()) {
+            case "int", "char", "short", "byte" -> "kof_box_int";
+            case "long" -> "kof_box_long";
+            case "bool", "boolean" -> "kof_box_bool";
+            case "double", "float" -> "kof_box_double";
+            default -> null;
+        };
+        if (name == null) return;
+        Type boxed = TypeMetrics.boxedTypeFor(branchT);
+        // O Char boxa como INT no contrato §284 (mesma largura i64 na pilha)
+        ops.add(new KofCall(boxed, name,
+                List.of(Type.PrimitiveType.INT), boxed, KofCallKind.FUNCTION));
     }
 }

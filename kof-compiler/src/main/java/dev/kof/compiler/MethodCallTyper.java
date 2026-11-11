@@ -3,6 +3,10 @@ package dev.kof.compiler;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.kof.compiler.ExternalClasspath;
+import dev.kof.compiler.JdkReflectionResolver;
+import dev.kof.compiler.MemberResolver;
+
 /**
  * Inferência de tipo de MethodCallExpr (parte do inferExprType).
  */
@@ -150,6 +154,10 @@ if (mc.receiver() instanceof IdentifierExpr srid && mc.arguments().size() == 1
         }) {
     return BuiltinTypes.STRING;
 }
+// #1124 fatia 2: a face estática externa vive em ExternalStaticCallTyper
+// (gate ≤500 — família autocontida extraída; ver o javadoc lá).
+Type extStatic = ExternalStaticCallTyper.inferType(driver, mc, locals);
+if (extStatic != null) return extStatic;
 if (mc.receiver() == null && ("println".equals(mc.methodName()) || "print".equals(mc.methodName()))) return Type.PrimitiveType.VOID;
 if ("now".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
     return Type.PrimitiveType.LONG;
@@ -294,16 +302,10 @@ if (mc.receiver() != null
     return (lamT instanceof Type.FunctionType ft) ? ft.returnType() : Type.UnknownType.UNKNOWN;
 }
 if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
-    // pinning do tipo no primeiro par — espelha o emit (mapOf(k1,v1,...))
-    Type keyType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN
-            : ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    Type valueType = mc.arguments().size() < 2 ? Type.UnknownType.UNKNOWN
-            : ExpressionTyper.inferExprType(driver, mc.arguments().get(1), locals);
-    return new Type.ClassType("kof", "Map", List.of(keyType, valueType));
+    return CollectionLiteralTypes.mapOf(driver, mc, locals);
 }
 if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
-    Type elemType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN : ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    return new Type.ClassType("kof", "Set", List.of(elemType));
+    return CollectionLiteralTypes.setOf(driver, mc, locals);
 }
 if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
     ExpressionNode body = mc.arguments().get(0);
@@ -447,11 +449,11 @@ if (mc.receiver() != null) {
                 KofSecurity.instanceMethod(recvType, mc.methodName(), secretArgs.size());
         if (secretCall != null) return secretCall.returnType();
     }
-    if (KofInteropError.isInteropErrorType(recvType)) {
-        KofInteropError.InteropCall ioeCall =
-                KofInteropError.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
-        if (ioeCall != null) return ioeCall.returnType();
-    }
+    // #1126 (gate ≤500): a família Response/InteropError dos acessores de
+    // builtin vive em BuiltinMemberTypes — oMethodCallTyper cruzou 591→604
+    // com o roteamento do Response.
+    Type builtinMember = BuiltinMemberTypes.memberReturnType(recvType, mc, driver, locals);
+    if (builtinMember != null) return builtinMember;
     if (KofIo.isStringIdentityCall(recvType, mc.methodName())) return BuiltinTypes.STRING;
     if (KofIo.isIoType(recvType)) {
         KofIo.IoCall ioCall = KofIo.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
@@ -524,7 +526,7 @@ if (mc.receiver() != null) {
                 for (int pi = 0; pi < fn.parameters().size() && pi < mc.arguments().size(); pi++) {
                     Type formal = CompilerTypes.resolveWithTypeParams(fn.parameters().get(pi).type(),
                             fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
-                    Type actual = ExpressionTyper.inferExprType(driver, mc.arguments().get(pi), locals);
+                    Type actual = GenericSupertypeView.as(driver, ExpressionTyper.inferExprType(driver, mc.arguments().get(pi), locals), formal);
                     TypeSubstitution.bindTypeVars(formal, actual, fn.typeParameters(), bind);
                 }
                 if (!bind.isEmpty()) {

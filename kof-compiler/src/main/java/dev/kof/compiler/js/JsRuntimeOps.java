@@ -26,6 +26,7 @@ public final class JsRuntimeOps {
 boolean isRuntimeOp(KofCall kc) {
         String name = kc.methodName();
         return name.startsWith("kof_json_") || name.startsWith("kof_io_")
+                || name.startsWith("kof_http_")
                 || name.startsWith("kof_buffer_")
                 || name.startsWith("kof_ui_")
                 || name.startsWith("kof_sec_")
@@ -234,6 +235,13 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 case "kof_http_timeout_set" -> "kofHttpTimeoutSet";
                 case "kof_http_retry_set" -> "kofHttpRetrySet";
                 case "kof_http_circuit_set" -> "kofHttpCircuitSet";
+                // #1126 fatia 2: o send devolve o builtin Response; os
+                // acessores lêem o objeto {status, headers, body} do guest.
+                case "kof_http_send_response" -> "kofHttpSend";
+                case "kof_http_response_status" -> "kofHttpResponseStatus";
+                case "kof_http_response_header" -> "kofHttpResponseHeader";
+                case "kof_http_response_headers" -> "kofHttpResponseHeaders";
+                case "kof_http_response_body" -> "kofHttpResponseBody";
                 default -> "kofWebStub";
             };
             p.lc.registerRuntime(jsFn);
@@ -270,9 +278,13 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebSseRoute"), args);
                 throw new StatementEnd(call);
             }
-            if (name.equals("kof_web_listen")) {
-                p.lc.registerRuntime("kofWebListen");
-                JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebListen"), args);
+            if (name.equals("kof_web_listen") || name.equals("kof_web_listen_host")) {
+                // #1114: o overload com host (`app.listen("127.0.0.1", p)`)
+                // roteia para o kofWebListenHost; o 1-arg mantém o wildcard.
+                String jsFn = name.equals("kof_web_listen_host")
+                        ? "kofWebListenHost" : "kofWebListen";
+                p.lc.registerRuntime(jsFn);
+                JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier(jsFn), args);
                 if (Type.isVoid(kc.returnType())) {
                     throw new StatementEnd(call);
                 }
@@ -310,6 +322,12 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
             if (name.equals("kof_web_path") && args.isEmpty()) {
                 p.lc.registerRuntime("kofWebPath");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebPath"), List.of()));
+                return;
+            }
+            // #1110: o endereço TCP do peer da requisição.
+            if (name.equals("kof_web_remote_addr") && args.isEmpty()) {
+                p.lc.registerRuntime("kofWebRemoteAddr");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebRemoteAddr"), List.of()));
                 return;
             }
             if (name.equals("kof_web_status") && args.size() == 2) {

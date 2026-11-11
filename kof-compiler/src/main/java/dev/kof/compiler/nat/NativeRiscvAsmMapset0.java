@@ -124,23 +124,29 @@ public final class NativeRiscvAsmMapset0 {
                 j    .Lkmp_ret
             .Lkmp_insert:
                 lw   t0, 16(s0)          # size
-                lw   t1, 20(s0)          # cap
+                lw   t1, 20(s0)          # cap (old)
                 blt  t0, t1, .Lkmp_space
-                # cresce 2x: copia oldCap*8 bytes p/ novo bloco
-                slli t2, t0, 3           # oldCap*8
-                mv   a0, s0
-                addi a0, a0, 24
+                # #933: cresce 2x — os DOIS arrays novos em newCap*8 bytes
+                # (o original alocava oldCap*8: os índices além da cap antiga
+                # escreviam OOB no heap .bss — corrupção silenciosa). A cópia
+                # fica em oldCap*8 exata (sem overread do bloco antigo). O
+                # cap *= 2 (SLOTS) vem primeiro para o t3 derivar o newCap.
+                slli t2, t0, 3           # oldCap*8 (cópia; size==cap aqui)
+                slli t1, t1, 1
+                sw   t1, 20(s0)          # cap *= 2 (slots)
+                slli t3, t1, 3           # newCap*8 (alloc)
+                addi a0, s0, 24
                 ld   a0, 0(a0)           # keys
-                mv   a1, t2
+                mv   a1, t3
+                mv   a2, t2
                 call kof_copy_alloc
                 sd   a0, 24(s0)
                 addi a0, s0, 32
-                ld   a0, 0(a0)           # vals
-                mv   a1, t2
+                ld   a0, 0(a0)           # vals (t2/t3 sobrevivem ao helper)
+                mv   a1, t3
+                mv   a2, t2
                 call kof_copy_alloc
                 sd   a0, 32(s0)
-                slli t1, t1, 1
-                sw   t1, 20(s0)          # cap *= 2
             .Lkmp_space:
                 lw   t0, 16(s0)
                 ld   t1, 24(s0)
@@ -162,37 +168,42 @@ public final class NativeRiscvAsmMapset0 {
                 addi sp, sp, 48
                 ret
 
-            # kof_copy_alloc(src, nbytes) -> novo bloco copiado (interno)
+            # kof_copy_alloc(src, alloc_bytes, copy_bytes) -> novo bloco com os
+            # primeiros copy_bytes de src (#933: alloc e cópia separados).
+            # Frame 64 = sp 16-alinhado (o ABI LP64D exige sp≡0 mod 16 no call).
             .globl kof_copy_alloc
             kof_copy_alloc:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)          # src
-                sd   s1, 24(sp)          # n
-                sd   s2, 16(sp)          # dst
-                sd   s3, 8(sp)           # i
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)          # src
+                sd   s1, 40(sp)          # alloc
+                sd   s2, 32(sp)          # copy
+                sd   s3, 24(sp)          # dst
+                sd   s4, 16(sp)          # i
                 mv   s0, a0
                 mv   s1, a1
+                mv   s2, a2
                 mv   a0, s1
                 call kof_alloc
-                mv   s2, a0
-                li   s3, 0
+                mv   s3, a0
+                li   s4, 0
             .Lkca_loop:
-                bge  s3, s1, .Lkca_done
-                add  t0, s0, s3
+                bge  s4, s2, .Lkca_done
+                add  t0, s0, s4
                 lbu  t1, 0(t0)
-                add  t2, s2, s3
+                add  t2, s3, s4
                 sb   t1, 0(t2)
-                addi s3, s3, 1
+                addi s4, s4, 1
                 j    .Lkca_loop
             .Lkca_done:
-                mv   a0, s2
-                ld   s3, 8(sp)
-                ld   s2, 16(sp)
-                ld   s1, 24(sp)
-                ld   s0, 32(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
+                mv   a0, s3
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
                 ret
 
             # kof_map_get_or_default(map, key, def) -> val | def
@@ -425,171 +436,5 @@ public final class NativeRiscvAsmMapset0 {
                 addi sp, sp, 48
                 ret
 
-            # ---- Set (lista + tag: 1=string→equals, 0→pointer) ----
-            # kof_set_new() -> Set* (mesmo layout de List)
-            .globl kof_set_new
-            kof_set_new:
-                j    kof_list_new
-
-            # kof_set_contains(set, elem, tag) -> 1/0
-            .globl kof_set_contains
-            kof_set_contains:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)          # set
-                sd   s1, 24(sp)          # elem
-                sd   s2, 16(sp)          # tag
-                sd   s3, 8(sp)           # i
-                mv   s0, a0
-                mv   s1, a1
-                mv   s2, a2
-                li   s3, 0
-            .Lksc_loop:
-                lw   t0, 16(s0)
-                bge  s3, t0, .Lksc_no
-                ld   t1, 24(s0)
-                slli t2, s3, 3
-                add  t1, t1, t2
-                ld   t3, 0(t1)           # candidato
-                li   t4, 1
-                beq  s2, t4, .Lksc_str
-                li   t4, 2
-                beq  s2, t4, .Lksc_obj
-                beq  t3, s1, .Lksc_yes   # pointer
-                j    .Lksc_next
-            .Lksc_str:
-                beqz t3, .Lksc_next
-                mv   a0, t3
-                mv   a1, s1
-                call kof_string_equals
-                bnez a0, .Lksc_yes
-                j    .Lksc_next
-            .Lksc_obj:
-                beqz t3, .Lksc_next
-                mv   a0, t3
-                mv   a1, s1
-                call kof_obj_equals
-                bnez a0, .Lksc_yes
-            .Lksc_next:
-                addi s3, s3, 1
-                j    .Lksc_loop
-            .Lksc_yes:
-                li   a0, 1
-                j    .Lksc_ret
-            .Lksc_no:
-                li   a0, 0
-            .Lksc_ret:
-                ld   s3, 8(sp)
-                ld   s2, 16(sp)
-                ld   s1, 24(sp)
-                ld   s0, 32(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
-
-            # kof_set_add(set, elem, tag) -> 1 inseriu | 0 existia
-            .globl kof_set_add
-            kof_set_add:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)
-                sd   s1, 24(sp)
-                sd   s2, 16(sp)
-                mv   s0, a0
-                mv   s1, a1
-                mv   s2, a2
-                call kof_set_contains
-                bnez a0, .Lksa_dup
-                mv   a0, s0
-                mv   a1, s1
-                call kof_list_add
-                li   a0, 1
-                j    .Lksa_ret
-            .Lksa_dup:
-                li   a0, 0
-            .Lksa_ret:
-                ld   s2, 16(sp)
-                ld   s1, 24(sp)
-                ld   s0, 32(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
-
-            # kof_set_remove(set, elem, tag) -> 1/0
-            .globl kof_set_remove
-            kof_set_remove:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)
-                sd   s1, 24(sp)
-                sd   s2, 16(sp)
-                sd   s3, 8(sp)
-                mv   s0, a0
-                mv   s1, a1
-                mv   s2, a2
-                li   s3, 0
-            .Lksr_loop:
-                lw   t0, 16(s0)
-                bge  s3, t0, .Lksr_no
-                ld   t1, 24(s0)
-                slli t2, s3, 3
-                add  t1, t1, t2
-                ld   t3, 0(t1)
-                li   t4, 1
-                beq  s2, t4, .Lksr_str
-                li   t4, 2
-                beq  s2, t4, .Lksr_obj
-                beq  t3, s1, .Lksr_found
-                j    .Lksr_next
-            .Lksr_str:
-                beqz t3, .Lksr_next
-                mv   a0, t3
-                mv   a1, s1
-                call kof_string_equals
-                bnez a0, .Lksr_found
-                j    .Lksr_next
-            .Lksr_obj:
-                beqz t3, .Lksr_next
-                mv   a0, t3
-                mv   a1, s1
-                call kof_obj_equals
-                bnez a0, .Lksr_found
-            .Lksr_next:
-                addi s3, s3, 1
-                j    .Lksr_loop
-            .Lksr_found:
-                mv   a0, s0
-                mv   a1, s3
-                call kof_list_remove
-                li   a0, 1
-                j    .Lksr_ret
-            .Lksr_no:
-                li   a0, 0
-            .Lksr_ret:
-                ld   s3, 8(sp)
-                ld   s2, 16(sp)
-                ld   s1, 24(sp)
-                ld   s0, 32(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
-
-            # kof_set_size / is_empty / clear → delegam p/ list
-            .globl kof_set_size
-            kof_set_size:
-                j    kof_list_size
-            .globl kof_set_is_empty
-            kof_set_is_empty:
-                j    kof_list_is_empty
-            .globl kof_set_clear
-            kof_set_clear:
-                j    kof_list_clear
-
-            # kof_json_decode_long = alias de int (paridade x86_64: jmp)
-
-            .section .rodata
-            .p2align 3
-            .Lkmsv_magic: .8byte 0x4B4F46425F425801   # MAGIC §284 (RuntimeErasureBox)
-            .text
             """;
 }

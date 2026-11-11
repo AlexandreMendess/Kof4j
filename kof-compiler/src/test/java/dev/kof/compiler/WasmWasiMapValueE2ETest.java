@@ -1,0 +1,497 @@
+package dev.kof.compiler;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/**
+ * FATIA SNULL (28/10, #776): as faces dos VALORES NULLABLE do map.get no
+ * WASI, extraídas do {@code WasmWasiListE2ETest} (o ratchet do
+ * check_test_hygiene). Responsabilidade única: o concat do valor nullable
+ * (o mapval → boxToStr; o null = `null`).
+ */
+class WasmWasiMapValueE2ETest {
+
+    @Test
+    void mapNullableValueConcatMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA SNULL (28/10, #776): o CONCAT do valor nullable do map.get —
+        // a cadeia valueOf do desugar recebe o HANDLE DA CAIXA (o mapval) e
+        // agora roteia pelo kof.boxToStr (o null renderiza `null`, o MESMO
+        // do print medido; o re-arme do mapval = a cadeia tem dois passes).
+        // O `println(m.get(...))` JÁ era byte-idêntico (a rota mapval do
+        // print) — o que faltava era o valueOf do concat. O round MEDIU
+        // primeiro: as larguras de VALOR do map (Map<int,string>,
+        // Map<string,string>, Map<string,double>) = a fatia SEPARANTE
+        // (o gate `fora da fatia Map<String, Int>` — a próxima fatia).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 1, "b", 2)
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("a"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapStringStringMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MV (28/10, #776): Map<String, String> — os valores String no
+        // MESMO slot i64 (o handle ESTENDIDO no put; o get/remove devolvem o
+        // CRU com o rastro nullablestring — o passthrough do boxToStr
+        // renderiza o String cru e o `null` no 0). Os rotros: o print com o
+        // if VOID (o write DENTRO dos bracos — a LEI do if void: os bracos
+        // terminam vazios; o if RESULT-typed na cadeia valueOf), o concat
+        // pelo valueOf nullablestring (o 0 = a literal `null`), o remove
+        // VOID consumido pelo KofPop do statement (o hasReturnValue do
+        // Compiler Comparisons — a camada SEM drop proprio). Os defeitos
+        // pagos: os clones NAMED kof.mapPutStr (o dedupe por nome tinha o
+        // putIfAbsent com o nome VELHO — o modulo perdia os Str), o rastro
+        // do remove (o object = o unbox do Int) e o if do print VOID vs o
+        // if do concat RESULT-typed.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", "x", "b", "y")
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("a"))
+                    println(m.size())
+                    println(m.contains("b"))
+                    println(m.contains("z"))
+                    m.put("c", "z")
+                    println(m.get("c"))
+                    println(m.size())
+                    var old = m.remove("c")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    m.put("a", "w")
+                    println(m.get("a"))
+                    println(m.size())
+                    m.remove("c")
+                    println(m.size())
+                    println(m.contains("c"))
+                    println(m.contains("a"))
+                    var l = m.keys()
+                    println(l.size())
+                    var v = m.values()
+                    println(v.size())
+                    println("k=" + m.get("a"))
+                    println(m.get("b") == "y")
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapIntStringMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KI (28/10, #776): Map<Int, String> — a chave anda RAW no
+        // slot i64 (o Int = o i64; a busca = o i64.eq, nunca o strEq) e o
+        // valor String estende no MESMO slot do putStr (o mapPutKi/
+        // mapGetKi/mapRemoveKi/mapContainsKi — os clones nomeados, a lei do
+        // dedupe byName). Os rotros: o get/remove devolvem o valor CRU com o
+        // rastro nullablestring (o passthrough do boxToStr renderiza o
+        // String e o `null` no 0); a EXTRAÇÃO keys()/values() sobre a chave
+        // Int recusa HONESTA (o slot raw não é o handle — a fatia própria).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1, "x", 2, "y", 3, "w")
+                    println(m.get(1))
+                    println(m.get(9))
+                    println("v=" + m.get(9))
+                    println("k=" + m.get(1))
+                    println(m.size())
+                    println(m.contains(2))
+                    println(m.contains(9))
+                    m.put(3, "z")
+                    println(m.get(3))
+                    println(m.size())
+                    var old = m.remove(2)
+                    println(old)
+                    println(m.size())
+                    m.remove(77)
+                    println(m.size())
+                    println("d=" + m.remove(9))
+                    println(m.contains(2))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapIntStringKeysValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KX (28/10, #776): a EXTRAÇÃO keys()/values() sobre a
+        // chave Int — o extract é AGNÓSTICO da chave (os slots 16B copiam
+        // RAW: as chaves Int = os i64 cru, a MESMA fatia da lista Int; as
+        // chaves String = os handles estendidos; o values() = os handles do
+        // valor Str). As faces são LIVRES DE ORDEM (o HashMap não expõe a
+        // ordem): o size/contains da lista + o get de par ÚNICO.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1, "x", 2, "y")
+                    var k = m.keys()
+                    println(k.size())
+                    println(k.contains(1))
+                    println(k.contains(2))
+                    println(k.contains(9))
+                    var s = mapOf(7, "only")
+                    var v = s.values()
+                    println(v.size())
+                    println(v.get(0))
+                    var w = mapOf(3, "solo")
+                    var kw = w.keys()
+                    println(kw.get(0))
+                    println(v.contains("x"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapDoubleMixedArithmeticMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-MX (28/10, #776): a ARITMÉTICA MISTAS das caixas — as
+        // TRÊS danças pelas formas dos operandos (o rastro do topo diz op2; a
+        // simulação FORWARD WasmOperandShape diz op1): caixa+caixa (o get+
+        // get — a lei MAP-D: o load+scratch+load), escalar+caixa (o load 16
+        // do op2 basta) e caixa+escalar (o escalar no scratch vf64, o load do
+        // op1, o scratch de volta). O null trapa no load = a paridade do NPE
+        // do unbox do JVM; a forma NÃO-coberta recusa no validate (o erro da
+        // simulação = módulo inválido, nunca saída errada silenciosa).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 0.5, "b", 1.5)
+                    println(m.get("a") + 1.0)
+                    println(2.0 + m.get("a"))
+                    println(m.get("a") + m.get("b"))
+                    var d = 2.25
+                    println(m.get("b") + d)
+                    println(d + m.get("a"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapStringCharFullRenderMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA JOIN-4 (28/10, #776): o render COMPLETO do Char? (o print E o
+        // concat) — o ternary de PROFUNDIDADE 4 do concat agora cruza os
+        // estados: a DANCA-4 guarda [rhs, copia, V, ESQUERDA] nos scratches
+        // (a esquerda = o handle de String do strConcat do join), o
+        // valueOf(char) self-serves o carrega da caixa + o UNBOX, o VALOR do
+        // braco cruza para o join pelo scratch join (o fill em AMBOS os
+        // estados: o KofPop do ELSE = o descarte do slot), e o strConcat
+        // self-serves a ESQUERDA com o SWAP — O STRCAT = a PRIMEIRA op do
+        // join (medido: [strConcat, valueOf, println]) e a pilha da sim = 0
+        // (o load do join-entry = o +1 FORA da sim) — sem o swap todo concat
+        // imprimia REVERSO (a lei da ORDEM: o a do strConcat = o FUNDO).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("k", 'a', "j", 'z')
+                    println(m.get("k"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("k"))
+                    println(m.size())
+                    println(m.contains("j"))
+                    m.put("n", 'q')
+                    println(m.get("n"))
+                    var old = m.remove("j")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapStringCharRenderMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA JOIN (28/10, #776): o RENDER do Char? (o print) — o ternary
+        // do desugar agora cruza os estados: o KofDup da caixa e' REAL no
+        // rastro de caixa (o tee+get — o null-check consome a copia, o braco
+        // THEN consome o original), a DANCA do salto guarda os dois operandos
+        // do cmp + o under nos scratches (a profundidade 3 = [under, lhs,
+        // rhs]) e o valueOf(char) self-serve (o carrega + o UNBOX LOAD64 16
+        // antes do strChar); o VALOR do braco cruza para o join pelo scratch
+        // join (o trace diz o que chegou). O CONCAT do Char? = [esq, V,
+        // copia, rhs] = a PROFUNDIDADE 4 = a recusa honesta nomeada (o
+        // if-expression slice seguinte).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("k", 'a', "j", 'z')
+                    println(m.get("k"))
+                    println(m.get("z"))
+                    var old = m.remove("j")
+                    println(old)
+                    println(m.size())
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapStringCharStorageMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-C (28/10, #776): Map<String, Char> — a FATIA DE
+        // ARMAZENAGEM (o put = o mapPut CRU: o Char = o i64 RAW, o MESMO slot
+        // do Int; o get/remove = o mapGet/mapRemove do Int — a MESMA caixa
+        // boxInt; o rastro nullablechar nas pernas do trio + o mapa de
+        // rastro de LOCAL). O RENDER (o print E o concat) RECUSA HONESTA: o
+        // desugar do Char? = o TERNARY cujo operando nasce ANTES do
+        // null-check (a maquina de estados nao o carrega entre os estados —
+        // o concat = [left, V, cond], a profundidade 3) — o if-expression da
+        // maquina de estados = o slice seguinte; o gate (a profundidade da
+        // sim) devolve o diagnostico nomeado SEM artefato (Q7 — o strChar
+        // sobre a pilha vazia era o modulo invalido, medido).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("k", 'a', "j", 'z')
+                    println(m.size())
+                    println(m.contains("j"))
+                    println(m.contains("w"))
+                    m.put("n", 'q')
+                    println(m.size())
+                    m.remove("j")
+                    println(m.size())
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapStringBoolMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-B (28/10, #776): Map<String, Bool> — os valores Bool
+        // ANDAM como a CAIXA §284 (o boxBool do qword zero-estendido; o
+        // handle i32, o 0 = null — o 0 = false NUNCA pode ser a sentinela).
+        // Os rotros: o put leva o extend_i32_u NO CALL SITE (o i32 do bool →
+        // o qword do slot; o mapPut CRU); o get/remove devolvem a CAIXA
+        // (kof.mapGetBool/kof.mapRemoveBool — os clones nomeados com o WRAP
+        // antes do boxBool: o qword do slot volta a i32); o rastro
+        // "nullablebool" (o trio + o mapa de rastro de LOCAL) + o RE-ARME no
+        // Boolean.valueOf do desugar do println (o printlnFollows vence o
+        // ramo Boolean do valueOf — o else apagava o rastro pelo param
+        // PRIMITIVO e o writeBool despachava sobre o handle da caixa, medido)
+        // e no valueOf do concat (o boxToStr renderiza pela tag 3 = strBool;
+        // o null = `null`).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("t", true, "f", false)
+                    println(m.get("t"))
+                    println(m.get("f"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("t"))
+                    println(m.size())
+                    println(m.contains("f"))
+                    m.put("a", false)
+                    println(m.get("a"))
+                    var f = m.get("a")
+                    println(f)
+                    println("s=" + f)
+                    var old = m.remove("f")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapStringDoubleMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-D (28/10, #776): Map<String, Double> — os valores Double
+        // ANDAM como a CAIXA §284 (o boxDouble dos bits; o handle i32, o 0 =
+        // null). Os rotros pagos: o put leva o reinterpret NO CALL SITE (a
+        // f64 da pilha → o i64 dos bits do mapPut); o get/remove devolvem a
+        // CAIXA (o mapGetDbl/mapRemoveDbl — os clones NAMED corrigidos da lei
+        // do dedupe byName); o rastro "nullabledouble" (o typeName +
+        // printableScalar + mapType — o trio) + o RE-ARME na cadeia valueOf
+        // do println (o Double.valueOf do desugar chega com o param
+        // PRIMITIVE apagado e limpava o rastro — o MESMO padrão do re-arme
+        // do mapval); o print/concat renderizam via boxToStr (o null =
+        // `null`); a ARITMÉTICA (o b + a) desboxa ANTES do op f64 — o
+        // f64.load 16 dos bits da caixa (a dança do scratch vf64; o null
+        // trapa = a paridade do NPE do unbox do JVM; a forma MISTA caixa +
+        // escalar cru recusa no validate — o rastro de op1 não sobrevive).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 0.5, "b", 1.5, "c", 2.5)
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("a"))
+                    println(m.size())
+                    println(m.contains("b"))
+                    println(m.contains("z"))
+                    m.put("a", 9.75)
+                    println(m.get("a"))
+                    println(m.size())
+                    var old = m.remove("c")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                    println(m.get("b") + m.get("a"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapIntKeyScalarValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KI-VAL (28/10, #776): Map<Int, Int|Bool|Double|Char> —
+        // as chaves INT com os valores ESCALARES (o mapPutKiRaw CRU + os
+        // get/remove BOXADOS por largura: o boxInt/o boxBool do qword/o
+        // boxDouble dos bits; o Char anda na fatia Int pela lei MAP-C com
+        // o rastro nullablechar). A FATIA HABILITANTE nullableint (o
+        // Int? local nunca foi rastreado — o load erasado dizia "int" e o
+        // println consumia o handle da caixa com writeInt: módulo
+        // inválido, medido; o fix = as 6 pernas: o nome próprio, o slot
+        // i32, o printableScalar, o trace do local, o print via boxToStr
+        // e o re-arme nas DUAS cadeias valueOf). E O FIX DA CÉLULA DO MAP
+        // (o MESMO bug da rodada 53 no setNew): o mapNew alocava 16 bytes
+        // e a cap vivia em cell+16 — o store da cap caía na CHAVE DO
+        // PRIMEIRO PAR, o grow nunca disparava e os appends > 8 estouravam
+        // no bloco vizinho (o fix = 24 bytes). As faces: as quatro
+        // combinações (o get hit/miss, o contains, o put-overwrite, o
+        // remove com o print/concat do nullable, o Int? via variável), o
+        // GROW de 11 pares (a região que a cap quebrada corrompia) e o
+        // keys/values.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1, 10, 2, 20)
+                    println(m.get(1))
+                    println(m.get(9))
+                    println(m.size())
+                    println(m.remove(1))
+                    println(m.size())
+                    var r = m.remove(2)
+                    println(r)
+                    println("v=" + m.remove(9))
+                    var d = mapOf(1, 1.5, 2, 2.5)
+                    println(d.get(1))
+                    println(d.get(9))
+                    println(d.remove(2))
+                    println(d.size())
+                    var b = mapOf(1, true, 2, false)
+                    println(b.get(1))
+                    println(b.remove(2))
+                    println(b.get(2))
+                    var c = mapOf(1, 'a', 2, 'b')
+                    println(c.get(1))
+                    println(c.remove(2))
+                    println(c.size())
+                    var g = mapOf(1, 10, 2, 20, 3, 30, 4, 40, 5, 50, 6, 60, 7, 70, 8, 80, 9, 90, 10, 100, 11, 110)
+                    println(g.size())
+                    println(g.get(9))
+                    println(g.get(12))
+                    g.put(4, 44)
+                    println(g.get(4))
+                    println(g.remove(2))
+                    println(g.get(3))
+                    var ks = g.keys()
+                    println(ks.size())
+                    println(ks.contains(9))
+                    var vs = g.values()
+                    println(vs.size())
+                    println(vs.contains(90))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mapLongKeyValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KI-LONG (28/10, #776): as chaves LONG = o MESMO caminho
+        // da Int (o key RAW i64, a busca i64.eq — os MESMOS runtimes Ki, o
+        // mapPutKiRaw/mapGetKi*/mapRemoveKi*; ZERO conversão: o Long literal
+        // anda i64 como o Int no slot). As faces: as cinco larguras de valor
+        // (Long/String/Double/Bool/Char) + o get hit/miss, o contains, o
+        // put-overwrite, o remove (o nullable via o print) e o GROW de 11
+        // pares + o keys/values.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1L, 10L, 2L, 20L)
+                    println(m.get(1L))
+                    println(m.get(9L))
+                    println(m.containsKey(2L))
+                    println(m.size())
+                    m.put(2L, 99L)
+                    println(m.get(2L))
+                    println(m.remove(1L))
+                    println(m.size())
+                    var s = mapOf(1L, "a", 2L, "b")
+                    println(s.get(1L))
+                    println(s.remove(2L))
+                    println(s.size())
+                    var d = mapOf(1L, 1.5, 2L, 2.5)
+                    println(d.get(1L))
+                    println(d.remove(2L))
+                    println(d.size())
+                    var b = mapOf(1L, true, 2L, false)
+                    println(b.get(1L))
+                    println(b.remove(2L))
+                    println(b.get(2L))
+                    var c = mapOf(1L, 'a', 2L, 'b')
+                    println(c.get(1L))
+                    println(c.remove(2L))
+                    println(c.size())
+                    var g = mapOf(1L, 10, 2L, 20, 3L, 30, 4L, 40, 5L, 50, 6L, 60, 7L, 70, 8L, 80, 9L, 90, 10L, 100, 11L, 110)
+                    println(g.size())
+                    println(g.get(9L))
+                    println(g.get(12L))
+                    g.put(4L, 44)
+                    println(g.get(4L))
+                    println(g.remove(2L))
+                    println(g.get(3L))
+                    var ks = g.keys()
+                    println(ks.size())
+                    println(ks.contains(9L))
+                    var vs = g.values()
+                    println(vs.size())
+                    println(vs.contains(90))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+}

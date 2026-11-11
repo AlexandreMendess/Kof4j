@@ -164,8 +164,26 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
                         + extQ.internalName().replace('/', '.') + "'");
         return localIdx;
     }
-    ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
-            extQ.internalName(), mc.methodName(), mc.arguments().size());
+    // Família #1093/#1124: a re-resolução lower-time leva os TIPOS DOS
+    // ARGUMENTOS — com args=null a penalidade varargs (-5) fazia um overload
+    // exato de outra forma ganhar (`Path.of("a")` casava `of(URI)` em vez de
+    // `of(String, String...)` → descritor (URI) emitido → VerifyError). O
+    // ramo irmão dos wrappers (logo abaixo) já resolvia com args.
+    List<Type> extActualArgs = new ArrayList<>();
+    for (ExpressionNode extArg : mc.arguments()) {
+        extActualArgs.add(ExpressionTyper.inferExprType(driver, extArg, locals));
+    }
+    ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethodWithArgs(
+            extQ.internalName(), mc.methodName(), mc.arguments().size(), extActualArgs);
+    if (extSig == null) {
+        // §500 (face método inexistente): sem candidata nem por nome+aridade —
+        // diagnóstico honesto em vez de emit de descritor fabricado.
+        gapError(driver, mc,
+                "Cannot resolve static method '" + mc.methodName() + "' on imported class '"
+                        + extQ.packageName() + "." + extQ.name() + "'",
+                "SEM025");
+        return localIdx;
+    }
     List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
     Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
     localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,
@@ -178,7 +196,9 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && ("Double".equals(rid.name()) || "Float".equals(rid.name()) || "Long".equals(rid.name())
             || "Integer".equals(rid.name()) || "Int".equals(rid.name()) || "Boolean".equals(rid.name())
-            || "Bool".equals(rid.name()) || "String".equals(rid.name()))) {
+            || "Bool".equals(rid.name()) || "String".equals(rid.name())
+            || "Char".equals(rid.name()) || "Character".equals(rid.name())
+            || "Byte".equals(rid.name()) || "Short".equals(rid.name()))) {
     // #156/#216: String.format(String, Object...) é varargs do JDK — o
     // classpath externo só casa name+arity e o descritor fabricado
     // `(String,String,int)Object` dava NoSuchMethodError. Ver
@@ -187,12 +207,20 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
             && StringFormatCallLowerer.matches(driver, mc, locals)) {
         return StringFormatCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
     }
+    if ("toString".equals(mc.methodName()) && mc.arguments().size() == 1
+            && wrapperArgMatches(rid.name(), ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals))) {
+        return lower(driver, new MethodCallExpr(mc.position(), new IdentifierExpr(rid.position(), "String"),
+                "valueOf", List.of(), mc.arguments()), ops, owner, localIdx, locals);
+    }
     String javaClass = switch (rid.name()) {
         case "Int", "Integer" -> "java/lang/Integer";
         case "Long" -> "java/lang/Long";
         case "Float" -> "java/lang/Float";
         case "Double" -> "java/lang/Double";
         case "Bool", "Boolean" -> "java/lang/Boolean";
+        case "Char", "Character" -> "java/lang/Character";
+        case "Byte" -> "java/lang/Byte";
+        case "Short" -> "java/lang/Short";
         default -> "java/lang/String";
     };
     List<Type> actualArgTypes = new ArrayList<>();
@@ -267,7 +295,7 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         && !shadowsFieldOfCurrentClass(driver, owner, rid.name())) {
     return ExpressionSshCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-            && KofHttp.isHttpNamespace(rid.name())) {
+            && (KofHttp.isHttpNamespace(rid.name()) || KofAcme.isAcmeNamespace(rid.name()))) {
     return ExpressionHttpCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofTime.isTimeNamespace(rid.name())) {
@@ -282,7 +310,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     // `now()` sem receiver do ExpressionStaticCallLowerer. Guarda anti-
     // sombreamento igual à do typer (MethodCallNamespaces).
 } else if (mc.receiver() == null && "sleep".equals(mc.methodName())
-        && driver.findLocalVar("sleep", locals) == null) {
+        && driver.findLocalVar("sleep", locals) == null
+        && !KofShadowing.userDeclares(driver, "sleep")) {
     List<Type> sleepArgTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) sleepArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     if (KofTime.staticCall("sleep", sleepArgTypes) != null) {
@@ -362,6 +391,12 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionNamespaceCallLowerer.lowerImage(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofWeb.isWebNamespace(rid.name())) {
+    if ("secureHost".equals(mc.methodName()) && mc.arguments().size() == 3) {
+        // TLS hardening slice 1: compile-time-only descriptor — never
+        // materialized at runtime; listenSecure(port, hosts) reads the three
+        // String arguments straight off the AST and flattens them.
+        return localIdx;
+    }
     if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
         // AND002 (docs/targets/KOFANDROID.md): app móvel não escuta porta —
         // o servidor embutido (web.app) não tem realização no Android; o
@@ -411,4 +446,17 @@ return localIdx;
                 localIdx, locals, entityName);
     }
 
+
+    private static boolean wrapperArgMatches(String wrapper, Type argType) {
+        if (!(argType instanceof Type.PrimitiveType)) return false;
+        String prim = TypeMetrics.primitiveName(argType);
+        return switch (wrapper) {
+            case "Int", "Integer" -> "int".equals(prim) || "Int".equals(prim);
+            case "Long" -> "long".equals(prim) || "Long".equals(prim);
+            case "Double" -> "double".equals(prim) || "Double".equals(prim);
+            case "Float" -> "float".equals(prim) || "Float".equals(prim);
+            case "Bool", "Boolean" -> "boolean".equals(prim) || "bool".equals(prim) || "Bool".equals(prim);
+            default -> false;
+        };
+    }
 }

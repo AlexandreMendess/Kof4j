@@ -183,7 +183,7 @@ public final class StatementAnalyzer {
                     Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.putExpressionType(ret.value(), valueType);
                     if (sa.currentExplicitVoid && sa.diagnostics() != null) {
-                        sa.diagnostics().error(ret.position() != null ? ret.position().file() : "", 0, 0, 0,
+                        sa.diagnostics().error(ret,
                                 "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",
                                 "SEM093");
                     }
@@ -318,57 +318,10 @@ public final class StatementAnalyzer {
                 SymbolTable switchScope = scope.enterScope();
                 for (SwitchCase sc : ss.cases()) {
                     if (sc.value() instanceof PatternExpr pe) {
-                        Type patType = MemberResolver.resolveType(sa, pe.typeName(), scope);
-                        if (patType == null) patType = Type.UnknownType.UNKNOWN;
                         SymbolTable caseScope = switchScope.enterScope();
-                        if (pe.varName() != null) {
-                            caseScope.define(new SymbolTable.LocalVariableSymbol(pe.varName(), patType, 0));
-                        }
-                        // SG-014: guarda analisada com a var do pattern bound
+                        SemNarrowing.bindPatternVars(sa, pe, caseScope);
                         if (pe.guard() != null) {
                             SemExpressionTyper.inferType(sa, pe.guard(), caseScope);
-                        }
-                        if (!pe.fieldVars().isEmpty()) {
-                            String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
-                            SymbolTable.ClassSymbol cls = sa.getClass(simple);
-                            if (cls == null) {
-                                // Try via scope resolve
-                                Type t2 = MemberResolver.resolveType(sa, pe.typeName(), scope);
-                                if (t2 instanceof Type.ClassType ct2) cls = sa.getClass(ct2.name());
-                            }
-                            java.util.List<String> fieldNames = pe.fieldVars();
-                            for (int i = 0; i < fieldNames.size(); i++) {
-                                String fv = fieldNames.get(i);
-                                Type fieldType = Type.UnknownType.UNKNOWN;
-                                if (cls != null) {
-                                    // Try to find field by index or name
-                                    var members = cls.members();
-                                    // For records, fields are in order; try to get by index
-                                    java.util.List<SymbolTable.Symbol> fields = new java.util.ArrayList<>();
-                                    for (var e : members.localSymbols().values()) {
-                                        if (e instanceof SymbolTable.FieldSymbol) fields.add(e);
-                                    }
-                                    // If fieldVars size matches record field count, use positional
-                                    if (fields.size() == fieldNames.size() && i < fields.size()) {
-                                        fieldType = fields.get(i).type();
-                                    } else {
-                                        SymbolTable.Symbol sym = members.resolve(fv);
-                                        if (sym != null) fieldType = sym.type();
-                                        else {
-                                            // Try by field name from record declaration
-                                            for (AstNode d : sa.unit().declarations()) {
-                                                if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
-                                                    if (i < rec.components().size()) {
-                                                        fieldType = MemberResolver.resolveType(sa, rec.components().get(i).type(), scope);
-                                                    }
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                caseScope.define(new SymbolTable.LocalVariableSymbol(fv, fieldType, 0));
-                            }
                         }
                         analyzeBody(sa, sc.body(), caseScope, returnType);
                     } else {
@@ -431,6 +384,66 @@ public final class StatementAnalyzer {
      * D-NARROW-WHILE (#159), também CAMPOS de receiver (`b.data != null`)
      * via um símbolo sintético (Narrowing.fieldNarrow) consultado por path.
      */
+    /**
+     * #1034 — narrowings válidos no ramo THEN de um condicional.
+     * `&&` recursa os dois lados (A∧B: ambos valem); `||` nada (¬A∨¬B);
+     * `x != null` narrowa; `x == null` não diz nada sobre o then.
+     */
+    private static void collectThenOnly(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow,
+            boolean underOr) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("&&".equals(op) && !underOr) {
+            collectThenOnly(sa, be.left(), scope, thenNarrow, false);
+            collectThenOnly(sa, be.right(), scope, thenNarrow, false);
+            return;
+        }
+        if (be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL
+                && "!=".equals(op)) {
+            addNullNarrowing(sa, be.left(), scope, thenNarrow);
+        }
+    }
+
+    /**
+     * #1034 — narrowings válidos no ramo ELSE de um condicional.
+     * `||` recursa os dois lados (¬(A∨B): ambos falsos); `&&` nada (¬A∨¬B);
+     * `x == null` narrowa (o else tem x != null); `x != null` diria
+     * "x é null" — não expressável neste esquema, segue sem narrow.
+     */
+    private static void collectElseOnly(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow,
+            boolean underOr) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("||".equals(op)) {
+            collectElseOnly(sa, be.left(), scope, elseNarrow, true);
+            collectElseOnly(sa, be.right(), scope, elseNarrow, true);
+            return;
+        }
+        if (be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL
+                && "==".equals(op)) {
+            addNullNarrowing(sa, be.left(), scope, elseNarrow);
+        }
+    }
+
+    /** O narrow em si (local ou campo — o espelho #159 do D-NARROW-WHILE). */
+    private static void addNullNarrowing(SemanticAnalyzer sa, ExpressionNode left,
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> out) {
+        if (left instanceof IdentifierExpr id) {
+            SymbolTable.Symbol sym = scope.resolve(id.name());
+            if (!(sym != null && sym.type() instanceof Type.NullableType nt)) return;
+            out.add(new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0));
+            return;
+        }
+        if (left instanceof FieldAccessExpr) {
+            String path = Narrowing.pathOf(left);
+            Type fieldType = SemExpressionTyper.inferType(sa, left, scope);
+            if (!(fieldType instanceof Type.NullableType nt) || path == null) return;
+            out.add(Narrowing.fieldNarrow(path, nt.inner()));
+        }
+    }
+
     private static void collectNarrowing(SemanticAnalyzer sa, ExpressionNode cond,
             SymbolTable scope,
             java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow,
@@ -439,12 +452,22 @@ public final class StatementAnalyzer {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
         if ("&&".equals(op) && !underOr) {
-            collectNarrowing(sa, be.left(), scope, thenNarrow, elseNarrow, false);
-            collectNarrowing(sa, be.right(), scope, thenNarrow, elseNarrow, false);
+            // #1034: THEN — both operands hold, same-polarity recursion
+            // (sound). ELSE — ¬(A∧B)=¬A∨¬B narrows NOTHING: the old
+            // same-polarity fill of elseNarrow was UNSOUND
+            // (`if (x == null && y) {} else { x.length() }` compiled while
+            // x can be null there). elseNarrow stays empty for `&&`.
+            collectThenOnly(sa, be.left(), scope, thenNarrow, false);
+            collectThenOnly(sa, be.right(), scope, thenNarrow, false);
             return;
         }
         if ("||".equals(op)) {
-            // disjunção não narrow nenhum ramo — mas não desce (nada a coletar)
+            // #1034: ELSE — both operands FALSE, so an `==` null-test
+            // operand narrows the else (the guard clause
+            // `if (t == null || t.isEmpty()) { throw }` leaves t: T).
+            // THEN — ¬A∨¬B narrows nothing (current, kept).
+            collectElseOnly(sa, be.left(), scope, elseNarrow, true);
+            collectElseOnly(sa, be.right(), scope, elseNarrow, true);
             return;
         }
         boolean isNullTest = be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL;

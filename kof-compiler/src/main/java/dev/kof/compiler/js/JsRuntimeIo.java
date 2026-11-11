@@ -178,6 +178,12 @@ public final class JsRuntimeIo {
                 return kof_platform.fileIsDir(p);
             }
 
+            // #995: a face REAL de symlink no JS (host: Files.isSymbolicLink) —
+            // o mesmo contrato Bool do JVM/Native; false para caminho ausente.
+            export function kofIoFileIsSymlink(p) {
+                return kof_platform.fileIsSymlink(p);
+            }
+
             export function kofIoReadText(p) {
                 return kof_platform.readText(p);
             }
@@ -205,6 +211,14 @@ public final class JsRuntimeIo {
 
             export function kofIoAppendBytes(p, bytes) {
                 return kof_platform.appendBytes(p, bytes);
+            }
+
+            // #854: criacao EXCLUSIVA (equivalente a CREATE_NEW) — fecha a
+            // corrida TOCTOU de exists()+write(): falha se o caminho ja
+            // existir OU for link (pendente ou nao). Mesmo contrato Bool do
+            // JVM/Native (nunca lanca — "ja existe" e resultado esperado).
+            export function kofIoFileCreateNew(p) {
+                return kof_platform.createNew(p);
             }
 
             export function kofIoDelete(p) {

@@ -82,6 +82,12 @@ public class Parser {
                 // `foreign module` block is sugar over the FFI binding — it
                 // desugars to plain `extern` declarations sharing one library.
                 declarations.addAll(parseForeignModule(ctx));
+            } else if (ctx.exprDeclarationAhead()) {
+                // Kof.expr spike-0 (`D-KOF-EXPR`): `expr name { ... }` — keyword
+                // CONTEXTUAL (IDENTIFIER+IDENTIFIER+`{`); sem este ramo o
+                // IDENTIFIER `expr` cairia no ramo de função (PARSE010). Fora
+                // dessa forma segue um identificador comum (R2 aditivo).
+                declarations.add(ExprDeclarations.parse(ctx, List.of(), annos));
             } else if (ctx.sealedModifierAhead()) {
                 // X5.1 (D-X5-SURFACE): `sealed class/record/interface` — keyword
                 // contextual; sem este ramo o IDENTIFIER `sealed` cairia no ramo
@@ -92,6 +98,19 @@ public class Parser {
                 // contextual; sem este ramo o IDENTIFIER `value` cairia no ramo
                 // de função (PARSE010). Fora desse contexto segue identificador.
                 declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
+            } else if (ctx.auditedModifierAhead()) {
+                // #1068/#1138: `audited entity` — keyword CONTEXTUAL; sem este
+                // ramo o IDENTIFIER `audited` caía no ramo de função (PARSE010
+                // em cascata na coluna de `entity`). Fora dessa forma segue um
+                // identificador comum (`var audited = ...`).
+                declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
+            } else if (ctx.modifierPrefixedFunctionAhead()) {
+                // #981: `public`/`private`/`protected`/`static`/... antes de uma
+                // função de TOPO — sem este ramo o modificador caía no `else`
+                // final (TypeDeclarations.parseTypeDeclaration, que exige
+                // class/interface/record/enum/entity) e morria com PARSE007.
+                List<String> mods = TypeDeclarations.parseModifiers(ctx);
+                declarations.add(parseFunctionDeclaration(ctx, mods, annos));
             } else if (ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx)
                     || ctx.check(TokenType.LPAREN)) {
                 declarations.add(parseFunctionDeclaration(ctx, List.of(), annos));

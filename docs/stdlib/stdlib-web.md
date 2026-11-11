@@ -3,7 +3,7 @@
 # stdlib web — Kof's Native Web Stack
 
 **Last updated:** September 4, 2026
-**Version:** 0.6.4 (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
+**Version:** 0.6.7 (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
 **Status:** implemented (Phase 1 of the Spring independence plan) — `kof serve` + `kof.http` JVM+JS + `app.ws`/`app.sse` JVM + limits/counters
 
 ---
@@ -205,6 +205,7 @@ app.get("/api/hide") { return "hide" }                          // inherits off
 | Call | Description |
 |---------|-----------|
 | `app.listen(port)` | Starts the server (blocking) on `0.0.0.0` |
+| `app.listen("127.0.0.1", port)` | Binds ONE interface (local-only services) — `app.listen(port)` keeps the wildcard (#1114) |
 | `app.listenSecure(port)` | Same, with dev self-signed TLS (JVM; `keytool` + `SSLServerSocket`) |
 | `app.listenSecure(port, certPem, keyPem)` | TLS with a **user-supplied certificate** (PKCS#8 PEM) — production (JVM) |
 | `app.port()` | Port actually bound (useful with `listen(0)`) |
@@ -346,6 +347,7 @@ global per JVM and returned as `String`.
 | `body()` | Raw request body |
 | `method()` | HTTP method ("GET", "POST", ...) |
 | `path()` | Request path |
+| `remoteAddr()` | TCP peer address of the request (`""` when unknown) — behind a proxy the client is the `x-forwarded-for` header (#1110) |
 | `status(code, body)` | Sets the response status and returns the body — use as a return (e.g.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adds a response header (e.g.: `headerSet("X-Total", "42")`) |
 

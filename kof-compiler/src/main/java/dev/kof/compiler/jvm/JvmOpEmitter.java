@@ -1,5 +1,8 @@
 package dev.kof.compiler.jvm;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.ExternalClasspath;
+import dev.kof.compiler.JdkReflectionResolver;
+import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.TypeMetrics;
 import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRModule;
@@ -151,77 +154,7 @@ public final class JvmOpEmitter {
                 emitConditionalJump(ctx, c.mv(), kc);
             }
             case KofCall kc -> {
-                if (("kof_box".equals(kc.methodName()) || "kof_unbox".equals(kc.methodName()))) {
-                    if ("kof_box".equals(kc.methodName())) {
-                        Type boxed = kc.ownerType();
-                        String boxedName = JvmTypeMapper.toInternalName(
-                                boxed instanceof Type.ClassType ct ? ct.packageName() : "java.lang",
-                                boxed instanceof Type.ClassType ct ? ct.name() : "Object");
-                        c.mv().visitMethodInsn(INVOKESTATIC, boxedName, "valueOf",
-                                "(" + JvmTypeMapper.toDescriptor(kc.parameterTypes().get(0)) + ")L" + boxedName + ";", false);
-                    } else {
-                        Type boxed = kc.parameterTypes().get(0);
-                        String boxedName = JvmTypeMapper.toInternalName(
-                                boxed instanceof Type.ClassType ct ? ct.packageName() : "java.lang",
-                                boxed instanceof Type.ClassType ct ? ct.name() : "Object");
-                        c.mv().visitTypeInsn(CHECKCAST, boxedName);
-                        c.mv().visitMethodInsn(INVOKEVIRTUAL, boxedName, JvmOpCollections.unboxMethodName(boxed),
-                                "()" + JvmTypeMapper.toDescriptor(kc.returnType()), false);
-                    }
-                }
-                else if (JvmRuntime.hasRuntimeFn(kc.methodName())) {
-                    JvmOpCollections.emitKofRuntimeCall(ctx, c.mv(), kc);
-                }
-                else if (BuiltinTypes.isString(kc.ownerType())
-                && ("kof_string_concat".equals(kc.methodName()) || "kof_string_equals".equals(kc.methodName()))) {
-                    JvmOpCollections.emitStringCall(c.mv(), kc);
-                }
-                else if (BuiltinTypes.isList(kc.ownerType())) {
-                    JvmOpCollections.emitListCall(c.mv(), kc);
-                }
-                else if (BuiltinTypes.isChannel(kc.ownerType())) {
-                    JvmOpCollections.emitChannelCall(c.mv(), kc);
-                }
-                else if (BuiltinTypes.isMap(kc.ownerType())) {
-                    JvmOpMap.emitMapCall(ctx, c.mv(), kc);
-                }
-                else if (BuiltinTypes.isSet(kc.ownerType())) {
-                    JvmOpCollections.emitSetCall(c.mv(), kc);
-                }
-                else {
-                    // #368 (família §355): dono TypeVariable (T cru num parâmetro
-                    // genérico — `item.toString()` com item: T) chegava cru e
-                    // virava `invokevirtual "".toString` → ClassFormatError
-                    // (Illegal class name ""). Erasure JVM: dono = bound
-                    // (`T: Animal` → Animal, dispatch virtual real) ou Object.
-                    String tvOwner = kc.ownerType() instanceof Type.TypeVariable
-                            || kc.ownerType() instanceof Type.WildcardType
-                            ? JvmTypeMapper.erasureInternalName(kc.ownerType()) : null;
-                    String owner = "";
-                    if (kc.ownerType() instanceof Type.ClassType ct) {
-                        owner = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
-                    } else if (tvOwner != null) {
-                        owner = tvOwner;
-                    }
-                    String desc = JvmTypeMapper.toMethodDescriptor(kc.returnType(), kc.parameterTypes());
-                    boolean isInterfaceOwner = false;
-                    if (c.module() != null) {
-                        for (IRClass irc : c.module().classes()) {
-                            if (irc.name().equals(owner)) {
-                                isInterfaceOwner = (irc.accessFlags() & org.objectweb.asm.Opcodes.ACC_INTERFACE) != 0;
-                                break;
-                            }
-                        }
-                    }
-                    switch (kc.kind()) {
-                        case INSTANCE -> c.mv().visitMethodInsn(INVOKEVIRTUAL, owner, kc.methodName(), desc, false);
-                        case STATIC -> c.mv().visitMethodInsn(INVOKESTATIC, owner, kc.methodName(), desc, isInterfaceOwner);
-                        case CONSTRUCTOR -> c.mv().visitMethodInsn(INVOKESPECIAL, owner, kc.methodName(), desc, false);
-                        case FUNCTION -> c.mv().visitMethodInsn(INVOKESTATIC, owner, kc.methodName(), desc, false);
-                        case INTERFACE -> c.mv().visitMethodInsn(INVOKEINTERFACE, owner, kc.methodName(), desc, true);
-                        case SUPER -> c.mv().visitMethodInsn(INVOKESPECIAL, owner, kc.methodName(), desc, false);
-                    }
-                }
+                JvmCallEmission.emit(ctx, c, kc);
             }
             case KofNewObject no -> {
                 String type = no.type() instanceof Type.ClassType ct

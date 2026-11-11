@@ -115,6 +115,11 @@ public final class JvmRuntimeJson {
                     if (value instanceof Boolean b) return kof_json_encode_bool(b ? 1 : 0);
                     if (value instanceof Float f) return kof_json_encode_float(f);
                     if (value instanceof Double d) return kof_json_encode_double(d);
+                    // #1085: Byte/Short codificam como números JSON — sem isto o
+                    // box caía no encoder reflexivo, que alcançava
+                    // Byte.value (InaccessibleObjectException no JVM).
+                    if (value instanceof Byte b) return Integer.toString(b);
+                    if (value instanceof Short sh) return Integer.toString(sh);
                     if (value instanceof List<?> l) {
                         StringBuilder sb = new StringBuilder("[");
                         for (int i = 0; i < l.size(); i++) {
@@ -219,98 +224,6 @@ public final class JvmRuntimeJson {
                     return s;
                 }
 
-                public static int[] kof_json_decode_int_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        int[] out = new int[n];
-                        for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).intValue();
-                        return out;
-                    }
-                    return new int[0];
-                }
-
-                public static long[] kof_json_decode_long_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        long[] out = new long[n];
-                        for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).longValue();
-                        return out;
-                    }
-                    return new long[0];
-                }
-
-                // #132: Bool[] no JVM é boolean[] (JvmTypeMapper `Z`, new-array
-                // T_BOOLEAN) — o decoder era o outlier que alojava int[], e só
-                // "funcionava" porque o load usava IALOAD universal (ilegal num
-                // boolean[] real). Representação única: BALOAD/BASTORE agora
-                // batem em `new Bool[n]` E em `json.decode<Bool[]>`.
-                public static boolean[] kof_json_decode_bool_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        boolean[] out = new boolean[n];
-                        for (int i = 0; i < n; i++) out[i] = (Boolean) l.get(i);
-                        return out;
-                    }
-                    return new boolean[0];
-                }
-
-                public static double[] kof_json_decode_double_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        double[] out = new double[n];
-                        for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).doubleValue();
-                        return out;
-                    }
-                    return new double[0];
-                }
-
-                public static String[] kof_json_decode_string_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        String[] out = new String[n];
-                        for (int i = 0; i < n; i++) out[i] = String.valueOf(l.get(i));
-                        return out;
-                    }
-                    return new String[0];
-                }
-
-                public static ArrayList<Integer> kof_json_decode_int_list(String json) {
-                    Object parsed = kof_json_parse(json);
-                    ArrayList<Integer> result = new ArrayList<>();
-                    if (parsed instanceof List<?> l)
-                        for (Object e : l) result.add(((Number) e).intValue());
-                    return result;
-                }
-
-                public static ArrayList<String> kof_json_decode_string_list(String json) {
-                    Object parsed = kof_json_parse(json);
-                    ArrayList<String> result = new ArrayList<>();
-                    if (parsed instanceof List<?> l)
-                        for (Object e : l) result.add(e == null ? null : String.valueOf(e));
-                    return result;
-                }
-
-                public static ArrayList<Object> kof_json_decode_list(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof ArrayList<?> l) return new ArrayList<Object>(l);
-                    return new ArrayList<Object>();
-                }
-
-                public static ArrayList<Object> kof_json_decode_object_list(String json, String cn)
-                        throws Exception {
-                    Object parsed = kof_json_parse(json);
-                    ArrayList<Object> result = new ArrayList<>();
-                    if (parsed instanceof List<?> l) {
-                        Class<?> type = Class.forName(cn);
-                        for (Object e : l) result.add(kof_json_bind(type, e));
-                    }
-                    return result;
-                }
 
                 // §103.1 (#103): decode<Map<String,T>> — texto em
                 // JvmRuntimeJsonMap (mesmo KofRuntime; split ≤500 byte-idêntico).
@@ -361,6 +274,19 @@ public final class JvmRuntimeJson {
                     if (type == char.class || type == Character.class) {
                         return value.toString().charAt(0);
                     }
+                    // #1085: alvo ARRAY (record com componente Byte[] etc.) —
+                    // a lista JSON é construída elemento a elemento pelo tipo
+                    // do componente (a coerção escalar de cima já cobre
+                    // Byte/Short via Number). Sem isto a lista chegava ao slot
+                    // como List (`argument type mismatch` na reflexão).
+                    if (type.isArray() && value instanceof List<?> al) {
+                        Class<?> comp = type.getComponentType();
+                        Object out = java.lang.reflect.Array.newInstance(comp, al.size());
+                        for (int i = 0; i < al.size(); i++) {
+                            java.lang.reflect.Array.set(out, i, bindByType(comp, al.get(i)));
+                        }
+                        return out;
+                    }
                     if (type.isAssignableFrom(ArrayList.class) || type == List.class || type == java.util.Collection.class) {
                         if (value instanceof List<?> l) {
                             java.lang.reflect.Type elem = listElement(generic);
@@ -369,6 +295,10 @@ public final class JvmRuntimeJson {
                             for (Object e : l) out.add(bindByType(elem, e));
                             return out;
                         }
+                        // #1128: alvo lista recebendo não-lista (um objeto, um
+                        // escalar) = JSN006 na profundidade — nunca container
+                        // vazio silencioso (o JVM imprimia 0).
+                        throw jsonShapeError("an array", value);
                     }
                     // #633: alvo `Map<K,V>` (interface desde #634) — decodifica
                     // os VALORES pelo type-arg refletido (genérico completo),
@@ -381,6 +311,13 @@ public final class JvmRuntimeJson {
                         for (Map.Entry<?, ?> e : mv.entrySet())
                             out.put(e.getKey(), vt == null ? e.getValue() : bindByType(vt, e.getValue()));
                         return out;
+                    }
+                    // #1128: alvo objeto/record recebendo não-objeto (uma
+                    // lista, um escalar) = JSN006 na profundidade — o espelho
+                    // do check de lista acima (o JS já recusava; a paridade
+                    // atravessa os três alvos).
+                    if (!(value instanceof Map<?, ?>)) {
+                        throw jsonShapeError("an object", value);
                     }
                     if (value instanceof Map<?, ?> m) {
                         if (type.isRecord()) {

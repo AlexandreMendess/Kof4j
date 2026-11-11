@@ -6,6 +6,8 @@ import dev.kof.compiler.KofComparison;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofJump;
 import dev.kof.compiler.KofLoadLiteral;
+import dev.kof.compiler.KofStatementIf;
+import dev.kof.compiler.LabelId;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofUnary;
 import dev.kof.compiler.SourcePosition;
@@ -31,11 +33,29 @@ public final class OptimizerConstantFold {
     static List<KofOperation> constantFold(List<KofOperation> ops,
                                                    Map<KofOperation, SourcePosition> positions) {
         List<KofOperation> out = new ArrayList<>(ops.size());
+        // #975: dobrar o CJump de um `if` de STATEMENT para o TRUE label
+        // COLAPSA a estrutura — o marcador KofStatementIf (§267) fica órfão
+        // (o backend JS reconstrói o if a partir do CJump marcado), o label
+        // de fim do if some e o parse estrutural do JS perde o dono do
+        // Label(end): o break aninhado era descartado (o laço JS rodava até
+        // o fim; a JVM parava) ou o label residual estourava COMP002. Só o
+        // colapso para o TRUE é vedado; o fold para o FALSE label (branch
+        // morta, ex.: `x == null` em não-anulável, N3) preserva a fronteira
+        // e segue dobrando — if-EXPRESSÕES também seguem dobrando.
+        java.util.Set<LabelId> statementIfTrues = new java.util.HashSet<>();
+        for (KofOperation op : ops) {
+            if (op instanceof KofStatementIf si) statementIfTrues.add(si.branchTrueLabel());
+        }
         for (int i = 0; i < ops.size(); i++) {
             KofOperation op = ops.get(i);
             if (op instanceof KofConditionalJump cj) {
                 if (i >= 1) {
                     KofOperation folded = foldConditionalJump(ops, i, cj, positions);
+                    if (folded instanceof KofJump fj
+                            && statementIfTrues.contains(cj.trueLabel())
+                            && fj.target().equals(cj.trueLabel())) {
+                        folded = null; // #975: colapso TRUE de statement-if é vedado
+                    }
                     if (folded != null) {
                         replaceLastTwo(out, folded, positions);
                         continue;
@@ -256,6 +276,13 @@ public final class OptimizerConstantFold {
         return null;
     }
 
+
+    /** o tipo do operando e BOOL (o desugar do ! sobre Boolean)? */
+    private static boolean isBoolType(Type t) {
+        return t instanceof Type.PrimitiveType pt
+                && ("bool".equalsIgnoreCase(pt.name()) || "boolean".equalsIgnoreCase(pt.name()));
+    }
+
     private static KofLoadLiteral foldUnary(KofLoadLiteral la, KofUnary ku) {
         if (!(la.value() instanceof Number v)) return null;
         return switch (ku.op()) {
@@ -266,7 +293,17 @@ public final class OptimizerConstantFold {
                 if (v instanceof Double d) yield KofLoadLiteral.ofDouble(-d);
                 yield null;
             }
-            case NOT -> v instanceof Integer i ? KofLoadLiteral.ofInt(i == 0 ? 1 : 0) : null;
+            // FATIA N6 (28/10, #776): o NOT sobre um literal BOOL tem de sair
+            // ofBool (o literal BOOL carrega o tipo na VALUE, nao so no
+            // campo type) — o ofInt emitia o i64 do Int e o println bool do
+            // WASI despachava i32 contra um i64 na pilha (o modulo INVALIDO,
+            // a classe Q7). O desugar do ! sobre Boolean usa o Integer 0/1;
+            // a VOZ do tipo = o operandType do proprio KofUnary.
+            case NOT -> v instanceof Integer i
+                    ? (isBoolType(ku.operandType())
+                            ? KofLoadLiteral.ofBool(i == 0)
+                            : KofLoadLiteral.ofInt(i == 0 ? 1 : 0))
+                    : null;
             case I2L -> v instanceof Integer i ? KofLoadLiteral.ofLong(i.longValue()) : null;
             case I2C -> v instanceof Integer i ? KofLoadLiteral.ofInt(i & 0xFFFF) : null;
             case I2B -> v instanceof Integer i ? KofLoadLiteral.ofInt((byte) (int) i) : null;

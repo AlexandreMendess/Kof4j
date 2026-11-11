@@ -139,7 +139,8 @@ public final class KofInterpreterRuntime {
             // do runtime gerado o chama por reflexão host ("invoke") — sem a
             // ponte o lookup falha e a rota morre em HTTP 500 no interpretador.
             if (name.equals("kof_web_route") || name.equals("kof_web_route_opts")
-                    || name.equals("kof_web_sse_route") || name.equals("kof_web_ws_route")) {
+                    || name.equals("kof_web_sse_route") || name.equals("kof_web_ws_route")
+                    || name.equals("kof_web_use")) {
                 args = args.clone();
                 for (int i = 0; i < args.length; i++) {
                     if (args[i] instanceof KofInterpreter.KofObj ko) args[i] = new InterpretedCallable(interp, ko);
@@ -258,7 +259,7 @@ public final class KofInterpreterRuntime {
      * só existem como KofObj no interpretador.
      */
     private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
-        KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c);
+        KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c, interp);
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
                 if (java.lang.reflect.Modifier.isStatic(f.accessFlags())) continue;
@@ -281,6 +282,14 @@ public final class KofInterpreterRuntime {
         if (raw == null) return null;
         IRClass nested = interp.kofClassOrNull(type);
         if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        // #1128: alvo lista recebendo não-lista = JSN006 na profundidade
+        // (o espelho do kof_json_bind JVM — a paridade atravessa os alvos).
+        if (raw != null && !(raw instanceof List<?>)
+                && (BuiltinTypes.isList(type) || BuiltinTypes.isSet(type))) {
+            throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
+                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
+                    : raw instanceof Number ? "a number" : "a scalar"));
+        }
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
                     ? Type.UnknownType.UNKNOWN : ((Type.ClassType) type).typeArguments().get(0);
@@ -290,9 +299,45 @@ public final class KofInterpreterRuntime {
                     : KofInterpreterValues.coerceFor(elem, e));
             return out;
         }
+        // #1085: alvo ARRAY (`Byte[]` etc.) — a lista JSON é construída
+        // elemento a elemento pelo tipo do componente (o mirror do
+        // kof_json_bind JVM). Sem isto a lista chegava ao slot como List
+        // ("Argument is not an array" no interpretador).
+        if (raw instanceof List<?> al && type instanceof Type.ArrayType at) {
+            Type comp = at.componentType();
+            Object out = interp.builtins.newArray(comp, al.size());
+            for (int i = 0; i < al.size(); i++) {
+                Object e = al.get(i);
+                Object cv = KofInterpreterValues.coerceFor(comp, e);
+                // componente BOXADO (Byte[] é ClassType, não primitivo — o
+                // coerceFor só cobre primitivos): o número JSON chega Integer
+                // e o slot pede o wrapper.
+                if (cv instanceof Integer iv && comp instanceof Type.ClassType ctc
+                        && "java.lang".equals(ctc.packageName())) {
+                    cv = switch (ctc.name()) {
+                        case "Byte" -> iv.byteValue();
+                        case "Short" -> iv.shortValue();
+                        case "Long" -> (long) iv;
+                        case "Double" -> (double) iv;
+                        case "Float" -> (float) iv;
+                        default -> cv;
+                    };
+                }
+                java.lang.reflect.Array.set(out, i, cv);
+            }
+            return out;
+        }
         // #633: `Map<K,V>` com V composto (record/Map/List) — recursa nos
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
+        // #1128: alvo mapa/record recebendo não-objeto = JSN006 na
+        // profundidade (o espelho do kof_json_bind JVM).
+        if (!(raw instanceof List<?>) && !(raw instanceof java.util.Map<?, ?>)
+                && (BuiltinTypes.isMap(type) || interp.kofClassOrNull(type) != null)) {
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
+                    : raw instanceof Number ? "a number" : "a scalar"));
+        }
         if (raw instanceof java.util.Map<?, ?> m && BuiltinTypes.isMap(type)) {
             Type vt = ((Type.ClassType) type).typeArguments().size() >= 2
                     ? ((Type.ClassType) type).typeArguments().get(1) : Type.UnknownType.UNKNOWN;

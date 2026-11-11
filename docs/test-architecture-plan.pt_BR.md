@@ -810,6 +810,30 @@ execução ao helper compartilhado. Nenhum corpo de teste, alvo ou asserção mu
 `FfiCrossHfaReturnE2ETest` 5/0F/0 pulados (as pernas cross riscv64+aarch64 executaram),
 `NativeRiscv64E2ETest` 58/0F.
 
+**Fatia 16 da Fase 5 ENTREGUE (02/11, lane docs/lab `192.168.100.14:0` — flatt CLI, sem servidor
+opencode neste host):** as três chaves de dívida NOVA que o ratchet recusou depois das
+aterrissagens #977/#978/#ci-0.6.10 (o primeiro reparo do ratchet desde a fatia 15; o gate estava
+VERMELHO no tip e bloqueia a cut `0.7.0` preparada, `D-LAB-STABILITY`). (1) `dupname assertSem102` —
+`BuiltinUnknownMethodGuardTest` e `PrimitiveMemberDiagnosticE2ETest` declaravam helpers privados
+homónimos com formas diferentes; as três asserções COMUNS (deve falhar, cita SEM102, cita o
+membro) agora vivem uma vez num novo `SemGuardSupport` (`dev.kof.compiler`), o teste de primitivos
+delega direto, e o teste de guard de métodos mantém a sua face EXTRA anti-crash (`ClassFormatError`
+nunca aparece) inline sobre a chamada compartilhada — nenhuma asserção enfraquecida. (2)
+`oversized CmdDeployTest` (508) — os cinco testes `--publish` (D2-A) foram para um novo
+`CmdDeployPublishTest extends CmdDeploySupport`; o split concorrente `099fd2a54` da lane de QA (a face sha do D2-A → `CmdDeployArtifactShaTest`) fundiu junto — 339+169+40 linhas, 18 testes preservados).
+(3) `sleep BufferRuntimeBorrowE2ETest` — o `Thread.sleep(300)` do CI 0.6.10 que segurava o GO o
+suficiente para o worker lento tentar a aquisição virou uma MARCA de tentativa DETERMINÍSTICA: o
+fixture C ganha `barrier_mark(Int): Int` (acrescenta um dígito por chamada em `KOF_BUF_ATTEMPT`),
+cada worker larga a sua marca ANTES da chamada extern, e os três runners de barreira (JVM/native
+x86/qemu) seguram o GO até a contagem esperada de marcas (2 corrida, 1 controle) estar presente,
+com prazo de 30 s — a segunda aquisição sempre acontece com o primeiro empréstimo ainda detido,
+sem espera por tempo; a asserção (exatamente um MEM020) inalterada. Nenhum corpo de teste, alvo
+ou asserção enfraquecido. Prova (executada): `check_test_hygiene` rc=0 (117 chaves, 0 dívida
+nova); `BufferRuntimeBorrowE2ETest` 5/0F/3 pulos ambientais (toolchain cross ausente — NATIVE002
+honesto), `BuiltinUnknownMethodGuardTest` 16/0F, `BuiltinUnknownFieldGuardTest` 26/0F,
+`PrimitiveMemberDiagnosticE2ETest` 5/0F, `CmdDeployTest` 12/0F/1 pulo ambiental (ANDROID_HOME
+ausente), `CmdDeployPublishTest` 5/0F.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -1169,7 +1193,7 @@ de byte4 do https para `.Lv_url_false`), guardado RED-first pelo novo
 `KofValidationUrlParityTest` (RED pré-fix → GREEN 35/35 nas duas classes de validação).
 **Nota de escopo (medida, honesta):** `validation.matches` fica deliberadamente EXCLUÍDO —
 sua divergência JVM/JS/Script regex vs Native substring-literal é um problema conhecido e
-documentado, congelado em `development/future/kof-expr-plan.md` Q8 aguardando a decisão da mantenedora
+documentado, congelado em `development/kof-expr-plan.md` Q8 aguardando a decisão da mantenedora
 `D-KOF-EXPR` (`future/` agora DESTRAVADO, `D-FUTURE-UNFREEZE` 11/10, mas a decisão `D-KOF-EXPR` segue pendente). Prova (executada): cada valor medido primeiro no alvo
 Script, cruzado byte-a-byte em jvm/nativo/js, então congelado; `tests/run-golden.sh`
 **200/200** (50 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
@@ -1332,7 +1356,7 @@ toLowerCase/charAt/equals/split(1-arg)/toCharArray/equalsIgnoreCase/valueOf. O n
 concordam byte-a-byte nos quatro alvos. **Nota de escopo (medida, honesta):** `getBytes()` é
 EXCLUÍDO — gap `STR003` JVM-only (recusado em nativo E js em compile-time);
 `matches`/`replaceAll`/`replaceFirst` são EXCLUÍDOS (a divergência regex JVM/JS/Script vs
-literal-no-Native congelada em `development/future/kof-expr-plan.md` Q8). **BUG ACHADO + CATALOGADO
+literal-no-Native congelada em `development/kof-expr-plan.md` Q8). **BUG ACHADO + CATALOGADO
 (Q4):** o `String.split(String, Int)` de 2 args — aceito pelo `StringMethodRegistry`, correto
 no JVM/Script — está QUEBRADO em dois alvos: **o JS ignora o limite** (`"a,b,c".split(",", 2)`
 → 3 partes em vez de 2) e o **nativo x86-64 SIGSEGV** (exit 139; o `NativeX86StringCalls`

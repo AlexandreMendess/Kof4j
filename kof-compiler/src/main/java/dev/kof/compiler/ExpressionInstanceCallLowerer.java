@@ -205,6 +205,9 @@ public final class ExpressionInstanceCallLowerer {
     if (KofInteropError.isInteropErrorType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerInteropError(driver, mc, ops, owner, localIdx, locals, recvType);
     }
+    if (KofHttpResponse.isResponseType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerHttpResponse(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
     if (KofIo.isIoType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerIo(driver, mc, ops, owner, localIdx, locals, recvType);
     }
@@ -328,38 +331,11 @@ public final class ExpressionInstanceCallLowerer {
             methodParamTypes = new ArrayList<>(sig.parameterTypes());
         }
     } else if ((TypeMetrics.isPrimitiveType(recvType) || recvType instanceof Type.UnknownType)
-            && mc.arguments().isEmpty()
-            && ("toInt".equals(mc.methodName()) || "toLong".equals(mc.methodName())
-                || "toFloat".equals(mc.methodName()) || "toDouble".equals(mc.methodName()))) {
-        // §89 (decisão 3a, 13/09): conversão numérica em receiver PRIMITIVO =
-        // alias do `as` (mesma superfície do corpus: learn/04, cast.kf exit 0
-        // nos 3 nativos). Antes emitia KofCall owner vazio → ClassFormatError
-        // no JVM compilado / undefined reference nos nativos (só o
-        // interpretador implementava). WARNING (não erro) quando a conversão
-        // pode truncar (Double/Float -> Int/Long) apontando o `as`.
-        Type target = switch (mc.methodName()) {
-            case "toInt" -> Type.PrimitiveType.INT;
-            case "toLong" -> Type.PrimitiveType.LONG;
-            case "toFloat" -> Type.PrimitiveType.FLOAT;
-            default -> Type.PrimitiveType.DOUBLE;
-        };
-        String fn0 = TypeMetrics.primitiveName(recvType);
-        boolean mayTruncate = ("toInt".equals(mc.methodName()) || "toLong".equals(mc.methodName()))
-                && (fn0.isEmpty() || "double".equals(fn0) || "Double".equals(fn0)
-                    || "float".equals(fn0) || "Float".equals(fn0));
-        if (mayTruncate && driver.currentDiagnostics != null) {
-            driver.currentDiagnostics.warning("", 0, 0, 0,
-                    "'" + mc.methodName() + "()' may truncate (fractional part discarded; "
-                        + "overflow throws) — explicit form: value as "
-                        + TypeMetrics.primitiveName(target), "SEM090");
-        }
-        driver.emitWideningIfNeeded(ops, recvType, target);
-        if (target instanceof Type.PrimitiveType tp
-                && ("char".equals(tp.name()) || "Char".equals(tp.name()))) {
-            ops.add(new KofUnary(KofUnaryOp.I2C, recvType));
-        }
-        driver.emitPrimNarrow(ops, recvType, target);
-        return localIdx;
+            && mc.arguments().isEmpty() && PrimitiveConversionLowerer.isConversion(mc.methodName())) {
+        // #1054/#89 (split do gate 500): conversões numéricas em receiver
+        // primitivo — PrimitiveConversionLowerer (a ponte #845 abre a caixa
+        // do receiver estreitado antes do alargamento cru).
+        return PrimitiveConversionLowerer.lower(driver, mc, recvType, ops, owner, localIdx, locals);
     } else if (TypeMetrics.isPrimitiveType(recvType) && "toString".equals(mc.methodName())
             && mc.arguments().isEmpty()) {
         // primitivo.toString(): o primitivo não tem classe —
@@ -434,8 +410,16 @@ public final class ExpressionInstanceCallLowerer {
     if (callKind == KofCallKind.INSTANCE && resolvedMethod != null && driver.semanticAnalyzer != null) {
         if ((resolvedMethod.accessFlags() & AccessFlags.STATIC) != 0) {
             callKind = KofCallKind.STATIC;
-        } else if (resolvedMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE) {
+        } else if (resolvedMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE
+                && !receiverIsConcreteExternalClass(driver, recvType)) {
             // §557: o typer já carimbou INTERFACE (interface externa/JDK).
+            // #1093 fatia 2: MAS o dono do constant pool do INVOKEINTERFACE
+            // tem de SER a interface — quando o RECEIVER é a classe CONCRETA
+            // (`S3Builder` herdando o default `region()` de `Builder`), o
+            // invokevirtual sobre o receiver resolve pela hierarquia e é o
+            // emit correto (invokeinterface com dono concreto =
+            // IncompatibleClassChangeError "Found class, but interface was
+            // expected").
             callKind = KofCallKind.INTERFACE;
         } else {
             String ownerName = resolvedMethod.ownerClass();
@@ -592,5 +576,17 @@ public final class ExpressionInstanceCallLowerer {
         private static Type recvType0(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
         if (mc.receiver() == null) return Type.UnknownType.UNKNOWN;
         return ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
+    }
+
+    /**
+     * #1093 fatia 2 — o receiver é uma classe externa CONCRETA (não
+     * interface)? O INVOKEINTERFACE exige dono-interface no constant pool;
+     * para o builder concreto que herda o default da interface genérica, o
+     * dispatch correto é o invokevirtual sobre o próprio receiver.
+     */
+    private static boolean receiverIsConcreteExternalClass(CompilerDriver driver, Type recvType) {
+        if (!(recvType instanceof Type.ClassType ct) || ct.packageName().isEmpty()) return false;
+        return driver.externalClasspath.knows(ct.internalName())
+                && !driver.externalClasspath.isInterface(ct.internalName());
     }
 }

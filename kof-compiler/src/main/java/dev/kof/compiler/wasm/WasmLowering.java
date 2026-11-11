@@ -15,6 +15,12 @@ import static dev.kof.compiler.wasm.WasmTypeOracle.*;
  */
 final class WasmLowering {
 
+    /** O módulo em compilação (o fecho das subclasses anda nele — o CLASS-2;
+     *  um módulo por emit, single-threaded). */
+    static dev.kof.compiler.IRModule currentModule;
+    /** O registro de block types do despacho virtual (CLASS-2; por emit). */
+    static WasmBlockTypes currentBlockTypes;
+
     private WasmLowering() {
     }
 
@@ -30,109 +36,60 @@ final class WasmLowering {
     static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
             boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
             Map<String, ClassLayout> records, int recordDepth, DataCursor dataCursor) {
+        return lowerMethod(m, wasi, printIntrinsic, argsHandle, stringPool, dataSegments,
+                records, Map.of(), recordDepth, dataCursor, false, m.name());
+    }
+
+    static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
+            boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
+            Map<String, ClassLayout> records, Map<String, ClassLayout> classes, int recordDepth,
+            DataCursor dataCursor, boolean receiver, String fname) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
-        int jvmSlot = 0;
         Map<Integer, String> varNameBySlot = new HashMap<>();
         for (IRLocalVariable lv : m.localVariables()) varNameBySlot.putIfAbsent(lv.index(), lv.name());
-        for (int i = 0; i < m.parameterTypes().size(); i++) {
-            Type t = m.parameterTypes().get(i);
-            params.add(mapType(typeName(t), m.name(), "parametro"));
-            slotMap.put(jvmSlot, i);
-            jvmSlot += isWide(t) ? 2 : 1;
-        }
-        List<Integer> locals = new ArrayList<>();
-        int nextWasm = params.size();
+        // FATIA MAP-D (28/10, #776): o rastro REAL dos locals nullable-double
+        Map<Integer, String> localNullableTrace = new HashMap<>();
         for (IRLocalVariable lv : m.localVariables()) {
-            if (slotMap.containsKey(lv.index())) continue;
-            slotMap.put(lv.index(), nextWasm);
-            if (argsHandle && lv.index() == 0) {
-                locals.add(WasmFunc.TYPE_I32); // args = handle de array no heap (15.3c-sliceB)
-            } else if (lv.type() instanceof Type.ClassType ct && records != null && records.containsKey(ct.name())) {
-                locals.add(WasmFunc.TYPE_I32); // record = handle no heap (15.3d)
-            } else {
-                locals.add(mapType(typeName(lv.type()), m.name(), "local " + lv.name()));
-            }
-            nextWasm++;
-        }
-        int wIdx = -1, sIdx = -1;
-        if ("_start".equals(m.name())) {
-            wIdx = nextWasm;
-            locals.add(WasmFunc.TYPE_I32); // scratch w
-            sIdx = nextWasm + 1;
-            locals.add(WasmFunc.TYPE_I32); // scratch s
-            nextWasm += 2;
-        }
-        int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
-        int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
-        int[] nestH = null, nestA = null, nestB = null, nestR = null;
-        if (records != null && !records.isEmpty()) {
-            objIdx = nextWasm;
-            locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
-            vIdx = nextWasm + 1;
-            locals.add(WasmFunc.TYPE_I64); // scratch v (valor i64)
-            v32Idx = nextWasm + 2;
-            locals.add(WasmFunc.TYPE_I32); // scratch v32 (handle i32: Bool/Char/String)
-            vf64Idx = nextWasm + 3;
-            locals.add(WasmFunc.TYPE_F64); // scratch vf64 (Double)
-            eqAccIdx = nextWasm + 4;
-            locals.add(WasmFunc.TYPE_I32); // scratch eqAcc (and do fold de ==)
-            eqEqIdx = nextWasm + 5;
-            locals.add(WasmFunc.TYPE_I32); // scratch eqEq (handle R)
-            eqCmpIdx = nextWasm + 6;
-            locals.add(WasmFunc.TYPE_I32); // scratch eqCmp (cmp de campo)
-            eqDblIdx = nextWasm + 7;
-            locals.add(WasmFunc.TYPE_I64); // scratch eqDbl (bits de Double)
-            eqAndIdx = nextWasm + 8;
-            locals.add(WasmFunc.TYPE_I32); // scratch eqAnd (AND do fold; eqAcc guarda o handle L)
-            nextWasm += 9;
-            // slice D (15.3d inc2): um slot por nivel de aninhamento alem da raiz —
-            // toString usa 1 handle por profundidade; equals usa par (L,R) por profundidade
-            if (recordDepth >= 1) {
-                nestH = new int[recordDepth + 1];
-                nestA = new int[recordDepth + 1];
-                nestB = new int[recordDepth + 1];
-                nestR = new int[recordDepth + 1];
-                for (int d = 1; d <= recordDepth; d++) {
-                    nestH[d] = nextWasm;
-                    locals.add(WasmFunc.TYPE_I32);
-                    nestA[d] = nextWasm + 1;
-                    locals.add(WasmFunc.TYPE_I32);
-                    nestB[d] = nextWasm + 2;
-                    locals.add(WasmFunc.TYPE_I32);
-                    nestR[d] = nextWasm + 3;
-                    locals.add(WasmFunc.TYPE_I32);
-                    nextWasm += 4;
-                }
+            String lvtn = typeName(lv.type());
+            if ("nullabledouble".equals(lvtn) || "nullablebool".equals(lvtn)
+                    || "nullablechar".equals(lvtn) || "nullableint".equals(lvtn)) {
+                localNullableTrace.put(lv.index(), lvtn);
             }
         }
-        final int pcIdx = nextWasm;
-        locals.add(WasmFunc.TYPE_I32); // $pc
-        List<Integer> results = new ArrayList<>();
-        if (m.returnType() instanceof Type.PrimitiveType pr && !"void".equalsIgnoreCase(pr.name())) {
-            results.add(mapType(pr.name(), m.name(), "retorno"));
-        }
-
-        List<KofOperation> ops = new ArrayList<>();
-        for (IRBasicBlock bb : m.basicBlocks()) ops.addAll(bb.operations());
-
-        // blocos: prologo = bloco 0; cada KofLabel abre o proximo bloco
-        Map<Integer, Integer> labelToBlock = new LinkedHashMap<>();
-        List<List<KofOperation>> blocks = new ArrayList<>();
-        blocks.add(new ArrayList<>());
-        for (KofOperation op : ops) {
-            if (op instanceof KofLabel kl) {
-                if (labelToBlock.containsKey(kl.label().id())) continue; // label duplicado -> mesmo bloco
-                labelToBlock.put(kl.label().id(), blocks.size());
-                blocks.add(new ArrayList<>());
-            } else {
-                blocks.get(blocks.size() - 1).add(op);
-            }
-        }
-
-        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments, records, dataCursor);
+        // Fase E (29/10, #776 — split check_500): o plano de locais vive em
+        // WasmLoweringLocals (o gate 500); o slotMap já sai preenchido.
+        WasmLoweringLocals.LocalPlan plan = WasmLoweringLocals.plan(m, wasi, argsHandle,
+                records, classes, recordDepth, params, slotMap, receiver);
+        List<Integer> locals = plan.locals;
+        final int dupIdx = plan.dupIdx;
+        final int dupWideIdx = plan.dupWideIdx;
+        final int pcIdx = plan.pcIdx;
+        int wIdx = plan.wIdx, sIdx = plan.sIdx;
+        int objIdx = plan.objIdx, vIdx = plan.vIdx, v32Idx = plan.v32Idx, vf64Idx = plan.vf64Idx;
+        int eqAccIdx = plan.eqAccIdx, eqEqIdx = plan.eqEqIdx, eqCmpIdx = plan.eqCmpIdx,
+                eqDblIdx = plan.eqDblIdx, eqAndIdx = plan.eqAndIdx;
+        int[] nestH = plan.nestH, nestA = plan.nestA, nestB = plan.nestB, nestR = plan.nestR;
+        int cmp1Idx = plan.cmp1Idx, cmp2Idx = plan.cmp2Idx, armIdx = plan.armIdx,
+                joinIdx = plan.joinIdx, leftIdx = plan.leftIdx;
+        int clsIdx = plan.clsIdx, tagIdx = plan.tagIdx, tagIdx2 = plan.tagIdx2;
+        List<Integer> results = plan.results;
+        Map<Integer, Integer> labelToBlock = plan.labelToBlock;
+        List<List<KofOperation>> blocks = plan.blocks;
+        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, fname, stringPool, dataSegments,
+                records, classes, dataCursor, localNullableTrace);
+        ctx.cmp1Idx = cmp1Idx;
+        ctx.cmp2Idx = cmp2Idx;
+        ctx.armIdx = armIdx;
+        ctx.joinIdx = joinIdx;
+        ctx.leftIdx = leftIdx;
+        ctx.clsIdx = clsIdx;
+        ctx.tagIdx = tagIdx;
+        ctx.tagIdx2 = tagIdx2;
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
+        ctx.dupIdx = dupIdx;
+        ctx.dupWideIdx = dupWideIdx;
         ctx.objIdx = objIdx;
         ctx.vIdx = vIdx;
         ctx.v32Idx = v32Idx;
@@ -142,6 +99,8 @@ final class WasmLowering {
         ctx.eqCmpIdx = eqCmpIdx;
         ctx.eqDblIdx = eqDblIdx;
         ctx.eqAndIdx = eqAndIdx;
+        ctx.hasTry = plan.hasTry;
+        ctx.excEntry = plan.excEntryIdx;
         ctx.nestH = nestH;
         ctx.nestA = nestA;
         ctx.nestB = nestB;
@@ -157,17 +116,22 @@ final class WasmLowering {
         }
         body.add(new WasmInstr.Const(0, 0));
         body.add(new WasmInstr.Local(WasmInstr.Local.SET, pcIdx, "pc"));
+        // TRY-1 (01/11, #776 — round 85): o wrapper do try/catch — só funções
+        // COM try ganham o try_table do wasm EH (o loop de despacho inteiro
+        // fica protegido; frames sem try são transparentes)
+        WasmTryCode.openFrame(ctx, body);
         body.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "dispatch", 0x40));
         for (int b = 0; b < blocks.size(); b++) {
-            emitBlock(b, blocks.get(b), b + 1 < blocks.size() ? b + 1 : -1, ctx, body);
+            WasmStateCode.emitBlock(b, blocks.get(b), b + 1 < blocks.size() ? b + 1 : -1, ctx, body);
         }
         body.add(new WasmInstr.Simple(0x00, "unreachable")); // pc invalido
         body.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "dispatch", 0x40));
+        WasmTryCode.closeFrame(ctx, body);
         // o dispatcher nunca cai fora do loop (todo caminho br/return); o topo
         // da funcao precisa ser polimorfico p/ o `end` com resultado i64
         body.add(new WasmInstr.Simple(0x00, "unreachable"));
 
-        return new WasmFunc(m.name(), params, results, locals, body);
+        return new WasmFunc(fname, params, results, locals, body);
     }
 
     static final class Ctx {
@@ -178,8 +142,19 @@ final class WasmLowering {
         final Map<String, Integer> stringPool;
         final List<WasmData> dataSegments;
         final Map<String, ClassLayout> records;
+        final Map<String, ClassLayout> classes;
+        final dev.kof.compiler.IRModule module;
+        /** CLASS-2: o registro dos block types do despacho virtual (por emit). */
+        final WasmBlockTypes blockTypes;
         final DataCursor data;
         int wIdx = -1, sIdx = -1;
+        // TRY-1 (01/11, #776 — round 85): a função tem try (o wrapper do
+        // WasmTryCode), o local excEntry (a contagem na entrada) e a base da
+        // escrivania de exceções na memória (reservada pelo cursor)
+        boolean hasTry;
+        int excEntry = -1;
+        int excBase = -1;
+        int dupIdx = -1, dupWideIdx = -1;
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
         int[] nestH, nestA, nestB, nestR;
@@ -188,11 +163,51 @@ final class WasmLowering {
         String lastPush;
         boolean lastPushWide;
         List<KofOperation> flat;
+        // FATIA MAP-D (28/10, #776): o tipo IR do LOAD de local ERASA o
+        // nullable (o KofLoadLocal.type() de um `Double? old` chega `double`
+        // — medido: o println(old) despachou writeDouble sobre o handle da
+        // caixa) enquanto o SLOT (o mapType do lv.type()) viu o nullable (o
+        // local.set validou i32). O mapa guarda o rastro REAL (o typeName do
+        // lv.type()) para o emitPlain consultar no load.
+        final Map<Integer, String> localNullableTrace;
+        // FATIA JOIN (28/10, #776): o ternary do desugar (o print do
+        // nullable) — o operando nasce ANTES do null-check (o UNDER: ele
+        // cruza para o braco THEN pelo scratch arm) e o VALOR do braco cruza
+        // para o join pelo scratch join (o trace diz o que chegou)
+        int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1, leftIdx = -1;
+        int clsIdx;
+        int tagIdx;
+        /** CLASS-2e (29/10, #776): o segundo scratch de tag — o despacho
+         *  ANINHADO como arg não sobrescreve a tag armada do externo. */
+        int tagIdx2;
+        /** A profundidade do aninhamento de despachos (o cap = 1 nível —
+         *  dois níveis = a recusa honesta CLASS-2f). */
+        int tagNest = 0;
+        /** CLASS-2d (29/10, #776): o despacho cuja tag foi ARMADA no
+         *  produtor (o índice do call no bloco; -1 = nenhuma) — a tag já
+         *  está no tagIdx ANTES da avaliação dos args. */
+        int tagArmedIdx = -1;
+        boolean underPending;
+        String underTrace;
+        String joinTrace;
+        // FATIA JOIN-4: a ESQUERDA do concat (o ternary de profundidade 4)
+        boolean leftPending;
+        String leftTrace;
 
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
                 Map<Integer, Integer> labelToBlock, String funcName,
                 Map<String, Integer> stringPool, List<WasmData> dataSegments,
-                Map<String, ClassLayout> records, DataCursor data) {
+                Map<String, ClassLayout> records, DataCursor data,
+                Map<Integer, String> localNullableTrace) {
+            this(slotMap, pcIdx, labelToBlock, funcName, stringPool, dataSegments,
+                    records, Map.of(), data, localNullableTrace);
+        }
+
+        Ctx(Map<Integer, Integer> slotMap, int pcIdx,
+                Map<Integer, Integer> labelToBlock, String funcName,
+                Map<String, Integer> stringPool, List<WasmData> dataSegments,
+                Map<String, ClassLayout> records, Map<String, ClassLayout> classes, DataCursor data,
+                Map<Integer, String> localNullableTrace) {
             this.slotMap = slotMap;
             this.pcIdx = pcIdx;
             this.labelToBlock = labelToBlock;
@@ -200,13 +215,34 @@ final class WasmLowering {
             this.stringPool = stringPool;
             this.dataSegments = dataSegments;
             this.records = records;
+            this.classes = classes;
             this.data = data;
+            this.localNullableTrace = localNullableTrace;
+            this.module = currentModule;
+            this.blockTypes = currentBlockTypes;
         }
 
         /** record IR alcancado nesta fatia (15.3d); null = fora do subset. */
         ClassLayout recordOf(Type t) {
             if (records == null || !(t instanceof Type.ClassType ct)) return null;
             return records.get(ct.name());
+        }
+        /** CLASS-1 (28/10, #776): a CLASSE mutável IR alcancada; null = fora. */
+        ClassLayout classOf(Type t) {
+            if (classes == null || !(t instanceof Type.ClassType ct)) return null;
+            return classes.get(ct.name());
+        }
+        /** CLASS-2 (28/10, #776): as classes alcançadas (o fecho das impls). */
+        Map<String, ClassLayout> classes() {
+            return classes;
+        }
+        /** O módulo IR (o fecho das subclasses anda nele). */
+        dev.kof.compiler.IRModule module() {
+            return module;
+        }
+        /** CLASS-2: o registro dos block types do despacho virtual. */
+        WasmBlockTypes blockTypes() {
+            return blockTypes;
         }
         int internString(String str) {
             return data.intern(str, stringPool, dataSegments);
@@ -234,306 +270,6 @@ final class WasmLowering {
         }
     }
 
-    private static void emitBlock(int blockIdx, List<KofOperation> ops, int nextBlock,
-                                  Ctx ctx, List<WasmInstr> out) {
-        out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.pcIdx, "pc"));
-        out.add(new WasmInstr.Const(0, blockIdx));
-        out.add(new WasmInstr.Simple(0x46, "i32.eq"));
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-
-        int i = 0;
-        for (; i < ops.size(); i++) {
-            KofOperation op = ops.get(i);
-            if (op instanceof KofJump kj) {
-                jumpTo(ctx.blockOf(kj.target()), 1, ctx, out);
-                terminateBlock(i + 1 == ops.size(), out);
-                out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-                return;
-            }
-            if (op instanceof KofConditionalJump cj) {
-                emitCondJump(cj, ctx, out);
-                terminateBlock(i + 1 == ops.size(), out);
-                out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-                return;
-            }
-            if (op instanceof KofReturn || op instanceof KofReturnVoid) {
-                out.add(WasmInstr.Branch.ret());
-                terminateBlock(i + 1 == ops.size(), out);
-                out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-                return;
-            }
-            emitPlain(ops, i, ctx, out);
-        }
-        // bloco sem terminador: continua no proximo por ordem (fallthrough do IR linear)
-        if (nextBlock >= 0) {
-            jumpTo(nextBlock, 1, ctx, out);
-        } else {
-            out.add(WasmInstr.Branch.ret());
-        }
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-    }
-
-    private static void emitCondJump(KofConditionalJump cj, Ctx ctx, List<WasmInstr> out) {
-        if (cj.operandType() instanceof Type.ClassType ct && "java.lang".equals(ct.packageName())) {
-            boolean wide = ctx.lastPushWide; // null-check do desugar: i64 p/ bool, i32 p/ handle
-            switch (cj.comparison()) {
-                case EQ -> out.add(new WasmInstr.Simple(wide ? 0x51 : 0x46, wide ? "i64.eq" : "i32.eq"));
-                case NE -> out.add(new WasmInstr.Simple(wide ? 0x52 : 0x47, wide ? "i64.ne" : "i32.ne"));
-                default -> throw new WasmUnsupportedException("comparacao de handle '" + cj.comparison()
-                        + "' fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
-            }
-        } else {
-            switch (cj.comparison()) {
-                case EQ -> out.add(cmp(cj, "eq", 0x51, 0x61));
-                case NE -> out.add(cmp(cj, "ne", 0x52, 0x62));
-                case LT -> out.add(cmp(cj, "lt_s", 0x53, 0x63));
-                case GT -> out.add(cmp(cj, "gt_s", 0x55, 0x64));
-                case LE -> out.add(cmp(cj, "le_s", 0x57, 0x65));
-                case GE -> out.add(cmp(cj, "ge_s", 0x59, 0x66));
-            }
-        }
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-        jumpTo(ctx.blockOf(cj.trueLabel()), 2, ctx, out);
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x40));
-        jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-    }
-
-    private static void terminateBlock(boolean cleanEnd, List<WasmInstr> out) {
-        // ops apos um terminador = CFG nao-linear desconhecido -> bloco so
-        // termina limpo se o terminador era a ultima op
-        if (!cleanEnd) {
-            throw new WasmUnsupportedException("operacoes apos salto/retorno no mesmo bloco"
-                    + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
-        }
-    }
-    private static void emitPlain(List<KofOperation> ops, int idx, Ctx ctx, List<WasmInstr> out) {
-        KofOperation op = ops.get(idx);
-        if (op instanceof KofLoadLocal ll) {
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(ll.index()), "l" + ll.index()));
-            ctx.lastPush = (ll.type() instanceof Type.ClassType ct && !("String".equals(ct.name())
-                    && "java.lang".equals(ct.packageName()))) ? ct.name() : typeName(ll.type());
-            ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
-                    || "double".equalsIgnoreCase(ctx.lastPush);
-        } else if (op instanceof KofStoreLocal sl) {
-            // Object/bool slot (i32 no WASI) recebe valor wide do desugar de ==
-            // (literal int 0/1 p/ false/true) -> wrap; handle de record (i32) nao
-            boolean objSlot = sl.type() instanceof Type.ClassType sct && "Object".equals(sct.name())
-                    && "java.lang".equals(sct.packageName());
-            if (objSlot && ctx.lastPushWide && !ctx.lastPush.startsWith("record")) {
-                out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
-            }
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.w(sl.index()), "l" + sl.index()));
-            ctx.lastPushWide = false;
-        } else if (op instanceof KofLoadLiteral lit) {
-            if (ctx.wasi && lit.value() instanceof String str) {
-                int addr = ctx.internString(str);
-                out.add(new WasmInstr.Const(0, addr));
-                out.add(new WasmInstr.Const(0, ctx.internLen(str)));
-                out.add(new WasmInstr.Call("kof.strLit")); // handle no heap (15.3c)
-                ctx.lastPush = "string";
-            } else if (lit.value() == null) {
-                // null handle (record/Object) -> i32 0; se o operando anterior era wide
-                // (bool i64 no merge de ==), o null tem de ter a mesma largura
-                if (ctx.lastPushWide) {
-                    out.add(new WasmInstr.Const(1, 0));
-                } else {
-                    out.add(new WasmInstr.Const(0, 0));
-                }
-                ctx.lastPush = "null";
-                ctx.lastPushWide = false;
-            } else if ("string".equalsIgnoreCase(typeName(lit.type()))) {
-                throw new WasmUnsupportedException("literal String fora do WASI (WASM002) —"
-                        + " docs/wasm-wasi-plan.md (#776)");
-            } else if ("bool".equals(ctx.lastPush) && lit.value() instanceof Integer iv
-                    && (iv == 0 || iv == 1) && "int".equalsIgnoreCase(typeName(lit.type()))) {
-                // `!=` do desugar: EQ contra o literal 0/1 sobre um bool i32
-                // (kofRecordEq) — mesma largura, senao o i64.eq nao bate
-                out.add(new WasmInstr.Const(0, ((Integer) lit.value()).longValue()));
-                ctx.lastPush = "bool";
-            } else {
-                emitLiteral(lit.value(), lit.type(), out);
-                ctx.lastPush = typeName(lit.type());
-                ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
-                        || "double".equalsIgnoreCase(ctx.lastPush);
-            }
-        } else if (op instanceof KofCheckCast) {
-            // no-op: o receiver ja esta na pilha como handle; nao ha dispatch virtual (WASM002)
-        } else if (op instanceof KofBinary bin) {
-            if (ctx.wasi && bin.operandType() instanceof Type.ClassType) {
-                // comparacao de REFERENCIA contra o literal `null` (ramo proprio
-                // do desugar, nunca o kofRecordEq de conteudo): handle i32 vs 0
-                String ref = operandTypeBefore(ops, idx);
-                if ("null".equals(ref)) {
-                    out.add(new WasmInstr.Simple(bin.op() == KofBinaryOp.EQ ? 0x46 : 0x47,
-                            bin.op() == KofBinaryOp.EQ ? "i32.eq" : "i32.ne"));
-                    ctx.lastPush = "bool";
-                    ctx.lastPushWide = false;
-                    return;
-                }
-            }
-            if (bin.operandType() instanceof Type.ClassType) {
-                throw new WasmUnsupportedException("operador binario '" + bin.op()
-                        + "' com operando de classe '" + typeName(bin.operandType())
-                        + "' fora do subset WASI (WASM002) — igualdade de records chega como"
-                        + " kofRecordEq; identidade de Objetos nao esta no plano; docs/wasm-wasi-plan.md (#776)");
-            }
-            if (ctx.wasi && "bool".equals(ctx.lastPush)
-                    && (bin.op() == KofBinaryOp.EQ || bin.op() == KofBinaryOp.NE)
-                    && "int".equalsIgnoreCase(typeName(bin.operandType()))) {
-                // `!=` do desugar sobre o bool i32 do kofRecordEq: i32, nao o
-                // caminho i64 do escalar 15.2
-                out.add(new WasmInstr.Simple(bin.op() == KofBinaryOp.EQ ? 0x46 : 0x47,
-                        bin.op() == KofBinaryOp.EQ ? "i32.eq" : "i32.ne"));
-                ctx.lastPush = "bool";
-                ctx.lastPushWide = false;
-                return;
-            }
-            emitBinaryOp(bin.op(), typeName(bin.operandType()), out);
-            ctx.lastPush = typeName(bin.operandType());
-            ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
-                    || "double".equalsIgnoreCase(ctx.lastPush);
-        } else if (op instanceof KofUnary un && ctx.wasi && "bool".equals(ctx.lastPush)) {
-            out.add(new WasmInstr.Simple(0x45, "i32.eqz"));
-            ctx.lastPush = "bool";
-            ctx.lastPushWide = false;
-        } else if (op instanceof KofUnary un) {
-            emitUnary(un, out);
-            ctx.lastPush = typeName(un.operandType());
-            ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
-                    || "double".equalsIgnoreCase(ctx.lastPush);
-        } else if (op instanceof KofNewObject no) {
-            WasmRecordCtor.lowerNewObject(ctx, no, out);
-        } else if (op instanceof KofDup) {
-            // no-op no contexto de construtor de record: o handle colocado pelo
-            // KofNewObject permanece na base da pilha e sera consumido pelo KofStoreLocal
-        } else if (op instanceof KofLoadField lf) {
-            WasmRecordCtor.lowerLoadField(ctx, lf, out);
-        } else if (op instanceof KofPop) {
-            out.add(new WasmInstr.Simple(0x1a, "drop"));
-        } else if (op instanceof KofArrayLength) {
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0)); // [arr] = count (15.3c-sliceB)
-            out.add(new WasmInstr.Simple(0xac, "i64.extend_i32_s")); // Int = i64 (D-WASM-02)
-            ctx.lastPush = "int";
-        } else if (op instanceof KofArrayLoad al) {
-            if (ctx.wIdx < 0 || ctx.sIdx < 0) {
-                throw new WasmUnsupportedException("leitura de array fora de '_start' (WASM002) —"
-                        + " docs/wasm-wasi-plan.md (#776)");
-            }
-            // [arr, idx(i64)] -> bounds-check explícito (trap deterministico, nunca lixo)
-            out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64")); // [arr, idx(i32)]
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.sIdx, "idx"));  // [arr]
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.wIdx, "arr"));  // []
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));   // [count]
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "idx"));  // [count, idx]
-            out.add(new WasmInstr.Simple(0x4c, "i32.le_u"));     // count <= idx => fora
-            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-            out.add(new WasmInstr.Simple(0x00, "unreachable"));  // D-WASM-03: trap honesto
-            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "idx"));
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));      // [arr, idx*4]
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*4]
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*4 + 4]
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
-            ctx.lastPush = typeName(al.elementType());
-        } else if (op instanceof KofGetStatic gs
-                && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
-            // receiver do println — nao empilha nada; a rota println consome so o argumento
-        } else if (op instanceof KofCall kc) {
-            if (WasmRecordCtor.isRecordEq(ctx, kc) || WasmRecordCtor.isRecordEqualsCall(ctx, kc)) {
-                WasmRecordCtor.lowerRecordEq(ctx, kc, out);
-            } else if (WasmRecordCtor.isRecordInit(ctx, kc)) {
-                WasmRecordCtor.lowerRecordInit(ctx, kc, out);
-            } else if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
-                out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
-                ctx.lastPush = "string";
-            } else if (ctx.wasi && "valueOf".equals(kc.methodName())
-                    && printlnFollows(ops, idx)) {
-                // String.valueOf(X) seguido de println: o valor bruto ja esta na
-                // pilha; pula o valueOf e deixa o helper escalar consumir
-                String v = (!kc.parameterTypes().isEmpty()
-                        && !(kc.parameterTypes().get(0) instanceof Type.UnknownType))
-                        ? typeName(kc.parameterTypes().get(0))
-                        : operandTypeBefore(ops, idx);
-                if (v == null) {
-                    // o desugar do == passa o bool por um local `Object` entre blocos;
-                    // o lastPush do equals/Boolean.valueOf anterior ja diz o tipo real
-                    v = ctx.lastPush;
-                }
-                ctx.lastPush = v;
-            } else if (ctx.wasi && "valueOf".equals(kc.methodName())
-                    && "String".equals(ownerSimpleName(kc.ownerType()))) {
-                // String.valueOf como VALOR (variavel/concat) — paridade JVM:
-                // Int|Long -> kof.intToStr (handle `[len][digits]` no bump heap);
-                // String -> identidade (o `+` do JVM reaplica valueOf no handle);
-                // outros tipos recusam honesto (WASM002) sem artefato (Q7).
-                if ("string".equals(ctx.lastPush)) {
-                    ctx.lastPush = "string";
-                } else {
-                    Type p0 = kc.parameterTypes().isEmpty() ? null : kc.parameterTypes().get(0);
-                    String vt = (p0 instanceof Type.PrimitiveType)
-                            ? typeName(p0)
-                            : operandTypeBefore(ops, idx);
-                    ClassLayout vl = ctx.records == null ? null : ctx.records.get(vt);
-                    if ("string".equalsIgnoreCase(vt)) {
-                        ctx.lastPush = "string";
-                    } else if ("int".equalsIgnoreCase(vt) || "long".equalsIgnoreCase(vt)) {
-                        out.add(new WasmInstr.Call("kof.intToStr"));
-                        ctx.lastPush = "string";
-                    } else if (vl != null) {
-                        WasmRecordCode.emitToString(vl, vt, ctx, out, 0);
-                        ctx.lastPush = "string";
-                    } else {
-                        throw new WasmUnsupportedException("String.valueOf('" + vt
-                                + "') fora da 15.3d inc2 (WASM002) — docs/wasm-wasi-plan.md (#776)");
-                    }
-                }
-            } else if (ctx.wasi && kc.kind() == KofCallKind.STATIC
-                    && "valueOf".equals(kc.methodName())
-                    && "Boolean".equals(ownerSimpleName(kc.ownerType()))) {
-                // Boolean.valueOf(bool) e identidade no backend WASI (bool i32); se o
-                // merge do desugar deixou i64 na pilha (literal int 0/1), wrap p/ i32.
-                if (ctx.lastPushWide) {
-                    out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
-                }
-                ctx.lastPush = "bool";
-                ctx.lastPushWide = false;
-            } else if (ctx.wasi && "toString".equals(kc.methodName())
-                    && ctx.recordOf(kc.ownerType()) != null) {
-                ClassLayout sl = ctx.recordOf(kc.ownerType());
-                WasmRecordCode.emitToString(sl, sl.className(), ctx, out, 0);
-                ctx.lastPush = "string";
-            } else if (ctx.wasi && "equals".equals(kc.methodName())
-                    && ctx.recordOf(kc.ownerType()) != null) {
-                throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
-                        + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
-                        + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
-            } else if (ctx.wasi && "println".equals(kc.methodName())) {
-                WasmPrintCode.emitPrintln(kc, ctx, out);
-            } else if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
-                out.add(new WasmInstr.Call(kc.methodName()));
-            } else {
-                throw new WasmUnsupportedException("chamada '" + kc.methodName()
-                        + "' fora do subset escalar 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");
-            }
-        } else if (op instanceof KofStatementIf || op instanceof KofContinueLabel) {
-            // marcadores estruturais — no-op (mesma decisao medida no JvmOpEmitter)
-        } else {
-            throw new WasmUnsupportedException("construcao fora do subset escalar 15.2 (WASM002): '"
-                    + op.getClass().getSimpleName() + "' em '" + ctx.funcName
-                    + "' — docs/wasm-wasi-plan.md (#776)");
-        }
-    }
-
-    private static void jumpTo(int block, int depth, Ctx ctx, List<WasmInstr> out) {
-        out.add(new WasmInstr.Const(0, block));
-        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.pcIdx, "pc"));
-        out.add(new WasmInstr.Branch("dispatch", depth));
-    }
 
     /**
      * #796 — o cursor do pool de dados e de escopo de MODULO (um por
@@ -546,6 +282,21 @@ final class WasmLowering {
      */
     static final class DataCursor {
         int next = DATA_BASE;
+        // TRY-1 (01/11, #776 — round 85): o flag de módulo (o WasmBackend o
+        // leva ao WasmModule para a seção tag) e a base da escrivania de
+        // exceções — reservada LAZILY no primeiro try (módulos sem try NÃO
+        // se deslocam: os binários ficam byte-estáveis)
+        boolean usesTry;
+        int excBase = -1;
+
+        int reserveExc() {
+            if (excBase < 0) {
+                excBase = next;
+                next += 4096; // contagem + msg + 512 registros de handler de 8 bytes
+                next = (next + 3) & ~3;
+            }
+            return excBase;
+        }
 
         int intern(String str, Map<String, Integer> stringPool, List<WasmData> dataSegments) {
             Integer a = stringPool.get(str);

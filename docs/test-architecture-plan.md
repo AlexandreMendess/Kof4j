@@ -807,6 +807,30 @@ to the shared helper. No test body, target or assertion moved. Proof (executed):
 `FfiNativeStringArrayE2ETest` 2/0F, `FfiCrossHfaReturnE2ETest` 5/0F/0 skipped
 (the cross riscv64+aarch64 legs executed), `NativeRiscv64E2ETest` 58/0F.
 
+**Phase 5 slice 16 LANDED (02/11, lane docs/lab `192.168.100.14:0` — flatt CLI, no opencode
+server on this host):** the three NEW debt keys that the ratchet refused after the #977/#978/
+#ci-0.6.10 landings stacked (the first ratchet repair since slice 15; the gate was RED at the
+tip and blocks the prepared `0.7.0` cut, `D-LAB-STABILITY`). (1) `dupname assertSem102` —
+`BuiltinUnknownMethodGuardTest` and `PrimitiveMemberDiagnosticE2ETest` declared same-named
+private helpers with different shapes; the three COMMON assertions (must fail, names SEM102,
+names the member) now live once in a new `SemGuardSupport` (`dev.kof.compiler`), the primitive
+test delegates directly, and the method-guard test keeps its EXTRA no-crash face
+(`ClassFormatError` never appears) inline on top of the shared call — no assertion weakened.
+(2) `oversized CmdDeployTest` (508) — the five `--publish` tests (D2-A) moved to a new
+`CmdDeployPublishTest extends CmdDeploySupport`; the QA lane’s concurrent `099fd2a54` split (the D2-A sha face → `CmdDeployArtifactShaTest`) merged alongside — 339+169+40 lines, 18 tests preserved).
+(3) `sleep BufferRuntimeBorrowE2ETest` — the 0.6.10 CI `Thread.sleep(300)` that held GO long
+enough for the slow-runner worker to attempt the acquire became a DETERMINISTIC attempt mark:
+the C fixture gains `barrier_mark(Int): Int` (appends one digit per call to `KOF_BUF_ATTEMPT`),
+every worker drops its mark BEFORE the extern call, and the three barrier runners (JVM/native
+x86/qemu) hold GO until the expected mark count (2 race, 1 control) is present, bounded by a
+30 s deadline — the second acquire always happens while the first borrow is still held, with
+no time-based wait; assertion (exactly one MEM020) unchanged. No test body, target or
+assertion weakened. Proof (executed): `check_test_hygiene` rc=0 (117 keys, 0 new debt);
+`BufferRuntimeBorrowE2ETest` 5/0F/3 env skips (cross toolchain absent — NATIVE002 honest),
+`BuiltinUnknownMethodGuardTest` 16/0F, `BuiltinUnknownFieldGuardTest` 26/0F,
+`PrimitiveMemberDiagnosticE2ETest` 5/0F, `CmdDeployTest` 12/0F/1 env skip (ANDROID_HOME
+absent), `CmdDeployPublishTest` 5/0F.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -1169,7 +1193,7 @@ the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
 `KofValidationUrlParityTest` (RED pre-fix → GREEN 35/35 across both validation classes).
 **Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
 JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
-frozen in `development/future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
+frozen in `development/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
 (`future/` is now UNFROZEN, `D-FUTURE-UNFREEZE` 11/10, but the `D-KOF-EXPR` decision is still pending). Proof (executed): every value measured on the Script target first,
 cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
 **200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;
@@ -1329,7 +1353,7 @@ toLowerCase/charAt/equals/split(1-arg)/toCharArray/equalsIgnoreCase/valueOf. The
 faces agree byte-for-byte on all four targets. **Scope note (measured, honest):** `getBytes()`
 is EXCLUDED — a JVM-only `STR003` gap (refused on native AND js at compile time);
 `matches`/`replaceAll`/`replaceFirst` are EXCLUDED (the regex JVM/JS/Script vs Native-literal
-divergence frozen in `development/future/kof-expr-plan.md` Q8). **BUG FOUND + CATALOGUED (Q4):** the
+divergence frozen in `development/kof-expr-plan.md` Q8). **BUG FOUND + CATALOGUED (Q4):** the
 2-arg `String.split(String, Int)` — accepted by `StringMethodRegistry`, correct on JVM/Script
 — is BROKEN on two targets: **JS ignores the limit** (`"a,b,c".split(",", 2)` → 3 parts
 instead of 2) and **native x86-64 SIGSEGVs** (exit 139; `NativeX86StringCalls` pops only one

@@ -21,7 +21,14 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * The C fixture fences the first writer inside the call so the race is
  * deterministic: {@code barriered_write} writes the buffer, drops a READY file,
- * then blocks until the harness creates the GO file.
+ * then blocks until the harness creates the GO file. The borrow acquire runs at
+ * the FFI call site, so a worker's PRE-call mark does not prove it reached the
+ * acquire. Instead each worker marks BEFORE the call (1/2) and the LOSER of the
+ * race marks a THIRD time (3) from its catch — thrown by the failed acquire,
+ * before it can enter the fenced C. The harness holds GO until READY + marks 1,
+ * 2 and 3 exist, so exactly one MEM020 always fires while the winner still
+ * holds the borrow, with no time-based wait (the 0.6.10 CI 300ms sleep became
+ * these marks).
  */
 class BufferRuntimeBorrowE2ETest {
 
@@ -29,6 +36,12 @@ class BufferRuntimeBorrowE2ETest {
             #include <stdio.h>
             #include <stdlib.h>
             #include <unistd.h>
+
+            int barrier_mark(int n) {
+                const char* at = getenv("KOF_BUF_ATTEMPT");
+                if (at) { FILE* f = fopen(at, "a"); if (f) { fprintf(f, "%d\\n", n); fclose(f); } }
+                return n;
+            }
 
             int barriered_write(unsigned char* buf, int n, int v) {
                 if (buf && n > 0) buf[0] = (unsigned char) v;
@@ -47,33 +60,46 @@ class BufferRuntimeBorrowE2ETest {
     // the aliasing the RUNTIME face must catch.
     private static final String KOF = """
             extern "%s" barriered_write(Buffer(U8) buf, Int n, Int v): Int
+            extern "%s" barrier_mark(Int n): Int
 
             main() {
                 var b = buffer.alloc(2)
                 var box = listOf(b)
-                var h1 = spawn { return barriered_write(box.get(0), 2, 9) }
-                var h2 = spawn { return barriered_write(box.get(0), 2, 9) }
-                var r1 = 0
-                var r2 = 0
-                try {
-                    r1 = await h1
-                } catch (String e) {
-                    println(e)
+                var h1 = spawn {
+                    barrier_mark(1)
+                    var v = -1
+                    try {
+                        v = barriered_write(box.get(0), 2, 9)
+                    } catch (String e) {
+                        barrier_mark(3)
+                        println(e)
+                    }
+                    return v
                 }
-                try {
-                    r2 = await h2
-                } catch (String e) {
-                    println(e)
+                var h2 = spawn {
+                    barrier_mark(2)
+                    var v = -1
+                    try {
+                        v = barriered_write(box.get(0), 2, 9)
+                    } catch (String e) {
+                        barrier_mark(3)
+                        println(e)
+                    }
+                    return v
                 }
+                var r1 = await h1
+                var r2 = await h2
                 println(b.bytes())
             }
             """;
 
     private static final String KOF_CONTROL = """
             extern "%s" barriered_write(Buffer(U8) buf, Int n, Int v): Int
+            extern "%s" barrier_mark(Int n): Int
 
             main() {
                 var b = buffer.alloc(2)
+                barrier_mark(1)
                 println(barriered_write(b, 2, 9))
                 println(b.bytes())
             }
@@ -83,12 +109,12 @@ class BufferRuntimeBorrowE2ETest {
     void concurrentBufferBorrowRaisesMem020Jvm(@TempDir Path dir) throws Exception {
         String so = compileHostLib(dir);
         Path src = dir.resolve("borrow-race.kf");
-        Files.writeString(src, KOF.formatted(so));
+        Files.writeString(src, KOF.formatted(so, so));
         Path out = dir.resolve("out-jvm-borrow-race");
         CompilationResult r = driver.compile(src, out, Target.JVM);
         assertTrue(r.success(), "JVM compile: " + r.diagnostics().getDiagnostics());
 
-        String output = runJvmWithBarrier(dir, out, "ready-a", "go-a");
+        String output = runJvmWithBarrier(dir, out, "ready-a", "go-a", "att-a", 3);
         long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
         assertEquals(1L, mem020, "exactly one concurrent writer must hit MEM020; got:\n" + output);
     }
@@ -97,12 +123,12 @@ class BufferRuntimeBorrowE2ETest {
     void singleWritableBorrowStaysCleanJvm(@TempDir Path dir) throws Exception {
         String so = compileHostLib(dir);
         Path src = dir.resolve("borrow-single.kf");
-        Files.writeString(src, KOF_CONTROL.formatted(so));
+        Files.writeString(src, KOF_CONTROL.formatted(so, so));
         Path out = dir.resolve("out-jvm-borrow-single");
         CompilationResult r = driver.compile(src, out, Target.JVM);
         assertTrue(r.success(), "JVM compile: " + r.diagnostics().getDiagnostics());
 
-        assertFalse(runJvmWithBarrier(dir, out, "ready-c", "go-c").contains("MEM020"),
+        assertFalse(runJvmWithBarrier(dir, out, "ready-c", "go-c", "att-c", 1).contains("MEM020"),
                 "a single writer must never raise MEM020");
     }
 
@@ -115,7 +141,7 @@ class BufferRuntimeBorrowE2ETest {
         // clean and the copy-back golden matches the JVM.
         String so = compileHostLib(dir);
         Path src = dir.resolve("borrow-single-js.kf");
-        Files.writeString(src, KOF_CONTROL.formatted(so));
+        Files.writeString(src, KOF_CONTROL.formatted(so, so));
         Path out = dir.resolve("out-js-borrow-single");
         CompilationResult r = driver.compile(src, out, Target.JS);
         assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
@@ -128,12 +154,12 @@ class BufferRuntimeBorrowE2ETest {
     void concurrentBufferBorrowRaisesMem020NativeX86(@TempDir Path dir) throws Exception {
         String so = compileHostLib(dir);
         Path src = dir.resolve("borrow-race-native.kf");
-        Files.writeString(src, KOF.formatted(so));
+        Files.writeString(src, KOF.formatted(so, so));
         Path out = dir.resolve("out-native-borrow-race");
         CompilationResult r = driver.compile(src, out, Target.NATIVE);
         assertTrue(r.success(), "NATIVE compile: " + r.diagnostics().getDiagnostics());
 
-        String output = runBinaryWithBarrier(dir, out.resolve("Default/Main"), "ready-na", "go-na");
+        String output = runBinaryWithBarrier(dir, out.resolve("Default/Main"), "ready-na", "go-na", "att-na", 3);
         long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
         assertEquals(1L, mem020, "exactly one concurrent writer must hit MEM020 on x86-64; got:\n" + output);
     }
@@ -142,7 +168,7 @@ class BufferRuntimeBorrowE2ETest {
     void singleWritableBorrowStaysCleanNativeX86(@TempDir Path dir) throws Exception {
         String so = compileHostLib(dir);
         Path src = dir.resolve("borrow-single-native.kf");
-        Files.writeString(src, KOF_CONTROL.formatted(so));
+        Files.writeString(src, KOF_CONTROL.formatted(so, so));
         Path out = dir.resolve("out-native-borrow-single");
         CompilationResult r = driver.compile(src, out, Target.NATIVE);
         assertTrue(r.success(), "NATIVE compile: " + r.diagnostics().getDiagnostics());
@@ -164,12 +190,12 @@ class BufferRuntimeBorrowE2ETest {
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-race-" + arch + ".kf");
-            Files.writeString(src, KOF.formatted(so));
+            Files.writeString(src, KOF.formatted(so, so));
             Path out = dir.resolve("out-borrow-race-" + arch);
             CompilationResult r = driver.compile(src, out, t);
             assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
             String output = runQemuWithBarrier(dir, arch, out.resolve("Default/Main"),
-                    "ready-" + arch, "go-" + arch);
+                    "ready-" + arch, "go-" + arch, "att-" + arch, 3);
             long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
             assertEquals(1L, mem020, arch + ": exactly one concurrent writer must hit MEM020; got:\n" + output);
         }
@@ -184,7 +210,7 @@ class BufferRuntimeBorrowE2ETest {
                     "cross toolchain " + arch + " + qemu ausente — pulando (NATIVE002)");
             String so = compileCrossLib(dir, arch);
             Path src = dir.resolve("borrow-single-" + arch + ".kf");
-            Files.writeString(src, KOF_CONTROL.formatted(so));
+            Files.writeString(src, KOF_CONTROL.formatted(so, so));
             Path out = dir.resolve("out-borrow-single-" + arch);
             CompilationResult r = driver.compile(src, out, t);
             assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
@@ -230,6 +256,11 @@ class BufferRuntimeBorrowE2ETest {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    private static int countMarks(Path attempt) throws IOException {
+        if (Files.notExists(attempt)) return 0;
+        return Files.readAllLines(attempt).size();
+    }
+
     private static String compileHostLib(Path dir) throws IOException, InterruptedException {
         assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("linux"),
                 "buffer host lib usa um .so nativo (Linux)");
@@ -255,16 +286,20 @@ class BufferRuntimeBorrowE2ETest {
         return o;
     }
 
-    private static String runBinaryWithBarrier(Path dir, Path bin, String readyName, String goName)
+    private static String runBinaryWithBarrier(Path dir, Path bin, String readyName, String goName,
+            String attemptName, int expectMarks)
             throws IOException, InterruptedException {
         Path ready = dir.resolve(readyName);
         Path go = dir.resolve(goName);
+        Path attempt = dir.resolve(attemptName);
         Files.deleteIfExists(ready);
         Files.deleteIfExists(go);
+        Files.deleteIfExists(attempt);
         ProcessBuilder pb = new ProcessBuilder(bin.toString());
         pb.redirectErrorStream(true);
         pb.environment().put("KOF_BUF_READY", ready.toString());
         pb.environment().put("KOF_BUF_GO", go.toString());
+        pb.environment().put("KOF_BUF_ATTEMPT", attempt.toString());
         Process p = pb.start();
         StringBuilder output = new StringBuilder();
         Thread reader = new Thread(() -> {
@@ -286,6 +321,24 @@ class BufferRuntimeBorrowE2ETest {
             }
             TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
         }
+        // Determinismo sem espera por tempo: o GO só sai depois que READY e as
+        // marcas 1, 2 e 3 existem. A marca 3 vem do PERDEDOR da corrida, no seu
+        // catch — o acquire falhou (MEM020) antes de entrar no C cercado. Como o
+        // vencedor só solta o empréstimo depois do GO (bloqueado no C), o
+        // perdedor sempre tenta adquirir enquanto o vencedor o detém: exatamente
+        // um MEM020, sempre.
+        long marksDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (countMarks(attempt) < expectMarks) {
+            if (!p.isAlive()) {
+                reader.join(1000);
+                fail("native exited before the attempt marks; output:\n" + output);
+            }
+            if (System.nanoTime() > marksDeadline) {
+                p.destroyForcibly();
+                fail("timeout waiting for " + expectMarks + " attempt marks");
+            }
+            TestServerFixture.awaitTrue(1, 5, () -> countMarks(attempt) >= expectMarks);
+        }
         Files.writeString(go, "go");
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native must finish after GO");
         reader.join(5000);
@@ -293,17 +346,21 @@ class BufferRuntimeBorrowE2ETest {
     }
 
     private static String runQemuWithBarrier(Path dir, String arch, Path bin,
-                                             String readyName, String goName)
+                                             String readyName, String goName,
+                                             String attemptName, int expectMarks)
             throws IOException, InterruptedException {
         Path ready = dir.resolve(readyName);
         Path go = dir.resolve(goName);
+        Path attempt = dir.resolve(attemptName);
         Files.deleteIfExists(ready);
         Files.deleteIfExists(go);
+        Files.deleteIfExists(attempt);
         ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
         pb.redirectErrorStream(true);
         pb.environment().put("LD_LIBRARY_PATH", dir.toString());
         pb.environment().put("KOF_BUF_READY", ready.toString());
         pb.environment().put("KOF_BUF_GO", go.toString());
+        pb.environment().put("KOF_BUF_ATTEMPT", attempt.toString());
         Process p = pb.start();
         StringBuilder output = new StringBuilder();
         Thread reader = new Thread(() -> {
@@ -325,6 +382,19 @@ class BufferRuntimeBorrowE2ETest {
                 fail(arch + ": timeout waiting for the barrier READY file");
             }
             TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
+        }
+        long marksDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (countMarks(attempt) < expectMarks) {
+            if (!p.isAlive()) {
+                reader.join(2000);
+                fail(arch + " exited before the attempt marks; exit=" + p.exitValue()
+                        + " output:\n" + output);
+            }
+            if (System.nanoTime() > marksDeadline) {
+                p.destroyForcibly();
+                fail(arch + ": timeout waiting for " + expectMarks + " attempt marks");
+            }
+            TestServerFixture.awaitTrue(1, 5, () -> countMarks(attempt) >= expectMarks);
         }
         Files.writeString(go, "go");
         assertTrue(p.waitFor(90, TimeUnit.SECONDS), arch + " must finish after GO");
@@ -366,12 +436,15 @@ class BufferRuntimeBorrowE2ETest {
         return null;
     }
 
-    private String runJvmWithBarrier(Path dir, Path outDir, String readyName, String goName)
+    private String runJvmWithBarrier(Path dir, Path outDir, String readyName, String goName,
+            String attemptName, int expectMarks)
             throws IOException, InterruptedException {
         Path ready = dir.resolve(readyName);
         Path go = dir.resolve(goName);
+        Path attempt = dir.resolve(attemptName);
         Files.deleteIfExists(ready);
         Files.deleteIfExists(go);
+        Files.deleteIfExists(attempt);
         String javaHome = System.getProperty("java.home");
         ProcessBuilder pb = new ProcessBuilder(
                 Path.of(javaHome, "bin", "java").toString(),
@@ -381,6 +454,7 @@ class BufferRuntimeBorrowE2ETest {
         pb.redirectErrorStream(true);
         pb.environment().put("KOF_BUF_READY", ready.toString());
         pb.environment().put("KOF_BUF_GO", go.toString());
+        pb.environment().put("KOF_BUF_ATTEMPT", attempt.toString());
         Process p = pb.start();
         StringBuilder output = new StringBuilder();
         Thread reader = new Thread(() -> {
@@ -401,6 +475,18 @@ class BufferRuntimeBorrowE2ETest {
                 fail("timeout waiting for the barrier READY file");
             }
             TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
+        }
+        long marksDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (countMarks(attempt) < expectMarks) {
+            if (!p.isAlive()) {
+                reader.join(1000);
+                fail("JVM exited before the attempt marks; output:\n" + output);
+            }
+            if (System.nanoTime() > marksDeadline) {
+                p.destroyForcibly();
+                fail("timeout waiting for " + expectMarks + " attempt marks");
+            }
+            TestServerFixture.awaitTrue(1, 5, () -> countMarks(attempt) >= expectMarks);
         }
         Files.writeString(go, "go");
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "JVM must finish after GO");

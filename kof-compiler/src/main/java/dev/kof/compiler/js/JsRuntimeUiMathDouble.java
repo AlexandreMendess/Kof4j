@@ -35,6 +35,11 @@ final class JsRuntimeUiMathDouble {
             export function kofMathLerp(a, b, t) { return a + (b - a) * t; }
             export function kofMathPercentage(p, tot) { return p / tot * 100.0; }
             export function kofMathPow(base, exp) { return Math.pow(base, exp); }
+            // MATH-LOG-EXP (07/11): log = ln NATURAL, exp = e^x — o Math.*
+            // do JS casa o contrato IEEE da JVM (log(0)=-Inf, log(-1)=NaN,
+            // exp(-Inf)=0).
+            export function kofMathLog(v) { return Math.log(v); }
+            export function kofMathExp(v) { return Math.exp(v); }
             export function kofMathIsInteger(v) {
                 return (v === Math.floor(v) && v !== Infinity && v !== -Infinity) ? 1 : 0;
             }
@@ -47,6 +52,19 @@ final class JsRuntimeUiMathDouble {
             // 308) por multiplicação REPETIDA (cada passo IEEE → byte-idêntico
             // JVM/Native). d>=0: scaled=v*p, r/p. d<0: scaled=v/p, r*p.
             // Overflow de v*p → devolve v (no-op).
+            // MATH-D (27/10, #776): as cinco double de arredondamento/
+            // extremos — o Math.* do JS casando o contrato da JVM (o floor/
+            // ceil do JS sao IEEE; o abs preserva -0.0 → 0.0 como o JVM
+            // imprime; o min/max do JS propagam NaN e o -0.0 como a JVM).
+            export function kofMathDAbs(v) { return Math.abs(v); }
+            export function kofMathFloor(v) { return Math.floor(v); }
+            export function kofMathCeil(v) { return Math.ceil(v); }
+            export function kofMathDMin(a, b) { return Math.min(a, b); }
+            export function kofMathDMax(a, b) { return Math.max(a, b); }
+            // MATH-D-2 (27/10): clamp/sign doubles — as cadeias branchy
+            // EXATAS do contrato (o NaN propaga / vira 0 — igual aos alvos)
+            export function kofMathDClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+            export function kofMathDSign(v) { return v > 0 ? 1 : (v < 0 ? -1 : 0); }
             export function kofMathRoundTo(v, decimals) {
                 if (v !== v || v === Infinity || v === -Infinity) return v;
                 let m = decimals < 0 ? -decimals : decimals;

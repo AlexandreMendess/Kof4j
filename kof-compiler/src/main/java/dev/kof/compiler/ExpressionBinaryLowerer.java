@@ -63,13 +63,28 @@ public final class ExpressionBinaryLowerer {
         // vazava para consumidores de Object (bind de DB, heap do cross),
         // regredindo 5 faces (#773). JVM/JS/Script mantêm o box (o JVM
         // precisa do Object para `String.valueOf(Object)`).
-        boolean nativeRawPrimitive = driver.target.isNative() && stringified;
+        // WASI (15.3): o backend nao tem caixa generica para `String.valueOf(Object)`
+        // — ele stringifica pelo TIPO REAL (kof.intToStr/strBool/strChar). Boxar
+        // aqui fazia o concat "x" + n nao casar nenhum ramo e recusar WASM002.
+        // Mesma decisao ja' tomada no Native (#773): primitivo CRU, sem box.
+        boolean nativeRawPrimitive = (driver.target.isNative()
+                || driver.target == Target.WASI) && stringified;
         if (stringified && !nativeRawPrimitive) TypeEmitter.boxPrimitive(ops, type);
+        // #1123: on JS a typed List<Double>/Set<Float> must reach the emitter
+        // with its REAL type so the element kind travels to kofFormatTyped (a
+        // JS number has no Int/Double distinction). Everything else keeps the
+        // erased Unknown the JVM contract needs.
+        Type valueOfArg = (driver.target.isNative() || driver.target == Target.WASI)
+                && (nativeRawPrimitive || (!stringified && !Type.isString(type)
+                        && !(type instanceof Type.PrimitiveType)))
+                ? type : Type.UnknownType.UNKNOWN;
+        if (driver.target == Target.JS && !Type.isString(type)
+                && type instanceof Type.ClassType ct
+                && ("List".equals(ct.name()) || "Set".equals(ct.name()))) {
+            valueOfArg = type;
+        }
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                List.of(driver.target.isNative()
-                        && (nativeRawPrimitive || (!stringified && !Type.isString(type)
-                                && !(type instanceof Type.PrimitiveType)))
-                        ? type : Type.UnknownType.UNKNOWN),
+                List.of(valueOfArg),
                 BuiltinTypes.STRING, KofCallKind.STATIC));
     }
 
@@ -80,7 +95,7 @@ public final class ExpressionBinaryLowerer {
         // §295/§306) nos 4 alvos, incluindo o JS (a exclusao de alvo aqui nao
         // se aplica ao desugar; ela protege o IF_ICMP cru do caminho antigo).
         if ("&&".equals(bin.operator()) || "||".equals(bin.operator())) {
-            int kl = CompilerComparisons.lowerTrooleanAndOr(driver, bin, ops, owner, localIdx, locals);
+            int kl = CompilerTroolean.lowerTrooleanAndOr(driver, bin, ops, owner, localIdx, locals);
             if (kl >= 0) return kl;
         }
         if ("instanceof".equals(bin.operator()) || "as".equals(bin.operator())) {
@@ -100,27 +115,50 @@ public final class ExpressionBinaryLowerer {
             // VerifyError. #462: o RHS avaliado usa o MESMO rewrite — um RHS
             // `Bool?` chegava ao join como referência enquanto o outro arco
             // deixava int (VerifyError; `true && fb()`).
-            ExpressionNode leftC = CompilerComparisons.nullableBoolTruthinessRewrite(
+            ExpressionNode leftC = CompilerTroolean.nullableBoolTruthinessRewrite(
                     driver, bin.left(), locals);
-            ExpressionNode rightC = CompilerComparisons.nullableBoolTruthinessRewrite(
+            ExpressionNode rightC = CompilerTroolean.nullableBoolTruthinessRewrite(
                     driver, bin.right(), locals);
+            // Fase E (24/10, #776): os literais sinteticos da cadeia logica
+            // levam o TIPO da expressao — um `b1 && b2` de BOOLs no WASI
+            // empilha i32 e o zero/um INT (i64) rompia a largura (MODULO
+            // INVALIDO; os valores do join tambem tinham de casar).
+            Type logicType = ExpressionTyper.inferExprType(driver, bin, locals);
+            Type zeroLit = logicType instanceof Type.PrimitiveType lpt
+                    && "bool".equalsIgnoreCase(lpt.name()) ? Type.PrimitiveType.BOOL : Type.PrimitiveType.INT;
             localIdx = ExpressionLowerer.emitExpression(driver, leftC, ops, owner, localIdx, locals);
-            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+            ops.add(new KofLoadLiteral(zeroLit, 0));
             if ("||".equals(bin.operator())) {
                 ops.add(new KofConditionalJump(KofComparison.NE, trueLabel, falseLabel));
             } else {
                 ops.add(new KofConditionalJump(KofComparison.NE, falseLabel, trueLabel));
             }
+            // Fase E (26/10, #776): o JOIN da cadeia logica vai para um
+            // TEMPORARIO — o valor do arco nao pode atravessar a fronteira de
+            // bloco (a maquina de estados do WASI nao transporta a pilha entre
+            // estados; o modulo saia INVALIDO no `b1 && b2`). Mesma maquina do
+            // caminho troolean (temporario unico, IR com store nos arcos).
+            boolean chainTemp = logicType instanceof Type.PrimitiveType ctp
+                    && "bool".equalsIgnoreCase(ctp.name());
+            int tmpIdx = -1;
+            if (chainTemp) {
+                tmpIdx = Math.max(localIdx, CompilerTroolean.nextFreeLocalIndex(locals));
+                locals.add(new IRLocalVariable(tmpIdx, "$klogic" + tmpIdx, logicType));
+                localIdx = tmpIdx + 1;
+            }
     ops.add(new KofLabel(falseLabel));
     localIdx = ExpressionLowerer.emitExpression(driver, rightC, ops, owner, localIdx, locals);
+    if (chainTemp) ops.add(new KofStoreLocal(logicType, tmpIdx));
     ops.add(new KofJump(endLabel));
     ops.add(new KofLabel(trueLabel));
     if ("||".equals(bin.operator())) {
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
+        ops.add(new KofLoadLiteral(zeroLit, 1));
     } else {
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        ops.add(new KofLoadLiteral(zeroLit, 0));
     }
+    if (chainTemp) ops.add(new KofStoreLocal(logicType, tmpIdx));
     ops.add(new KofLabel(endLabel));
+    if (chainTemp) ops.add(new KofLoadLocal(logicType, tmpIdx));
     return localIdx;
 }
 // Left-associative chains (huge string concatenations in

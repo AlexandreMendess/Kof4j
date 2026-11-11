@@ -38,8 +38,9 @@ final class TypeDeclarations {
         // `audited` só é modificador de DECLARAÇÃO DE ENTITY (`auditado` no
         // perfil portukof). Antes de qualquer outro tipo de declaração o
         // token NÃO é consumido — o erro honesto de declaração permanece.
-        if (ctx.check(TokenType.AUDITED)
-                && ctx.peekOffset(1).type() == TokenType.ENTITY) {
+        // #1068: `audited` is CONTEXTUAL — read by word, so the same spelling
+        // stays a plain identifier everywhere else.
+        if (ctx.wordIs("audited") && ctx.peekOffset(1).type() == TokenType.ENTITY) {
             ctx.advance();
             mods = new ArrayList<>(mods);
             mods.add("audited");
@@ -86,6 +87,7 @@ final class TypeDeclarations {
 
     /** enum Name { A, B, C } — constantes apenas (MVP P1). */
     static AstNode parseEnumDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
+        SourcePosition start = ctx.pos();
         ctx.expect(TokenType.ENUM, "Expected 'enum'", "PARSE030");
         String name = ctx.expectId("Expected enum name", "PARSE031");
         java.util.List<String> constants = new ArrayList<>();
@@ -118,10 +120,11 @@ final class TypeDeclarations {
             }
             ctx.expect(TokenType.RBRACE, "Expected '}' after enum body", "PARSE033");
         }
-        return new EnumDeclarationNode(ctx.pos(), name, mods, constants, annos);
+        return new EnumDeclarationNode(start, name, mods, constants, annos);
     }
 
     static AstNode parseClassDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
+        SourcePosition start = ctx.pos();
         ctx.advance();
         String name = ctx.expectId("Expected class name", "PARSE008");
         ctx.currentClassName = name;
@@ -157,7 +160,7 @@ final class TypeDeclarations {
                 }
                 ctx.expect(TokenType.RBRACE, "Expected '}' after record body", "PARSE014");
             }
-            return new RecordDeclarationNode(ctx.pos(), name, mods, superClass, ifaces,
+            return new RecordDeclarationNode(start, name, mods, superClass, ifaces,
                     typeParams, List.copyOf(ctorParams), List.copyOf(members), annos);
         }
         List<AstNode> members = new ArrayList<>();
@@ -168,11 +171,12 @@ final class TypeDeclarations {
             }
             ctx.expect(TokenType.RBRACE, "Expected '}' after class body", "PARSE009");
         }
-        return new ClassDeclarationNode(ctx.pos(), name, mods, superClass, ifaces, typeParams,
+        return new ClassDeclarationNode(start, name, mods, superClass, ifaces, typeParams,
                 List.copyOf(members), annos);
     }
 
     static InterfaceDeclarationNode parseInterfaceDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
+        SourcePosition start = ctx.pos();
         ctx.advance();
         String name = ctx.expectId("Expected interface name", "PARSE010");
         // #160: interface genérica — o ramo de classe já parseava a lista de
@@ -197,10 +201,11 @@ final class TypeDeclarations {
             }
             ctx.expect(TokenType.RBRACE, "Expected '}' after interface body", "PARSE011");
         }
-        return new InterfaceDeclarationNode(ctx.pos(), name, mods, ifaces, typeParams, List.copyOf(members), annos);
+        return new InterfaceDeclarationNode(start, name, mods, ifaces, typeParams, List.copyOf(members), annos);
     }
 
     static EntityDeclarationNode parseEntityDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
+        SourcePosition start = ctx.pos();
         ctx.advance(); // entity
         String name = ctx.expectId("Expected entity name", "PARSE024");
         ctx.entityNames.add(name);
@@ -223,19 +228,22 @@ final class TypeDeclarations {
             String fieldType = TypeParser.parseTypeRef(ctx);
             boolean generated = false;
             boolean unique = false;
-            while (ctx.check(TokenType.GENERATED, TokenType.UNIQUE)) {
-                if (ctx.check(TokenType.GENERATED)) generated = true;
-                if (ctx.check(TokenType.UNIQUE)) unique = true;
+            // `generated`/`unique` are CONTEXTUAL (#1118): read by word, so the
+            // same spelling stays a plain identifier everywhere else.
+            while (ctx.wordIs("generated") || ctx.wordIs("unique")) {
+                if (ctx.wordIs("generated")) generated = true;
+                if (ctx.wordIs("unique")) unique = true;
                 ctx.advance();
             }
             fields.add(new EntityFieldNode(fieldPos, fieldType, fieldName, generated, unique));
             if (ctx.pos().offset() == fieldPos.offset()) ctx.advance(); // trava de progresso
         }
         ctx.expect(TokenType.RBRACE, "Expected '}' after entity body", "PARSE024");
-        return new EntityDeclarationNode(ctx.pos(), name, mods, fields, annos);
+        return new EntityDeclarationNode(start, name, mods, fields, annos);
     }
 
     static RecordDeclarationNode parseRecordDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
+        SourcePosition start = ctx.pos();
         ctx.advance();
         String name = ctx.expectId("Expected record name", "PARSE012");
         List<String> typeParams = TypeParser.parseTypeParameters(ctx);
@@ -268,7 +276,7 @@ final class TypeDeclarations {
             }
             ctx.expect(TokenType.RBRACE, "Expected '}' after record body", "PARSE014");
         }
-        return new RecordDeclarationNode(ctx.pos(), name, mods, superClass, ifaces,
+        return new RecordDeclarationNode(start, name, mods, superClass, ifaces,
                 typeParams, List.copyOf(components), List.copyOf(members), annos);
     }
 

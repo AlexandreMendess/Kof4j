@@ -32,6 +32,10 @@ BASE = {
         ("timeout", ['timeout(Int ms) -> void']),
         ("retry", ['retry(Int count) -> void']),
         ("circuit", ['circuit(Int threshold) -> void']),
+        ("insecure", ['insecure() -> void']),
+        # #1126 (decisão da mantenedora 05/11): o send devolve o builtin
+        # kof.http.Response (status/header/headers/body lidos pelo caller).
+        ("send", ['send(String method, String url, String body, String headers) -> Response']),
     ],
     "time": [
         ("sleep", ['sleep(Int ms) -> void']),
@@ -54,6 +58,7 @@ BASE = {
         ("diffDays", ['diffDays(String isoA, String isoB) -> Int']),
         ("todayIso", ['todayIso() -> String']),
         ("formatDateIso", ['formatDateIso(Int y, Int m, Int d) -> String']),
+        ("formatInstantIso", ['formatInstantIso(Long millis) -> String']),
         ("parseDateIso", ['parseDateIso(String iso) -> Int']),
         ("tzOffsetSeconds", ['tzOffsetSeconds() -> Int']),
         ("hoursBetween", ['hoursBetween(Int y1, Int m1, Int d1, Int h1, Int y2, Int m2, Int d2, Int h2) -> Int']),
@@ -152,17 +157,21 @@ BASE = {
         ("dedent", ['dedent(String s) -> String']),
         ("repeat", ['repeat(String s, Int n) -> String']),
         ("truncate", ['truncate(String s, Int n) -> String']),
+        ("join", ['join(List<String> xs, String sep) -> String']),
         ("indent", ['indent(String s, Int n) -> String']),
         ("padLeft", ['padLeft(String s, Int n, String pad) -> String']),
         ("padRight", ['padRight(String s, Int n, String pad) -> String']),
     ],
     # fatia 4
     "math": [
-        ("abs", ['abs(Int n) -> Int']),
-        ("sign", ['sign(Int n) -> Int']),
-        ("clamp", ['clamp(Int v, Int lo, Int hi) -> Int']),
-        ("min", ['min(Int a, Int b) -> Int']),
-        ("max", ['max(Int a, Int b) -> Int']),
+        ("abs", ['abs(Int n) -> Int', 'abs(Double x) -> Double']),
+        ("sign", ['sign(Int n) -> Int', 'sign(Double x) -> Int']),
+        ("floor", ['floor(Double x) -> Double']),
+        ("ceil", ['ceil(Double x) -> Double']),
+        ("clamp", ['clamp(Int v, Int lo, Int hi) -> Int',
+                   'clamp(Double v, Double lo, Double hi) -> Double']),
+        ("min", ['min(Int a, Int b) -> Int', 'min(Double a, Double b) -> Double']),
+        ("max", ['max(Int a, Int b) -> Int', 'max(Double a, Double b) -> Double']),
         ("isEven", ['isEven(Int n) -> Bool']),
         ("isOdd", ['isOdd(Int n) -> Bool']),
         ("isPositive", ['isPositive(Int n) -> Bool']),
@@ -187,6 +196,8 @@ BASE = {
         ("isDecimal", ['isDecimal(Double x) -> Bool']),
         ("roundTo", ['roundTo(Double v, Int decimals) -> Double']),
         ("pow", ['pow(Double base, Double exp) -> Double']),
+        ("log", ['log(Double x) -> Double']),
+        ("exp", ['exp(Double x) -> Double']),
         ("parseInt", ['parseInt(String s) -> Int']),
         ("parseLong", ['parseLong(String s) -> Long']),
         ("parseDouble", ['parseDouble(String s) -> Double']),
@@ -205,6 +216,7 @@ BASE = {
 EXTRA_FATIAS = {
     "orm": [
         ("create", ["create(String entity) -> Bool"]),
+        ("createHistory", ["createHistory(String entity) -> Bool"]),
         ("save", ["save(String entity, Object row) -> Object"]),
         ("find", ["find(String entity, Object id) -> Object"]),
         ("all", ["all(String entity) -> List"]),

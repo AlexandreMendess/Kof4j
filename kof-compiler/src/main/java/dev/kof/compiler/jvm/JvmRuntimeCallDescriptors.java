@@ -22,6 +22,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_json_encode_map" -> "(Ljava/util/Map;I)Ljava/lang/String;";
             // §388-B: display de array primitivo no formato de container.
             case "kof_array_to_string" -> "(Ljava/lang/Object;)Ljava/lang/String;";
+            // #1120: List.join(sep)
+            case "kof_list_join" -> "(Ljava/util/List;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_json_decode_int", "kof_json_decode_bool" -> "(Ljava/lang/String;)I";
             case "kof_json_decode_long" -> "(Ljava/lang/String;)J";
             case "kof_json_decode_float" -> "(Ljava/lang/String;)F";
@@ -54,7 +56,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_io_read_bytes" -> "(Ljava/lang/String;)[I";
             case "kof_io_read_range", "kof_io_read_range_path" -> "(Ljava/lang/String;JJ)[I";
             case "kof_io_write_bytes", "kof_io_append_bytes" -> "(Ljava/lang/String;[I)I";
-            case "kof_io_delete", "kof_io_dir_create", "kof_io_dir_create_dirs", "kof_io_dir_delete"
+            case "kof_io_delete", "kof_io_dir_create", "kof_io_dir_create_dirs", "kof_io_dir_delete",
+                    "kof_io_file_create_new"
                     -> "(Ljava/lang/String;)I";
             case "kof_io_file_size" -> "(Ljava/lang/String;)J";
             case "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",
@@ -223,61 +226,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_canvas_transform" -> "(IDDDDDD)V";
             case "kof_ui_canvas_draw_image" -> "(IIII)V";
             case "kof_io_dir_list" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
-            case "kof_web_app_new" -> "()Ljava/lang/String;";
-            case "kof_web_route" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V";
-            case "kof_web_sse_route" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V";
-            case "kof_web_ws_route" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V";
-            case "kof_web_use" -> "(Ljava/lang/String;Ljava/lang/Object;)V";
-            case "kof_web_security" -> "(Ljava/lang/String;)V";
-            case "kof_web_security_opts" -> "(Ljava/lang/String;Ljava/util/Map;)V";
-            case "kof_web_policy" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V";
-            case "kof_web_route_opts" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/Object;)V";
-            case "kof_web_listen" -> "(Ljava/lang/String;I)V";
-            case "kof_web_listen_secure" -> "(Ljava/lang/String;I)V";
-            case "kof_web_listen_secure_pem" -> "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)V";
-            case "kof_web_serve_dir" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V";
-            case "kof_web_health" -> "(Ljava/lang/String;Ljava/lang/String;)V";
-            case "kof_web_configure" -> "(Ljava/lang/String;Ljava/lang/String;I)V";
-            case "kof_web_stats" -> "(Ljava/lang/String;)Ljava/lang/String;";
-            // ── kof.image ──
-            case "kof_image_decode" -> "(Ljava/lang/String;)[I";
-            // ── kof.media: imagem / áudio / microfone ──
-            case "kof_media_image_open", "kof_media_audio_open_wav", "kof_media_video_open"
-                    -> "(Ljava/lang/String;)I";
-            case "kof_media_image_width", "kof_media_image_height",
-                    "kof_media_audio_sample_rate", "kof_media_audio_duration_ms",
-                    "kof_media_video_size", "kof_media_video_duration_ms",
-                    "kof_media_mic_record" -> "(I)I";
-            case "kof_media_image_save", "kof_media_audio_save_wav" -> "(ILjava/lang/String;)I";
-            case "kof_media_image_format", "kof_media_image_data_uri" -> "(I)Ljava/lang/String;";
-            case "kof_media_image_save_fmt" -> "(ILjava/lang/String;Ljava/lang/String;)I";
-            case "kof_media_image_bytes", "kof_media_audio_pcm_bytes" -> "(I)[I";
-            case "kof_media_image_bytes_fmt" -> "(ILjava/lang/String;)[I";
-            case "kof_media_video_bytes" -> "(I)[I";
-            case "kof_media_image_close", "kof_media_video_close" -> "(I)V";
-            case "kof_media_video_path", "kof_media_video_format" -> "(I)Ljava/lang/String;";
-            case "kof_media_audio_from_pcm_bytes" -> "([III)I";
-            case "kof_media_mic_list" -> "()Ljava/util/ArrayList;";
-            case "kof_web_port" -> "(Ljava/lang/String;)I";
-            case "kof_web_close" -> "(Ljava/lang/String;)V";
-            case "kof_web_param", "kof_web_query", "kof_web_header"
-                    -> "(Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_web_body", "kof_web_method", "kof_web_path" -> "()Ljava/lang/String;";
-            case "kof_web_ws_message" -> "()Ljava/lang/String;";
-            case "kof_web_ws_send" -> "(Ljava/lang/String;)V";
-            case "kof_web_sse_send" -> "(Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_web_status" -> "(ILjava/lang/String;)Ljava/lang/String;";
-            case "kof_web_header_set" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_config_get", "kof_config_env", "kof_config_required" -> "(Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_http_get", "kof_http_delete", "kof_http_options" -> "(Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_http_get_headers", "kof_http_delete_headers", "kof_http_options_headers"
-                    -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_http_post", "kof_http_put", "kof_http_patch"
-                    -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_http_post_headers", "kof_http_put_headers", "kof_http_patch_headers"
-                    -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_http_status" -> "(Ljava/lang/String;)I";
-            case "kof_http_timeout_set", "kof_http_retry_set", "kof_http_circuit_set" -> "(I)V";
+            default -> JvmRuntimeCallDescriptorsWeb.descriptor(methodName);
             case "kof_mq_publish", "kof_mq_push" -> "(Ljava/lang/String;Ljava/lang/Object;)V";
             case "kof_mq_subscribe", "kof_mq_unsubscribe" -> "(Ljava/lang/String;Ljava/lang/Object;)V";
             case "kof_mq_queue" -> "()Ljava/lang/String;";
@@ -426,6 +375,10 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
             case "kof_math_sqrt" -> "(D)D";
+            case "kof_math_dabs", "kof_math_floor", "kof_math_ceil" -> "(D)D";
+            case "kof_math_dmin", "kof_math_dmax" -> "(DD)D";
+            case "kof_math_dclamp" -> "(DDD)D";
+            case "kof_math_dsign" -> "(D)I";
             case "kof_math_sin", "kof_math_cos", "kof_math_tan",
                     "kof_math_asin", "kof_math_acos", "kof_math_atan",
                     "kof_math_toRadians", "kof_math_toDegrees" -> "(D)D";
@@ -434,6 +387,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_lerp" -> "(DDD)D";
             case "kof_math_percentage" -> "(DD)D";
             case "kof_math_pow" -> "(DD)D";
+            case "kof_math_log", "kof_math_exp" -> "(D)D";
             case "kof_math_isInteger", "kof_math_isDecimal" -> "(D)Z";
             case "kof_math_roundTo" -> "(DI)D";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────
@@ -584,7 +538,12 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
             case "kof_interop_error_message", "kof_interop_error_code"
                     -> "(Ldev/kof/runtime/KofRuntime$InteropError;)Ljava/lang/String;";
-            default -> "(Ljava/lang/String;)Ljava/lang/Object;";
+            // #1126: os acessores do Response (o send está na tabela Web).
+            case "kof_http_response_status" -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)I";
+            case "kof_http_response_header"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_http_response_headers", "kof_http_response_body"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)Ljava/lang/String;";
         };
     }
 }

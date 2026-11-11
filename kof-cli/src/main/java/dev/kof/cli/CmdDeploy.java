@@ -259,6 +259,17 @@ final class CmdDeploy {
         if (library) files = new ArrayList<>(tree);
         if (files.isEmpty()) throw new IOException("no .kf/.kof files found in " + backendDir);
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        // Q7 honest-early-refusal, same pattern as CmdTest/CmdCheck: `script`
+        // emits NO artifacts (direct IR interpretation), so compiling for it here
+        // only produced a raw COMP003 from deep inside the pipeline — the same
+        // phantom failure the other commands refuse up front. Say it plainly.
+        if (target == Target.SCRIPT) {
+            throw new IOException(
+                    "--target script emits no artifacts (it is direct IR"
+                            + " interpretation, not a compiled output) — use"
+                            + " 'kof run --target script', or deploy jvm|native|js");
+        }
+
         Path classes = out.resolve("deploy-classes" + dirSuffix);
         CompilerDriver driver = new CompilerDriver();
         CompilationResult module = driver.compileSources(files, classes, target,
@@ -407,8 +418,13 @@ final class CmdDeploy {
         releaseFiles.add(Path.of("SHA256SUMS"));
         Path tgz = out.resolve("deploy").resolve(name + "-" + version + dirSuffix + ".tar.gz");
         writeTarGz(tgz, releaseDir, releaseFiles, tarMode);
+        // issue #978: o SHA impresso na linha "artifact → …tar.gz" e o do
+        // atestado de publicação precisam ser do ARQUIVO NOMEADO (o .tar.gz),
+        // não do jar interno — o TrustGate verifica o TARBALL baixado contra
+        // esse digest; o SHA do jar continua na 1a linha do SHA256SUMS.
+        String tgzSha256 = library ? null : sha256Hex(tgz);
         return new Release(TargetMatrix.name(target), "SUCCESS", releaseDir, tgz,
-                library ? null : artifact, sha256, null);
+                library ? null : artifact, tgzSha256, null);
     }
 
     /**

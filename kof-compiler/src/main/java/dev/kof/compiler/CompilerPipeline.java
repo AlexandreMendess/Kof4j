@@ -164,45 +164,6 @@ public final class CompilerPipeline {
         }
     }
 
-    static CompilationUnitNode appendAndroidHostIfNeeded(CompilerDriver driver, CompilationUnitNode unit) {
-        boolean userHasHost = unit.declarations().stream()
-                .anyMatch(d -> d instanceof TypeDeclarationNode t && "MainActivity".equals(t.name()));
-        if (userHasHost) return unit;
-        // sem android.jar no ExternalClasspath o host não resolve — avisar
-        // (AND004) e seguir com o programa puro em vez de SEM015 confuso
-        if (!driver.externalClasspath.knows("android/app/Activity")) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.warning("", 0, 0, 0,
-                        "driver.target android without android.jar in ExternalClasspath: "
-                                + "the host Activity was not included in the jar",
-                        "AND004");
-            }
-            return unit;
-        }
-        try (var in = CompilerDriver.class.getResourceAsStream("/dev/kof/android-host.kf")) {
-            String hostSource = in != null
-                    ? new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                    : Files.readString(Path.of("src/main/resources/dev/kof/android-host.kf"));
-            DiagnosticCollector silent = new DiagnosticCollector();
-            Lexer lexer = new Lexer(hostSource, "android-host.kf", silent);
-            Parser parser = new Parser(lexer.tokenize(), silent, "android-host.kf");
-            CompilationUnitNode hostUnit = parser.parse();
-            List<String> imports = new ArrayList<>(unit.imports());
-            for (String imp : hostUnit.imports()) {
-                if (!imports.contains(imp)) imports.add(imp);
-            }
-            List<AstNode> decls = new ArrayList<>(unit.declarations());
-            decls.addAll(hostUnit.declarations());
-            return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);
-        } catch (IOException e) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error("", 0, 0, 0,
-                        "android host could not be loaded: " + e.getMessage(), "AND004");
-            }
-            return unit;
-        }
-    }
-
     static Backend selectBackend(CompilerDriver driver, Target target) {
         return switch (target) {
             case JVM -> CompilerPipeline.backendWithClasspath(driver, new JvmBackend());
@@ -228,90 +189,6 @@ public final class CompilerPipeline {
         return backend;
     }
 
-    static IRModule lowerToIR(CompilerDriver driver, CompilationUnitNode unit, DiagnosticCollector diagnostics) {
-        List<String> imports = new ArrayList<>(unit.imports());
-        // D-NET-JS-V1 (maintainer 02/10): kof.net não é superfície JS no v1 —
-        // o import recusa no compile com código nomeado, em vez do shim de
-        // runtime (NETN001; nenhum sub-alvo browser/Node é introduzido).
-        if (driver.target == Target.JS && !driver.interpreting && diagnostics != null) {
-            for (String imp : unit.imports()) {
-                String base = imp.endsWith(".*") ? imp.substring(0, imp.length() - 2) : imp;
-                if (base.equals("kof.net") || base.equals("net") || base.startsWith("kof.net.")) {
-                    SourcePosition pos = unit.position();
-                    diagnostics.error(pos != null ? pos.file() : driver.currentSourceName,
-                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                            "The kof.net front is not a JS v1 surface — refusing 'import " + imp
-                                    + "' (NETN001: D-NET-JS-V1; the network verbs have no JS target in v1)",
-                            "NETN001");
-                }
-            }
-        }
-        List<IRClass> classes = new ArrayList<>();
-        List<IRMethod> topLevelFunctions = new ArrayList<>();
-        String moduleName = unit.packageName().isEmpty() ? "Default" : unit.packageName().replace('.', '/');
-        int nextTypeId = 10;
-        for (AstNode decl : unit.declarations()) {
-            String declPkg = driver.declPackage(decl, unit.packageName());
-            if (decl instanceof ClassDeclarationNode cls) classes.add(CompilerClassLowering.lowerClass(driver, cls, declPkg, nextTypeId++));
-            else if (decl instanceof InterfaceDeclarationNode iface) classes.add(CompilerIfaceRecordLowering.lowerInterface(driver, iface, declPkg, nextTypeId++));
-            else if (decl instanceof RecordDeclarationNode rec) classes.add(CompilerIfaceRecordLowering.lowerRecord(driver, rec, declPkg, nextTypeId++));
-            else if (decl instanceof EnumDeclarationNode en) classes.add(CompilerEnumLowering.lowerEnum(driver, en, declPkg, nextTypeId++)); // #445
-            else switch (decl) {
-                case EntityDeclarationNode ent -> {
-                    driver.entitySchemas.put(ent.name(), ent.fields());
-                    if (ent.modifiers().contains("audited")) driver.auditedEntities.add(ent.name()); // entity-history 2b
-                    List<RecordComponentNode> components = new java.util.ArrayList<>();
-                    for (EntityFieldNode f : ent.fields()) {
-                        components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));
-                    }
-                    classes.add(CompilerIfaceRecordLowering.lowerRecord(driver, new RecordDeclarationNode(ent.position(), ent.name(),
-                            ent.modifiers(), null, List.of(), components, List.of()),
-                            declPkg, nextTypeId++));
-                }
-                case FunctionDeclarationNode func -> {
-                    topLevelFunctions.add(CompilerFunctionLowering.lowerFunction(driver, func));
-                    topLevelFunctions.addAll(CompilerFunctionLowering.lowerFunctionDefaults(driver, func));
-                }
-                case ExternalFunctionNode ext -> {
-                    // #763 (`D-MAINT-BATCH-0610`/B): mesmo nome ≠ colisão — vira
-                    // lista de candidatos; a seleção é por assinatura no typer.
-                    driver.externSignatures
-                            .computeIfAbsent(ext.name(), n -> new java.util.ArrayList<>())
-                            .add(ext);
-                    // FFI (TIER 2.1.3/2.1.7): binding suportado (JVM Int→Int,
-                    // String→Int, Double→Double; Native Int→Int, String→Int) não é
-                    // gap; o resto é gap honesto por target — FFI002 no JS (web/edge
-                    // sem FFI nativo), FFI001 nos demais. Nunca stub silencioso (R6).
-                    if (diagnostics != null && !CompilerFfiBinding.isExternBound(driver, ext)) {
-                        SourcePosition sp = ext.position();
-                        String lib = ext.library() != null ? " in " + ext.library() : "";
-                        // #667: a interpretação (Script) roda com target=JVM, então
-                        // o rótulo/mensagem precisam nomear o alvo REAL (script).
-                        boolean jsTarget = driver.target == Target.JS && !driver.interpreting;
-                        String code = jsTarget ? "FFI002" : "FFI001";
-                        String targetName = driver.interpreting ? "script" : String.valueOf(driver.target);
-                        String msg = jsTarget
-                                ? "extern '" + ext.name() + "'" + lib + ": FFI signature not bound on the JS target yet (FFI002)"
-                                : "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
-                                        + targetName + " target yet (FFI001)";
-                        diagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
-                                sp != null ? sp.column() : 0, 0, msg, code);
-                    }
-                }
-                case null, default -> { }  // no-op p/ null ou tipo nao-casado (paridade com o if-else original)
-            }
-        }
-        if (!topLevelFunctions.isEmpty()) {
-            String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";
-            classes.add(0, new IRClass(mainClassName, "java/lang/Object", List.of(),
-                    AccessFlags.PUBLIC | AccessFlags.SUPER, List.of(), topLevelFunctions, List.of(), null, 0));
-        }
-        classes.addAll(driver.syntheticClasses);
-        return new IRModule(moduleName, classes, imports, driver.currentSourceName,
-                driver.currentSourceContent);
-    }
-
-
     static void lowerAndEmit(CompilerDriver driver, CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
         if (target.isScript()) {
@@ -332,6 +209,19 @@ public final class CompilerPipeline {
         driver.entitySchemas.clear();
         IRModule irModule = analyzeAndLower(driver, unit, diagnostics);
         if (irModule == null) {
+            return;
+        }
+        // GitHub #999 (defensivo): um nome interno JVM inválido (iniciado por
+        // `/`, barra dupla, segmento vazio) nunca deve chegar ao emit — antes
+        // disso virava `outputDir.resolve("/agent/Box")` (absoluto, descarta o
+        // dir de saída → EACCES mascarado de COMP001) ou um ClassFormatError
+        // silencioso no load. Recusa honesta na ORIGEM (R6), com o nome.
+        String badInternal = firstInvalidInternalName(irModule);
+        if (badInternal != null) {
+            diagnostics.error(driver.currentSourceName, 0, 0, 0,
+                    "invalid class name '" + badInternal
+                            + "' — the source directory is not a valid package (COMP004)",
+                    "COMP004");
             return;
         }
         // UI001 (R6): kof.ui é no-op no Native — avisa UMA vez (aditivo, §KOFUI-AUDIT).
@@ -368,7 +258,7 @@ public final class CompilerPipeline {
         unit = DesugarStepPipeline.run(driver.desugarSteps, unit, driver);
         driver.discoveredConfigKeys.clear();
         if (driver.target == Target.ANDROID) {
-            unit = CompilerPipeline.appendAndroidHostIfNeeded(driver, unit);
+            unit = AndroidHostAppender.appendIfNeeded(driver, unit);
         }
         driver.semanticAnalyzer = new SemanticAnalyzer();
         // entity-history fatia 2c-parte-2 (D-ENTITY-HISTORY): pré-pass do
@@ -396,7 +286,7 @@ public final class CompilerPipeline {
         LabelId.reset();
         driver.currentModule = new IRModule("", List.of(), List.of());
         driver.currentUnit = unit;
-        IRModule irModule = driver.applySuperBridges(CompilerPipeline.lowerToIR(driver, unit, diagnostics));
+        IRModule irModule = driver.applySuperBridges(CompilerUnitLowering.lowerToIR(driver, unit, diagnostics));
         if (diagnostics.hasErrors()) {
             return null;
         }
@@ -567,6 +457,29 @@ public final class CompilerPipeline {
         return merged;
     }
 
+
+    /**
+     * GitHub #999 — o primeiro nome interno JVM INVÁLIDO do módulo, ou null.
+     * Um nome interno válido é `a/b/C` com todo segmento não-vazio e formado
+     * por letras/dígitos/`_`/`$` (não começa por dígito). `/agent/Box`
+     * (absoluto), `sub//agent/Box` (barra dupla) e `"?.."` são inválidos.
+     */
+    static String firstInvalidInternalName(IRModule module) {
+        for (IRClass c : module.classes()) {
+            if (c.name() == null) continue;
+            if (!isValidInternalName(c.name())) return c.name();
+        }
+        return null;
+    }
+
+    static boolean isValidInternalName(String name) {
+        if (name == null || name.isEmpty()) return false;
+        if (name.startsWith("/") || name.endsWith("/") || name.contains("//")) return false;
+        for (String seg : name.split("/", -1)) {
+            if (!ModuleRoots.isPackageSegment(seg)) return false;
+        }
+        return true;
+    }
 
     static boolean isIntType(String t) {
         return "int".equals(t) || "Int".equals(t);

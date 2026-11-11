@@ -35,13 +35,48 @@ public final class ExternalClasspath {
      *  packing dos args extras no componente do último param — sem a flag o
      *  respositor casava só aridade fixa e `Arrays.asList(1,2)` caía no
      *  emit de owner vazio. */
-    record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
+    public record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
                            boolean isStatic, boolean ownerIsInterface, boolean isVarargs) {
     }
 
     private final Map<String, byte[]> classBytes = new HashMap<>();
     private final List<String> loadWarnings = new ArrayList<>();
+    private final List<Path> classpathEntries = new ArrayList<>();
+    private java.net.URLClassLoader reflectionLoader;
     private boolean loaded = false;
+
+    /**
+     * #1093 fatia 2 — a CLASSE do classpath externo (ou do JDK), carregada
+     * SEM inicialização (initialize=false — nunca rodar static init
+     * estranho no processo do compilador). JDK pelo boot loader primeiro;
+     * os entries por um URLClassLoader lazy depois. Null quando nem o JDK
+     * nem os entries têm a classe.
+     */
+    public synchronized Class<?> loadClass(String internalName) {
+        if (internalName == null) return null;
+        if (JdkReflectionResolver.isJdkClass(internalName)) {
+            try {
+                return Class.forName(internalName.replace('/', '.'), false,
+                        ExternalClasspath.class.getClassLoader());
+            } catch (Throwable ignored) {
+                // não é do JDK apesar do prefixo — tenta os entries
+            }
+        }
+        if (!loaded) return null;
+        try {
+            if (reflectionLoader == null) {
+                java.net.URL[] urls = new java.net.URL[classpathEntries.size()];
+                for (int i = 0; i < classpathEntries.size(); i++) {
+                    urls[i] = classpathEntries.get(i).toUri().toURL();
+                }
+                reflectionLoader = new java.net.URLClassLoader(urls,
+                        ExternalClasspath.class.getClassLoader());
+            }
+            return Class.forName(internalName.replace('/', '.'), false, reflectionLoader);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
 
     /** Entradas que não puderam ser lidas (bytecode novo demais, zip corrompido). */
     public synchronized List<String> loadWarnings() {
@@ -56,7 +91,10 @@ public final class ExternalClasspath {
         classBytes.clear();
         loadWarnings.clear();
         loaded = false;
+        reflectionLoader = null;
+        classpathEntries.clear();
         if (entries == null) return;
+        classpathEntries.addAll(entries);
         for (Path entry : entries) {
             if (!Files.exists(entry)) {
                 loadWarnings.add("classpath entry not found: " + entry);
@@ -158,6 +196,18 @@ public final class ExternalClasspath {
                 if (inherited != null) return inherited;
                 sup = declaredSuperclassOf(sup);
             }
+        }
+        // #1093 fatia 2: classe CARREGÁVEL resolve por reflexão — getMethods()
+        // caminha a hierarquia inteira (superclasses E interfaces) e o método
+        // herdado de interface genérica aparece com o descritor APAGADO real
+        // (o byte-parse acima só caminha superclasses de CLASSE). O parse de
+        // bytes continua como fast-path e como fallback para bytecode não
+        // carregável pelo host (nunca pior que hoje).
+        Class<?> rcls = loadClass(ownerInternalName);
+        if (rcls != null) {
+            ExternalClasspath.MethodSignature rs = JdkReflectionResolver.reflectResolve(
+                    rcls, methodName, argumentCount, argumentTypes);
+            if (rs != null) return rs;
         }
         if (JdkReflectionResolver.isJdkClass(ownerInternalName)) {
             return JdkReflectionResolver.resolveJdkMethodWithArgs(ownerInternalName, methodName, argumentCount, argumentTypes);
@@ -460,7 +510,7 @@ public final class ExternalClasspath {
      * Converte um descritor de campo/retorno JVM num Type do Kof.
      * Primitivos preservam identidade; classes viram ClassType com pacote.
      */
-    static Type typeFromDescriptor(String descriptor) {
+    public static Type typeFromDescriptor(String descriptor) {
         return switch (descriptor) {
             case "V" -> Type.PrimitiveType.VOID;
             case "Z" -> Type.PrimitiveType.BOOL;

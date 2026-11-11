@@ -13,6 +13,14 @@ public final class ExpressionStaticCallLowerer {
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
+// §243 função (#931/#932): quando o programa declara uma função top-level ou
+// `extern` com este nome, NENHUM branch de builtin de nome fixo (writeFile,
+// readFile, poll, done, cancel, sleep, …) pode emitir no lugar — sai da
+// frente e deixa a cadeia chegar ao dispatch correto (extern lowering ou
+// bare call para a função do usuário). Um só guard cobre toda a cadeia.
+if (mc.receiver() == null && hasUserFunctionNamed(driver, mc.methodName())) {
+    return -1;
+}
 // with the same name: ClassName(args) is implicit construction.
 // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(args)` — construção
 // qualificada; o receiver é um PACOTE, resolvido pelo índice FQN ADITIVO
@@ -417,16 +425,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.
 }
 if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
 
-    Type keyType = Type.UnknownType.UNKNOWN;
-    Type valueType = Type.UnknownType.UNKNOWN;
-    if (!mc.arguments().isEmpty()) {
-        // mapOf(k1, v1, k2, v2, ...): pinning do tipo no primeiro par
-        keyType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-        if (mc.arguments().size() > 1) {
-            valueType = ExpressionTyper.inferExprType(driver, mc.arguments().get(1), locals);
-        }
-    }
-    Type mapType = new Type.ClassType("kof", "Map", List.of(keyType, valueType));
+    Type mapType = CollectionLiteralTypes.mapOf(driver, mc, locals);
+    Type valueType = ((Type.ClassType) mapType).typeArguments().get(1);
     ops.add(new KofCall(mapType, "kof_map_new", List.of(), mapType, KofCallKind.FUNCTION));
     // pares: (k0,v0), (k1,v1), ...
     for (int ai = 0; ai + 1 < mc.arguments().size(); ai += 2) {
@@ -468,9 +468,8 @@ if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
     return localIdx;
 }
 if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
-    Type elemType = Type.UnknownType.UNKNOWN;
-    if (!mc.arguments().isEmpty()) elemType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    Type setType = new Type.ClassType("kof", "Set", List.of(elemType));
+    Type setType = CollectionLiteralTypes.setOf(driver, mc, locals);
+    Type elemType = ((Type.ClassType) setType).typeArguments().get(0);
     ops.add(new KofCall(setType, "kof_set_new", List.of(), setType, KofCallKind.FUNCTION));
     for (ExpressionNode arg : mc.arguments()) {
         ops.add(new KofDup());
@@ -507,14 +506,10 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
     // idênticas) — NativeX86Calls é a referência de semântica.
 
     /** B-6.2b: `ring1` so vale como builtin se nenhuma funcao do usuario usa
-     *  o nome (nao sombreia — freeze regra 2). */
+     *  o nome (nao sombreia — freeze regra 2). Um oráculo só com
+     *  KofShadowing (§243 função, #931/#932). */
     private static boolean hasUserFunctionNamed(CompilerDriver driver, String name) {
-        if (driver.currentUnit == null) return false;
-        for (AstNode d : driver.currentUnit.declarations()) {
-            if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)) return true;
-            if (d instanceof ExternalFunctionNode ext && ext.name().equals(name)) return true;
-        }
-        return false;
+        return KofShadowing.userDeclares(driver, name);
     }
     /** local CHAMÁVEL (lambda) vence o nome de contexto web; handle não-chamável não (regressão 0.6.2). */
     private static boolean isCallableLocalVar(CompilerDriver driver, String name, List<IRLocalVariable> locals) {

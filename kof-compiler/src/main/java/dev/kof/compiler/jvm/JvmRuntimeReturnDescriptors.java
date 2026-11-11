@@ -33,7 +33,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_io_file_exists", "kof_io_file_is_file", "kof_io_file_is_dir",
                     "kof_io_write_text", "kof_io_append_text", "kof_io_write_bytes", "kof_io_append_bytes",
                     "kof_io_delete", "kof_io_dir_create", "kof_io_dir_create_dirs", "kof_io_dir_delete",
-                    "kof_io_path_is_absolute",
+                    "kof_io_path_is_absolute", "kof_io_file_create_new",
                     "kof_io_file_copy_to", "kof_io_file_move_to", "kof_io_file_is_symlink" -> "I";
             case "kof_io_read_text", "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",
                     "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_resolve",
@@ -43,6 +43,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_shell_argv" -> "Ljava/util/ArrayList;";
             // §388-B: display de array primitivo no formato de container.
             case "kof_array_to_string" -> "Ljava/lang/String;";
+            case "kof_list_join" -> "Ljava/lang/String;";
             case "kof_shell_pipeline" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_shell_runwith" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_ssh_argv" -> "Ljava/util/ArrayList;";
@@ -53,7 +54,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_io_file_size", "kof_io_file_modified_time" -> "J";
             case "kof_io_dir_list" -> "Ljava/util/ArrayList;";
             case "kof_web_app_new", "kof_web_param", "kof_web_query", "kof_web_header",
-                    "kof_web_body", "kof_web_method", "kof_web_path",
+                    "kof_web_body", "kof_web_method", "kof_web_path", "kof_web_remote_addr",
                     "kof_web_status", "kof_web_header_set",
                     "kof_scheduler_every", "kof_scheduler_at" -> "Ljava/lang/String;";
             case "kof_config_get", "kof_config_env", "kof_config_str", "kof_config_required" -> "Ljava/lang/String;";
@@ -75,13 +76,15 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_mv64_wrunsp" -> "I";
             case "kof_http_get", "kof_http_get_headers", "kof_http_delete", "kof_http_delete_headers",
                     "kof_http_options", "kof_http_options_headers", "kof_http_post", "kof_http_post_headers",
-                    "kof_http_put", "kof_http_put_headers", "kof_http_patch", "kof_http_patch_headers"
+                    "kof_http_put", "kof_http_put_headers", "kof_http_patch", "kof_http_patch_headers",
+                    "kof_acme_jws_es256", "kof_acme_new_account", "kof_acme_new_order",
+                    "kof_acme_dns01_txt", "kof_acme_challenge", "kof_acme_finalize"
                     -> "Ljava/lang/String;";
             case "kof_http_status", "kof_mq_queue_size" -> "I";
             case "kof_mq_queue" -> "Ljava/lang/String;";
             case "kof_mq_pop" -> "Ljava/lang/Object;";
             case "kof_web_sse_route", "kof_web_ws_route", "kof_http_timeout_set",
-                    "kof_http_retry_set", "kof_http_circuit_set",
+                    "kof_http_retry_set", "kof_http_circuit_set", "kof_http_insecure_set",
                     "kof_mq_publish", "kof_mq_subscribe", "kof_mq_unsubscribe",
                     "kof_mq_push", "kof_time_sleep", "kof_time_cancel", "kof_scheduler_cancel" -> "V";
             case "kof_time_now" -> "J";
@@ -171,12 +174,17 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_math_max", "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero", "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "I";
             case "kof_math_sqrt" -> "D";
+            case "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
+                    "kof_math_dmin", "kof_math_dmax" -> "D";
+            case "kof_math_dclamp" -> "D";
+            case "kof_math_dsign" -> "I";
             case "kof_math_sin", "kof_math_cos", "kof_math_tan",
                     "kof_math_asin", "kof_math_acos", "kof_math_atan",
                     "kof_math_atan2", "kof_math_toRadians", "kof_math_toDegrees",
                     "kof_math_pi", "kof_math_e", "kof_math_tau" -> "D";
             case "kof_math_lerp", "kof_math_percentage" -> "D";
             case "kof_math_pow" -> "D";
+            case "kof_math_log", "kof_math_exp" -> "D";
             case "kof_math_isInteger", "kof_math_isDecimal" -> "I";
             case "kof_math_roundTo" -> "D";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase",

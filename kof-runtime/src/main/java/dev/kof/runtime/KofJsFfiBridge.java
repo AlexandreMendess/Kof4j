@@ -9,6 +9,8 @@ import java.lang.foreign.StructLayout;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * FFI (R3, fatia 3.6-F1): downcall no host do runner GraalJS/node — o runner É uma
@@ -144,7 +146,7 @@ public final class KofJsFfiBridge {
                 return null;
             }
             if (ret == '@') {
-                return readStruct(retStruct, (MemorySegment) r, retChars);
+                return readStruct((MemorySegment) r, retChars);
             }
             if (ret == 'S') {
                 MemorySegment seg = (MemorySegment) r;
@@ -170,12 +172,15 @@ public final class KofJsFfiBridge {
      * Lê os campos do struct devolvido por valor (ordem de declaração) num
      * {@code Object[]} — o guest reconstrói o record via {@code __kof_ffi_from}
      * (paridade com o {@code kof_ffi_read_struct} reflexivo do JVM). Os offsets
-     * vêm do MESMO {@link #structLayout} que gerou o descriptor.
+     * vêm do MESMO {@link #structLayout} que gerou o descriptor (CodeQL #1165:
+     * `fieldOffset` reconstrói o mesmo padding a partir só de `chars`, entao o
+     * StructLayout em si nunca entra aqui — ficou no param por simetria com o
+     * `structLayout(retChars)` que o chamador já tinha à mão).
      */
-    private static Object[] readStruct(StructLayout sl, MemorySegment seg, String chars) {
+    private static Object[] readStruct(MemorySegment seg, String chars) {
         Object[] out = new Object[chars.length()];
         for (int k = 0; k < chars.length(); k++) {
-            long off = sl.byteOffset(MemoryLayout.PathElement.groupElement(k));
+            long off = fieldOffset(chars, k);   // §762
             out[k] = switch (chars.charAt(k)) {
                 case 'i' -> seg.get(ValueLayout.JAVA_INT, off);
                 case 'j' -> seg.get(ValueLayout.JAVA_LONG, off);
@@ -229,18 +234,43 @@ public final class KofJsFfiBridge {
      * 24, não 20) — espelho de {@code kof_ffi_struct_layout_of} do JVM.
      */
     static StructLayout structLayout(String chars) {
-        MemoryLayout[] members = new MemoryLayout[chars.length()];
-        for (int k = 0; k < chars.length(); k++) {
-            members[k] = layout(chars.charAt(k));
+        // §762: a ABI C paddinga o struct ENTRE os campos (cada membro começa no
+        // múltiplo do seu alinhamento; ex. {_Bool,int} põe o int em 4) e na CAUDA.
+        // Os dois paddings entram EXPLÍCITOS: sem o interno,
+        // MemoryLayout.structLayout rejeita i1 seguido de i4.
+        String cs = (chars == null || chars.startsWith(":")) ? "" : chars;
+        List<MemoryLayout> members = new ArrayList<>(cs.length() + 2);
+        long off = 0;
+        long align = 1;
+        for (int k = 0; k < cs.length(); k++) {
+            MemoryLayout m = layout(cs.charAt(k));
+            long a = m.byteAlignment();
+            long gap = Math.floorMod(-off, a);
+            if (gap > 0) {
+                members.add(MemoryLayout.paddingLayout(gap));
+                off += gap;
+            }
+            members.add(m);
+            off += m.byteSize();
+            if (a > align) align = a;
         }
-        StructLayout sl = MemoryLayout.structLayout(members);
-        long align = sl.byteAlignment();
-        long size = sl.byteSize();
-        long padded = (size + align - 1) / align * align;
-        if (padded == size) return sl;
-        MemoryLayout[] withPad = new MemoryLayout[members.length + 1];
-        System.arraycopy(members, 0, withPad, 0, members.length);
-        withPad[members.length] = MemoryLayout.paddingLayout(padded - size);
-        return MemoryLayout.structLayout(withPad);
+        long padded = (off + align - 1) / align * align;
+        if (padded > off) members.add(MemoryLayout.paddingLayout(padded - off));
+        return MemoryLayout.structLayout(members.toArray(new MemoryLayout[0]));
+    }
+
+    /** §762: o offset C do k-ésimo campo (o layout carrega padding explícito, então
+     *  {@code PathElement.groupElement(k)} deixaria de ser o campo k). */
+    static long fieldOffset(String chars, int k) {
+        String cs = (chars == null || chars.startsWith(":")) ? "" : chars;
+        long off = 0;
+        for (int i = 0; i <= k && i < cs.length(); i++) {
+            MemoryLayout m = layout(cs.charAt(i));
+            long a = m.byteAlignment();
+            off += Math.floorMod(-off, a);
+            if (i == k) return off;
+            off += m.byteSize();
+        }
+        return off;
     }
 }

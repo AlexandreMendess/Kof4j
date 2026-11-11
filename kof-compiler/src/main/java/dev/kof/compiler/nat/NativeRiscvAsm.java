@@ -79,6 +79,9 @@ public final class NativeRiscvAsm {
                 // D-FULL-PARITY-050 row 10 (27/09): pow no cross — peca PROPRIA
                 // (libm) p/ a poda manter libm-free quem nao usa pow.
                 .append(NativeRiscvAsmMathPow.RISCV_ASM_MATH_POW)
+                // MATH-LOG-EXP (07/11): log/exp no cross — peca PROPRIA (libm)
+                // pelo mesmo motivo do pow: a poda mantem libm-free quem nao usa.
+                .append(NativeRiscvAsmMathLogExp.RISCV_ASM_MATH_LOG_EXP)
                 .append(NativeRiscvAsmRtB33.RISCV_RUNTIME_ASM_B_33)
                 .append(NativeRiscvAsmRtB34.RISCV_RUNTIME_ASM_B_34)
                 .append(NativeRiscvAsmRtB35.RISCV_RUNTIME_ASM_B_35)
@@ -351,6 +354,10 @@ public final class NativeRiscvAsm {
     private static String runtimeMapset() {
         return new StringBuilder()
                 .append(NativeRiscvAsmMapset0.RISCV_MAPSET_ASM_0)
+                // check_500: a fatia SET da Mapset0 (kof_set_* + o epilogo rodata
+                // §284) segue IMEDIATAMENTE o lado map — a ordem do concat
+                // preserva o RISCV_MAPSET_ASM byte-idêntico.
+                .append(NativeRiscvAsmSet0.RISCV_SET_ASM_0)
                 .append(NativeRiscvAsmMapset1.RISCV_MAPSET_ASM_1)
                 .append(NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2)
                 // §667: decode de string JSON (kof_json_decode_string +

@@ -40,11 +40,13 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiRng.RNG_RUNTIME)
                 .append(JsRuntimeUiMathDouble.MATH_DOUBLE_RUNTIME)
                 .append(JsRuntimeUiNumFmt.NUM_FMT_RUNTIME)
+                .append(JsRuntimeFormatTyped.FORMAT_TYPED_RUNTIME)  // #1120: bloco "format-typed"
                 .append(JsRuntimeBuffer.BUFFER_RUNTIME)
                 .append(JsRuntimeUiNet.NET_RUNTIME)
                 .append(JsRuntimeUiUuid.UUID_RUNTIME)
                 .append(JsRuntimeUiWs.WS_RUNTIME)
                 .append(JsRuntimeUiEvents.UI_EVENT_RUNTIME)
+                .append(JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME())  // #1126: o bloco "http-client" é o ÚLTIMO core (a ordem da lista define o emit)
                 .toString();
     }
 

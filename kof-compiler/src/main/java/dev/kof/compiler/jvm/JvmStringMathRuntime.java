@@ -60,6 +60,26 @@ public final class JvmStringMathRuntime {
                 public static double kof_math_sqrt(double v) {
                     return Math.sqrt(v);
                 }
+
+                // MATH-D (27/10, #776): as cinco double de arredondamento/
+                // extremos — o Math.* EXATO da JDK (o WASI usa as instruções
+                // IEEE; min/max casam o contrato ±0/NaN da JVM).
+                public static double kof_math_dabs(double v) { return Math.abs(v); }
+                public static double kof_math_floor(double v) { return Math.floor(v); }
+                public static double kof_math_ceil(double v) { return Math.ceil(v); }
+                public static double kof_math_dmin(double a, double b) { return Math.min(a, b); }
+                public static double kof_math_dmax(double a, double b) { return Math.max(a, b); }
+
+                // MATH-D-2 (27/10, #776): clamp/sign doubles — o CONTRATO da
+                // família int carregado (as cadeias branchy EXATAS; NaN
+                // propaga no clamp e vira 0 no sign — a mesma semântica da
+                // cadeia, nunca min/max).
+                public static double kof_math_dclamp(double v, double lo, double hi) {
+                    return v < lo ? lo : (v > hi ? hi : v);
+                }
+                public static int kof_math_dsign(double v) {
+                    return v > 0 ? 1 : (v < 0 ? -1 : 0);
+                }
                 public static double kof_math_sin(double v) { return Math.sin(v); }
                 public static double kof_math_cos(double v) { return Math.cos(v); }
                 public static double kof_math_tan(double v) { return Math.tan(v); }
@@ -88,6 +108,18 @@ public final class JvmStringMathRuntime {
                 // glibc nos finitos (mesma fórmula IEEE 754, travado em teste).
                 public static double kof_math_pow(double base, double exp) {
                     return Math.pow(base, exp);
+                }
+
+                // MATH-LOG-EXP (07/11): log = ln NATURAL, exp = e^x (o
+                // mesmo contrato IEEE de Math.log/Math.exp — log(0)=-Inf,
+                // log(-1)=NaN, exp(-Inf)=0). O cross usa o shim log@PLT, o
+                // WASM o fdlibm — a paridade viaja com o teste.
+                public static double kof_math_log(double v) {
+                    return Math.log(v);
+                }
+
+                public static double kof_math_exp(double v) {
+                    return Math.exp(v);
                 }
 
                 public static boolean kof_math_isInteger(double v) {

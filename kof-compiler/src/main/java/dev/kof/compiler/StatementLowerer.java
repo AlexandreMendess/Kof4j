@@ -31,7 +31,8 @@ public final class StatementLowerer {
                     // desempilhar o handler já consumido (double-pop corrompia a
                     // cadeia → SIGSEGV no próximo throw). O epílogo do finally
                     // não desvincula mais — o return site já o fez.
-                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
+                    // §765: o unlink vem depois do store — o operando roda com
+                    // o handler vivo e o valor já está a salvo no slot do frame.
                     if (ret.value() != null) {
                         localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
@@ -39,6 +40,7 @@ public final class StatementLowerer {
                         ops.add(CompilerTypes.defaultValueOp(returnType));
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
                     }
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     ops.add(new KofJump(f.returnFinallyLabel()));
                     yield localIdx;
                 }
@@ -47,13 +49,25 @@ public final class StatementLowerer {
                 // função (sem isto o frame fica pendurado e o próximo throw
                 // da cadeia dá UAF). O caso com finally ativo é tratado no
                 // epílogo (frame empilhado), não aqui.
-                for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
+                // §765: só o ramo com operando pode lançar; os outros dois
+                // mantêm o unlink antes do valor.
                 if (ret.value() != null) {
                     localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
+                    if (driver.tryDepth > 0) {
+                        // O operando roda com o handler vivo; o valor passa por
+                        // um local porque o unlink nativo reseta o sp.
+                        int scratchSlot = localIdx++;
+                        locals.add(new IRLocalVariable(scratchSlot, "#retTmp", returnType));
+                        ops.add(new KofStoreLocal(returnType, scratchSlot));
+                        for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
+                        ops.add(new KofLoadLocal(returnType, scratchSlot));
+                    }
                     ops.add(new KofReturn(returnType));
                 } else if (Type.isVoid(returnType)) {
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     ops.add(new KofReturnVoid());
                 } else {
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     ops.add(CompilerTypes.defaultValueOp(returnType));
                     ops.add(new KofReturn(returnType));
                 }
@@ -134,7 +148,7 @@ public final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), thenLabel, elseLabel));
                 } else {
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, ifStmt.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, ifStmt.condition(),
                             ops, owner, localIdx, locals, thenLabel, elseLabel);
                 }
                 ops.add(new KofLabel(thenLabel));
@@ -156,7 +170,7 @@ public final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                 } else {
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, ws.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, ws.condition(),
                             ops, owner, localIdx, locals, bodyLabel, endLabel);
                 }
                 ops.add(new KofLabel(bodyLabel));
@@ -190,9 +204,10 @@ public final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), startLabel, endLabel));
                 } else {
-                    localIdx = ExpressionLowerer.emitExpression(driver, dws.condition(), ops, owner, localIdx, locals);
-                    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                    ops.add(new KofConditionalJump(KofComparison.NE, startLabel, endLabel));
+                    // Fase E (24/10, #776): roteado pelo helper central — o
+                    // zero leva o TIPO da condicao (BOOL do WASI = i32).
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, dws.condition(),
+                            ops, owner, localIdx, locals, startLabel, endLabel);
                 }
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
@@ -211,9 +226,9 @@ public final class StatementLowerer {
                         localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                         ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                     } else {
-                        localIdx = ExpressionLowerer.emitExpression(driver, fs.condition(), ops, owner, localIdx, locals);
-                        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                        ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
+                        // Fase E (24/10, #776): helper central — zero tipado.
+                        localIdx = CompilerTroolean.emitTruthinessJump(driver, fs.condition(),
+                                ops, owner, localIdx, locals, bodyLabel, endLabel);
                     }
                 }
                 ops.add(new KofLabel(bodyLabel));
@@ -231,12 +246,14 @@ public final class StatementLowerer {
                 if (fs.update() != null) {
                     if (fs.update() instanceof UnaryExpr ue
                             && ("++".equals(ue.operator()) || "--".equals(ue.operator()))
-                            && ue.operand() instanceof IdentifierExpr id) {
+                            && ue.operand() instanceof IdentifierExpr id
+                            && driver.findLocalVar(id.name(), locals) != null
+                            && !driver.boxFactory.isBoxType(driver.findLocalVar(id.name(), locals).type())) {
                         IRLocalVariable var = driver.findLocalVar(id.name(), locals);
                         if (var != null) {
                             ops.add(new KofLoadLocal(var.type(), var.index()));
-                            CompilerEmissionHelpers.emitIncrementOne(ops, var.type());
-                            ops.add(new KofBinary("++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB, var.type()));
+                            CompilerEmissionHelpers.emitIncrementStep(ops,
+                                    "++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB, var.type());
                             ops.add(new KofStoreLocal(var.type(), var.index()));
                         }
                     } else {

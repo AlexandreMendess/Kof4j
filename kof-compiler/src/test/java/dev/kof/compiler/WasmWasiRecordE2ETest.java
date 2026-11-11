@@ -214,22 +214,215 @@ class WasmWasiRecordE2ETest {
     }
 
     @Test
-    void argsAndOutOfSlicePrintRefuseWithNoArtifacts(@TempDir Path dir) throws Exception {
+    void arrayPrintRefusesWithNoArtifacts(@TempDir Path dir) throws Exception {
+        // ARRAY-1 (27/10): o println do array INTEIRO segue fora da fatia
+        // (o format [I@1b6d3586 e' identidade de ponteiro — recusa nomeada,
+        // sem artefato). O iter (`for (a in args)`) saiu daqui: a fatia
+        // ARRAY-1 legitimou o desugar (length/get provados) e virou a face
+        // de paridade argsIterationMatchesTheJvmOracle abaixo.
         var driver = new CompilerDriver();
-        record Case(String name, String src) {}
-        for (Case c : List.of(
-                new Case("array-print", "main(String[] args) { println(args) }\n"),
-                new Case("iter", "main(String[] args) {\n    for (var a in args) { println(a) }\n}\n"))) {
-            Path src = dir.resolve("Refuse-" + c.name() + ".kf");
-            Files.writeString(src, c.src().replace("\\n", "\n"));
-            Path out = dir.resolve("out-" + c.name());
-            var r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), c.name() + " must refuse WASM002");
-            String msg = r.diagnostics().getDiagnostics().toString();
-            assertTrue(msg.contains("WASM002") && msg.contains("#776")
-                    && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);
-            assertFalse(Files.exists(out.resolve("Default")),
-                    c.name() + ": refusal emits NO artifacts");
-        }
+        Path src = dir.resolve("Refuse-array-print.kf");
+        Files.writeString(src, "main(String[] args) { println(args) }\n");
+        Path out = dir.resolve("out-array-print");
+        var r = driver.compile(src, out, Target.WASI);
+        assertFalse(r.success(), "array-print must refuse WASM002");
+        String msg = r.diagnostics().getDiagnostics().toString();
+        assertTrue(msg.contains("WASM002") && msg.contains("#776")
+                && msg.contains("wasm-wasi-plan"), "array-print honest: " + msg);
+        assertFalse(Files.exists(out.resolve("Default")),
+                "array-print: refusal emits NO artifacts");
+    }
+
+    @Test
+    void argsIterationMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // ARRAY-1 (27/10, #776): `for (var a in args)` — o desugar (length/
+        // get) anda na maquinaria da fatia; a antiga RECUSA registrada
+        // (WasmWasiRecordE2ETest) vira paridade byte-idêntica na MESMA
+        // commit em que virou tradução. Sem args o desugar imprime NADA
+        // (length 0) — o wasmtime roda sem host args.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"),
+                "main(String[] args) {\n    for (var a in args) { println(a) }\n}\n");
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm iter compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM iter oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi iter compile (ARRAY-1 legitimou o desugar): "
+                + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit iter: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "args iteration must equal the JVM oracle");
+    }
+
+    @Test
+    void recordToStringWithDoubleFieldsMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA F face 2 (28/10, #776): o toString de record com campos
+        // Double — o MESMO kof.doubleToStr do println/concat/caixa (o
+        // Schubfach completo; a familia entra pelo gancho recordDoubles
+        // do scan). A rodada MEDIU antes: o concat e o valueOf com
+        // Doubles JA eram byte-idênticos (F2b) — o que faltava era SÓ o
+        // campo do record (o WASM002 honesto no WasmRecordCode). Também
+        // fecha a MEDIDA do pow: Math.pow == StrictMath.pow deriva 3/30
+        // por 1 ulp (o intrinseco da JVM vs o fdlibm puro) — o pow segue
+        // RECUSADO no WASI (o precedente do cos), nunca um port com drift.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Double x, Double y)
+                main(String[] args) {
+                    var p = Point(0.5, -2.25)
+                    println(p)
+                    println("v=" + 0.1)
+                    println(0.1 + 0.2)
+                    var s = "x" + p.x
+                    println(s)
+                    println(p.x)
+                    var n = Point(0.0, -0.0)
+                    println(n)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void recordEqualityWithNotAndNegMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA N-FOLD (28/10, #776): o fold constante do `!` sobre um
+        // literal BOOL emitia ofInt (o i64 do Int) e o println bool do
+        // WASI despachava i32 contra um i64 — o modulo INVALIDO (a classe
+        // Q7: compila "clean", o HOST recusa). O fix = ofBool quando o
+        // operandType do KofUnary e bool. A face cobre o REPRO medido
+        // (a eq de record plana + o ! bool + o - int JUNTOS — o combo que
+        // o N3 reproduziu) e os vizinhos (o ! true, o - de Int literal).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Inner(Int v)
+                record Outer(Inner i, Int n)
+                main(String[] args) {
+                    var a = Outer(Inner(1), 2)
+                    var b = Outer(Inner(1), 2)
+                    println(a == b)
+                    println(!(a == b))
+                    var f = false
+                    println(!f)
+                    var g = true
+                    println(!g)
+                    var d = -5
+                    println(-d)
+                    var e = 3
+                    println(-e)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void recordParamsAndReturnsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // ARG-REC (29/10, #776): os PARAMS de RECORD para funções top-level
+        // e os RETURNS de record — a MESMA disciplina do handle i32 das
+        // classes (o CLASS-2b: o classScalarSignature admitia as classes,
+        // os records não — o gate `classScalarSignature(m, classes,
+        // records)` + o `paramWasmType` agora mapeiam o record ao handle;
+        // o record = ClassType no IR, a regra dos results já o cobria).
+        // ZERO runtime novo. As faces: o param + o return, a pass-through
+        // de identidade (o param devolvido direto), o swap construindo um
+        // record DENTRO do callee, os records ANINHADOS in/out (o
+        // Outer/Inner) e as cadeias de campo no retorno.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Inner(Int a)
+                record Outer(Inner in)
+                scale(Point p, Int f): Int {
+                    return p.x * f + p.y
+                }
+                origin(): Point {
+                    return Point(0, 0)
+                }
+                ident(Point p): Point {
+                    return p
+                }
+                swapped(Point p): Point {
+                    return Point(p.y, p.x)
+                }
+                wrap(Inner i): Outer {
+                    return Outer(i)
+                }
+                inner(Outer o): Inner {
+                    return o.in
+                }
+                main(String[] args) {
+                    println(scale(Point(3, 4), 2))
+                    var o: Point = origin()
+                    println(o.x)
+                    println(o.y)
+                    var p = Point(5, 7)
+                    var q: Point = ident(p)
+                    println(q.x)
+                    println(q.y)
+                    var r: Point = swapped(Point(1, 2))
+                    println(r)
+                    var w: Outer = wrap(Inner(9))
+                    println(w.in.a)
+                    var i: Inner = inner(Outer(Inner(3)))
+                    println(i.a)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void recordThroughClassFieldsAndMethodsMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // A VERIFICAÇÃO do fechamento da campanha de records (29/10,
+        // #776): o record nos PARAMS dos MÉTODOS de classe e os RETURNS —
+        // byte-idêntico SEM qualquer mudança de código (a maquinaria do
+        // CLASS-2b/ARG-REC já o cobria: o campo de classe de record = o
+        // slot de 4 bytes do handle, o ctor de classe aceita o param
+        // record, o método devolve o record). A campanha (rodadas 68-71:
+        // SET-REC/LIST-REC/MAP-REC/ARG-REC) fecha COMPLETA.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                class Box {
+                    Point held
+                    public constructor(Point p) {
+                        this.held = p
+                    }
+                    peek(): Point {
+                        return this.held
+                    }
+                    shifted(Int d): Point {
+                        return Point(this.held.x + d, this.held.y)
+                    }
+                }
+                main(String[] args) {
+                    var b = Box(Point(3, 4))
+                    var p: Point = b.peek()
+                    println(p.x)
+                    println(p.y)
+                    var q: Point = b.shifted(10)
+                    println(q.x)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
 }

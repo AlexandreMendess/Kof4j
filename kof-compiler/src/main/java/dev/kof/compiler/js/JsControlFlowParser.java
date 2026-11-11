@@ -1,4 +1,5 @@
 package dev.kof.compiler.js;
+import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofComparison;
@@ -9,6 +10,7 @@ import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
 import dev.kof.compiler.KofStatementIf;
@@ -33,6 +35,9 @@ import java.util.Set;
 public final class JsControlFlowParser {
 
     private final JsMethodParser p;
+
+    /** Acesso da família extraída (JsIfStatementParser, mesmo pacote). */
+    JsMethodParser methodParser() { return p; }
     private final JsTryParser tryParser;
 
     JsControlFlowParser(JsMethodParser p) {
@@ -112,6 +117,24 @@ List<JsIr.JsStatement> parseStatements(MethodCtx ctx, int[] pos,
                 }
                 // region exit (if/try/finally jump)
                 pos[0]++;
+                // #975: com um laço vivo, um salto cujo alvo fica DEPOIS do
+                // fim do laço mais interno é um break-out — o jump-threading
+                // do IR re-taxa o `break` para o fim do `if` envolvente
+                // quando o Label(end) do laço e o Label(if-end) ficam
+                // adjacentes e vazios. Consumi-lo como region exit genérico
+                // DESCARTAVA o break: o laço JS rodava até o fim (a JVM
+                // parava) — ou o Label residual estourava COMP002. O
+                // `break;` sai do laço; o fluxo de fora segue no bloco alvo
+                // naturalmente.
+                if (!ctx.loops.isEmpty()) {
+                    LabelId innerEnd = ctx.loops.get(ctx.loops.size() - 1).end;
+                    int loopEndPos = labelPos(ctx, innerEnd);
+                    int exitPos = labelPos(ctx, kj.target());
+                    if (loopEndPos >= 0 && (exitPos < 0 || exitPos > loopEndPos)) {
+                        out.add(new JsIr.JsBreak());
+                        return out;
+                    }
+                }
                 exits.add(kj.target());
                 return out;
             }
@@ -128,6 +151,14 @@ List<JsIr.JsStatement> parseStatements(MethodCtx ctx, int[] pos,
             out.addAll(parseStatement(ctx, pos));
         }
         return out;
+    }
+
+    /** Posição do KofLabel no stream de ops; -1 se ausente. */
+    private int labelPos(MethodCtx ctx, LabelId label) {
+        for (int i = 0; i < ctx.ops.size(); i++) {
+            if (ctx.ops.get(i) instanceof KofLabel kl && kl.label().equals(label)) return i;
+        }
+        return -1;
     }
 
     /**
@@ -187,102 +218,17 @@ List<JsIr.JsStatement> parseStatement(MethodCtx ctx, int[] pos) {
         return p.expr.parseExpressionStatement(ctx, pos);
     }
 
-    /**
-     * Statement-level if: [cond ops, CJump, Label(true), then, Jump(end),
-     * Label(false), (else), Label(end)].
-     */
+    /** Família extraída (#995, gate ≤500): o statement-if vive em
+     *  JsIfStatementParser; o delegate mantém os callers `flow.*`. */
 JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
                                           JsIr.JsExpression condition) {
-        if (!(ctx.ops.get(pos[0]) instanceof KofLabel kl && kl.label().equals(cj.trueLabel()))) {
-            throw new IllegalStateException("KofJS: if pattern expected Label(true)");
-        }
-        pos[0]++;
-        // §380: falseLabel ativo na pilha — um `if` interno nunca consome label de
-        // estrutura envolvente (exceção aborta a compilação: sem leak de pilha).
-        ctx.enclosingIfFalses.push(cj.falseLabel());
-        List<LabelId> thenExits = new ArrayList<>();
-        List<JsIr.JsStatement> thenBranch = parseStatements(ctx, pos, Set.of(cj.falseLabel()), thenExits);
-        if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl2
-                && kl2.label().equals(cj.falseLabel())) {
-            pos[0]++;
-        }
-        if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel) {
-            // Label(end) — no else branch. A loop label (continue/start) or o
-            // endLabel de um try ENVOLVENTE não é do if (consumi-lo deixa o
-            // KofCatchStart solto no statement level — COMP002, §174).
-            KofLabel end = (KofLabel) ctx.ops.get(pos[0]);
-            if (ctx.isIfEndLabel(pos, end.label())
-                    && !ctx.isEnclosingIfFalse(end.label())   // §380: fronteira alheia
-                    && !ctx.isEnclosingIfEnd(end.label())) {  // §734: fim do if envolvente
-                pos[0]++;
-            }
-            ctx.enclosingIfFalses.pop();
-            return new JsIr.JsIf(condition, thenBranch, List.of());
-        }
-        // §734: o alvo do Jump de saída do then é o FIM deste if. Um if ANINHADO
-        // no else não pode tomá-lo como o seu próprio fim — roubava o label e o
-        // epílogo do método era absorvido no else externo (a função devolvia
-        // `undefined`; JVM/Script/native corretos). Guardado durante o else.
-        ctx.enclosingIfEnds.addAll(thenExits);
-        // §147 (12/09, #101 — detalhe em JsIfThrowElse): IR linear sem
-        // Jump/Label de end; o else pára antes do trailing-return do método
-        // (senão ganha `return` fantasma e o epílogo "some").
-        List<JsIr.JsStatement> elseBranch;
-        if (JsIfThrowElse.thenEndsUnconditional(thenBranch)) {
-            elseBranch = JsIfThrowElse.parseElse(this, ctx, pos);
-        } else {
-            elseBranch = parseStatements(ctx, pos, Set.of(), new ArrayList<>());
-        }
-        ctx.enclosingIfEnds.removeAll(thenExits);
-        if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl3
-                && ctx.isIfEndLabel(pos, kl3.label())
-                && !ctx.isEnclosingIfFalse(kl3.label())   // §380
-                && !ctx.isEnclosingIfEnd(kl3.label())) {  // §734: fim do if envolvente
-            // Label(end) — end of else branch (loop labels belong to the loop)
-            pos[0]++;
-        }
-        ctx.enclosingIfFalses.pop();
-        return new JsIr.JsIf(condition, thenBranch, elseBranch);
+        return JsIfStatementParser.parseIfBody(this, ctx, pos, cj, condition);
     }
 
-    /**
-     * Attempts to parse an if-expression: [Label(true), expr, Jump(end),
-     * Label(false), expr, Label(end)]. Returns null (restoring the position)
-     * when the upcoming ops form a statement-level if instead.
-     */
+    /** Idem para o if-expressão (tryParseIfExpr). */
 JsIr.JsExpression tryParseIfExpr(MethodCtx ctx, int[] pos, KofConditionalJump cj,
                                              JsIr.JsExpression condition) {
-        int saved = pos[0];
-        try {
-            if (!(ctx.ops.get(pos[0]) instanceof KofLabel kl && kl.label().equals(cj.trueLabel()))) {
-                pos[0] = saved;
-                return null;
-            }
-            pos[0]++;
-            JsIr.JsExpression thenExpr = p.expr.parseExpressionFragment(ctx, pos);
-            if (!(ctx.ops.get(pos[0]) instanceof KofJump)) {
-                pos[0] = saved;
-                return null;
-            }
-            pos[0]++;
-            if (!(ctx.ops.get(pos[0]) instanceof KofLabel kl2 && kl2.label().equals(cj.falseLabel()))) {
-                pos[0] = saved;
-                return null;
-            }
-            pos[0]++;
-            JsIr.JsExpression elseExpr = p.expr.parseExpressionFragment(ctx, pos);
-            if (!(ctx.ops.get(pos[0]) instanceof KofLabel)) {
-                pos[0] = saved;
-                return null;
-            }
-            pos[0]++;
-            return new JsIr.JsConditional(condition, thenExpr, elseExpr);
-        } catch (RuntimeException e) {
-            // statement-level if: expressions in the branches failed, so the
-            // construct is a statement, not an if-expression
-            pos[0] = saved;
-            return null;
-        }
+        return JsIfStatementParser.tryParseIfExpr(this, ctx, pos, cj, condition);
     }
 
 JsIr.JsStatement parseLoop(MethodCtx ctx, int[] pos, LabelId startLabel) {
@@ -472,6 +418,10 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             if (isDoWhileConditionAhead(ctx, pos, startLabel)) {
                 break;
             }
+            if (ctx.ops.get(pos[0]) instanceof KofLabel kl && JsLabelParser.isLoopStart(ctx, pos, kl.label())) {
+                body.add(parseLoop(ctx, pos, kl.label()));
+                continue;
+            }
             body.addAll(parseStatement(ctx, pos));
         }
         ctx.loops.remove(ctx.loops.size() - 1);
@@ -521,7 +471,8 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             }
             if (op instanceof KofStoreLocal || op instanceof KofLabel
                     || op instanceof KofJump || op instanceof KofReturn
-                    || op instanceof KofReturnVoid || op instanceof KofThrow) {
+                    || op instanceof KofReturnVoid || op instanceof KofThrow
+                    || endsStatement(op)) {
                 return false;
             }
             if (!p.expr.isExpressionOp(op)) return false;
@@ -539,7 +490,8 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             // last assignment), a label, a jump or a return.
             if (op instanceof KofStoreLocal || op instanceof KofLabel
                     || op instanceof KofJump || op instanceof KofReturn
-                    || op instanceof KofReturnVoid || op instanceof KofThrow) {
+                    || op instanceof KofReturnVoid || op instanceof KofThrow
+                    || endsStatement(op)) {
                 return false;
             }
             if (!p.expr.isExpressionOp(op)) {
@@ -547,6 +499,11 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             }
         }
         return false;
+    }
+
+    private static boolean endsStatement(KofOperation op) {
+        return op instanceof KofPop || op instanceof KofPop2
+                || (op instanceof KofCall kc && Type.isVoid(kc.returnType()));
     }
 
 }
