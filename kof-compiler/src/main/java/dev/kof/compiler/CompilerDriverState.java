@@ -190,8 +190,9 @@ IRModule currentModule;
     Path moduleRoot;
 
     /** Pacote declarado de cada declaração (multi-pacote num só módulo). */
-    final java.util.Map<AstNode, String> declarationPackages =
-            new java.util.IdentityHashMap<>();
+    final java.util.Map<AstNode, String> declarationPackages = new java.util.IdentityHashMap<>();
+    /** §809: the imports each declaration's own file wrote ({@link FileImports}). */
+    final FileImports fileImports = new FileImports();
 
     /** #773: nomes dos records injetados FLAT em todo programa (hoje só o
      *  `Pair` do zip, `CompilerPairs`). O `toString` sintético de um record
@@ -336,26 +337,6 @@ IRModule currentModule;
 
     int computeAccess(List<String> modifiers) {
         return CompilerTypeSupport.computeAccess(modifiers);
-    }
-
-    int parseIntLiteral(String value) {
-        return CompilerTypeSupport.parseIntLiteral(value);
-    }
-
-    long parseLongLiteral(String value) {
-        return CompilerTypeSupport.parseLongLiteral(value);
-    }
-
-    float parseFloatLiteral(String value) {
-        return CompilerTypeSupport.parseFloatLiteral(value);
-    }
-
-    double parseDoubleLiteral(String value) {
-        return CompilerTypeSupport.parseDoubleLiteral(value);
-    }
-
-    String stripSuffix(String value) {
-        return CompilerTypeSupport.stripSuffix(value);
     }
 
     boolean needsErasureBoxing() {
@@ -525,9 +506,18 @@ IRModule currentModule;
     /**
      * Namespace da stdlib (web/db/log/...) sombreado por variável local:
      * "var web = ..." torna "web.foo()" chamada de instância, não de namespace.
+     * #1062: TAMBÉM sombreado por um CAMPO da classe sendo lowered — a leitura
+     * de campo pelo `this` implícito não é local, e `cache.`/`buffer.`/`config.`
+     * tomavam o braço de namespace em silêncio. O owner vem do funil
+     * emitStatement (save/restore — lowerings aninhados de lambda trocam o
+     * owner); null/vazio = fora de método de instância = sem sombreamento.
      */
+    String loweringOwnerInternal;
+
     boolean isLocalVarName(String name, List<IRLocalVariable> locals) {
-        return findLocalVar(name, locals) != null;
+        if (findLocalVar(name, locals) != null) return true;
+        return ExpressionMethodCallLowerer.shadowsFieldOfCurrentClass(
+                (CompilerDriver) this, loweringOwnerInternal, name);
     }
 
     /** Nome de tipo builtin usado como receiver estático (String.valueOf etc.) */
@@ -573,7 +563,7 @@ IRModule currentModule;
         entitySchemas.clear();
         externSignatures.clear();
         pendingSuperBridges.clear();
-        declarationPackages.clear();
+        declarationPackages.clear(); fileImports.clear();
         flatInjectedRecordTypes.clear();
         lambdaEnclosingOwner.clear();
         mutatedCapturedNames.clear();

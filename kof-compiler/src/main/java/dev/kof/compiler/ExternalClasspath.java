@@ -176,6 +176,10 @@ public final class ExternalClasspath {
                                                               int argumentCount,
                                                               List<Type> argumentTypes) {
         if (ownerInternalName == null) return null;
+        if (argumentTypes != null && argumentTypes.size() == argumentCount) {
+            ExternalOverloads.Result r = resolveOverload(ownerInternalName, methodName, argumentTypes);
+            if (r.selected() != null || r.ambiguous() > 1) return r.selected();
+        }
         if (loaded) {
             MethodSignature direct = findDeclared(ownerInternalName, methodName, argumentCount, 0);
             if (direct != null) return direct;
@@ -215,6 +219,17 @@ public final class ExternalClasspath {
         return null;
     }
 
+/** §775: a JDK throwable is a Kof builtin for throw/catch, yet its other members resolve here. */
+    public synchronized boolean knowsMembers(String internalName) {
+        return knows(internalName) || (!"java/lang/String".equals(internalName)
+                && CompilerTypes.isKofBuiltinJavaLang(internalName));
+    }
+
+    /** §770: JLS 15.12.2 selection by argument types (see {@link ExternalOverloads}). */
+    public synchronized ExternalOverloads.Result resolveOverload(String owner, String name, List<Type> args) {
+        return ExternalOverloads.select(loaded ? classBytes : Map.of(), owner, name, args);
+    }
+
     /** Classe externa presente nos entries (por nome interno)? */
     public synchronized boolean knows(String internalName) {
         return (loaded && internalName != null && classBytes.containsKey(internalName))
@@ -241,7 +256,15 @@ public final class ExternalClasspath {
             }
             return false;
         }
-        return classBytes.containsKey(internal);
+        if (classBytes.containsKey(internal)) return true;
+        // §791: `import jakarta.mail.Message.RecipientType` names the NESTED
+        // class `Message$RecipientType` of a jar (the JDK face resolves by
+        // reflection in JdkNestedImport.resolve).
+        for (int i = internal.lastIndexOf('/'); i > 0; i = internal.lastIndexOf('/', i - 1)) {
+            String nested = internal.substring(0, i) + "$" + internal.substring(i + 1).replace('/', '$');
+            if (classBytes.containsKey(nested)) return true;
+        }
+        return false;
     }
 
     /** A classe externa é enum? */

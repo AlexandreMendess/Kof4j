@@ -945,6 +945,34 @@ Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
 
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
 
+> **CONCLUÍDO & PROMOVIDO 14/11: `kofscript-embedding-plan` → [`docs/kofscript-embedding-plan.pt_BR.md`](../kofscript-embedding-plan.pt_BR.md) (+EN)** — a corrida COMPLETA: a ordem da mantenedora ("pega os dois ultimos de future antes do bootstrap") promovou E o contrato de runtime pousou no mesmo dia (`KofEmbedSession`, kof-script): execução limitada (`KofStepBudget` a cada limite de op de IR + o worker que estaciona), confinamento de capacidade (`KofCapability` + `EMBED001` pelo nome), bindings por sessão, e a face das APIs do host (`bindApi` → `hostcall_<nome>(...)`, `EMBED003` para um nome não registrado — uma superfície de RUNTIME, sem sintaxe Kof nova, por `D-KOF-EMBED`). Provas `KofEmbedSessionTest` 8/8 (RED-first: a face do laço infinito pendura sem o stepping) + a bateria script/interpreter 72/0F; o guia `docs/kofscript-embedding-guide.pt_BR.md` (+EN). O gate 500 forçou o split (`KofInterpreterEmbedding`; `KofInterpreter` 594 linhas).
+
+> **RE-PROMOVIDO 14/11 (ordem da mantenedora "pega os dois ultimos de future antes do bootstrap"): `kofscript-embedding-plan`** —
+> movido de `future/` para [`kofscript-embedding-plan.pt_BR.md`](kofscript-embedding-plan.pt_BR.md) (+EN), `UNDER DEVELOPMENT`, e o
+> CONTRATO de runtime POUSADO no mesmo dia (`KofEmbedSession`, kof-script): execução limitada (`KofStepBudget` a cada limite de op
+> de IR + o worker que estaciona), confinamento de capacidade (`KofCapability` + `EMBED001` pelo nome) e bindings por sessão —
+> provas `KofEmbedSessionTest` 6/6 (um laço infinito devolve RUNNING, nunca bloqueia o host); a bateria script+interpreter 70/0F;
+> o guia de embedding `docs/kofscript-embedding-guide.pt_BR.md` (+EN). O gate da regra 6 (o contrato de embedding) é autorizado
+> pela própria ordem da mantenedora (o precedente TLS/KofBOL/Kof.expr).
+
+> **CONCLUÍDO & PROMOVIDO 15/11: `kof-expr-plan` → [`docs/kof-expr.pt_BR.md`](../../docs/kof-expr.pt_BR.md) (+EN)** — a corrida COMPLETA:
+> spike-0 + fatias 1–8 pousadas com prova executada nos QUATRO backends (JVM, Script, Native x86-64 + cross riscv64/aarch64,
+> JS através do artefato node vs o oráculo JVM executado — o corpus §3.4 byte-idêntico em todo lugar; o gate JS caiu 14/11
+> quando a cadeia de quantificadores foi reestruturada em estados single-if true-first; a parte 2 da fatia 8, o motor
+> iterativo, fica ESTACIONADA como a otimização pós-v1 que o §11 explicitamente aceita). A página promovida carrega os
+> entregáveis do §15 (o resumo voltado ao usuário + a seção obrigatória "Kof.expr vs Regex"). Decisão `D-KOF-EXPR`.
+> (O histórico abaixo registra a corrida de `future/` 03/11 até a promoção.) **PROMOVIDO 03/11 (ordem da mantenedora "pega kof-expr como proximo"): `kof-expr-plan`** — movido de `future/` para
+> o arquivo do plano (+EN), `UNDER DEVELOPMENT`, decisão `D-KOF-EXPR`. O gate da regra 6 (uma
+> nova superfície de linguagem) é satisfeito pela própria ordem da mantenedora, seguindo o precedente do TLS de 02/11.
+> **Spike-0 POUSADO:** a gramática e a AST estão travadas e provadas (`ExprDeclarationParseE2ETest` 6/6,
+> `ExprDeclarationSemanticsE2ETest` 9/9), sem NENHUM lowering — as fatias 1–9 (§17) seguem abertas e cada uma é promovida
+> explicitamente.
+> **FATIA 6 POUSADA 13/11 (a face NATIVA):** o matcher roda no nativo x86-64 E no cross riscv64/aarch64, respondendo
+> byte-idêntico à JVM (`KofExprNativeE2ETest` 5/5 — incl. o acordo ponto a ponto da tabela pinada nativa com o `Character` da
+> JVM em ~1.400 pontos de código; `KofExprCrossE2ETest` 2/2 sob qemu). A eleição foi medida: o backend nativo é um emissor
+> 1:1 op→instrução (todos os ops do matcher declarados em `NativeOpSupport`), o IR do JS não tem goto/label algum. O lowering
+> do matcher para JS e a parte 2 da fatia 8 (o motor de laço iterativo): o front JS CAIU 14/11 — o gate sumiu, o corpus responde byte-idêntico; a parte 2 segue estacionada como pós-v1.
+
 > **REABERTO PELA MANTENEDORA 02/11 (ordem "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promovido do plano TLS de `future/`; a decisão da regra 6 é a própria ordem da mantenedora, o contrato congelado é o `D-SEC.6` (apenas aditivo). **COMPLETO + PROMOVIDO 03/11 para [`docs/tls-hardening.pt_BR.md`](../tls-hardening.pt_BR.md) (+EN)** — TODAS as fatias pousadas com prova executada; o gate final foi a E2E Pebble (emissão real, serial 0dca413a13143cfa (serial de certificado, não um SHA de commit)); `state: implemented`.
 
 > **FECHADO 24/10 (`D-FUTURE-CLOSE`):** a varredura da mantenedora após a morte de todas as lanes concluiu os seis planos abertos — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (escopo autônomo completo, movidos para `docs/`), `qrcode-wasm` (Fase 1 completa → `docs/`), `image-vision` (superfície entregue → `docs/`, a divergência AVIF 3bd estacionada na família §757 do `known-bugs`) e `kofscript-embedding` (zero código, devolvido a `future/`). Os restos estão estacionados com suas condições de retomada em cada plano; nada em `development/` está aberto.

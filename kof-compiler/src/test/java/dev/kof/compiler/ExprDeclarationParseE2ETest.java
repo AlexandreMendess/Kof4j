@@ -146,12 +146,58 @@ class ExprDeclarationParseE2ETest {
 
     @Test
     void aPatternDeclarationCompilesCleanlyAndChangesNoRuntimeBehaviour() throws Exception {
+        // Fatia 1 (D-KOF-EXPR): um padrão DENTRO do conjunto da fatia compila
+        // limpo (o spike-0 aceitava qualquer corpo sem emitir código — esse
+        // contrato exato é o que a fatia 1 substitui; fora do conjunto é
+        // EXPR001 nomeando a fatia do plano, nunca silêncio).
         CompilationResult r = parse("clean", """
+            expr greeting { "hello" " " "world" }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(r.success(), () -> "a fatia 1 aceita o padrão dentro do conjunto: "
+                + diagnosticsOf(r));
+        CompilationResult quantified = parse("clean2", """
+            expr digitRun { one_or_more { "7" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(quantified.success(), () -> "o quantificador da fatia 2 compila: "
+                + diagnosticsOf(quantified));
+        CompilationResult classes = parse("clean3", """
             expr digitRun { one_or_more { digit } }
             main() { println("ok") }
             """, Target.JVM);
-        assertTrue(r.success(), () -> "o spike-0 aceita o padrão sem emitir código: "
-                + diagnosticsOf(r));
+        assertTrue(classes.success(), () -> "as classes da fatia 3 compilam: "
+                + diagnosticsOf(classes));
+        CompilationResult alt = parse("clean4", """
+            expr alt { either { "a" or "b" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(alt.success(), () -> "o either da fatia 4 compila: "
+                + diagnosticsOf(alt));
+        CompilationResult cap = parse("clean5", """
+            expr cap { capture("v") { "a" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(cap.success(), () -> "a captura da fatia 5 compila: "
+                + diagnosticsOf(cap));
+        // a composição por referência (o §3.4 ipv4) agora compila — a face
+        // passa a travar os limites honestos: capturas recusam (EXPR005).
+        CompilationResult composedRef = parse("clean6", """
+            expr ref { inner "." }
+            expr inner { "x" }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(composedRef.success(), () -> "a referência compõe: "
+                + diagnosticsOf(composedRef));
+        CompilationResult capturingRef = parse("clean7", """
+            expr ref { inner "." }
+            expr inner { capture("v") { "x" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertFalse(capturingRef.success(), () -> "a referência com capturas recusa: "
+                + diagnosticsOf(capturingRef));
+        assertTrue(diagnosticsOf(capturingRef).contains("EXPR005"),
+                () -> "a fronteira de capturas nomeia o código: " + diagnosticsOf(capturingRef));
     }
 
     @Test

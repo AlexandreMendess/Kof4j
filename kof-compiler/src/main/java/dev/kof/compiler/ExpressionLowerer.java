@@ -15,12 +15,12 @@ public final class ExpressionLowerer {
         return switch (expr) {
             case LiteralExpr lit -> {
                 switch (lit.kind()) {
-                    case ConcreteLiteralKind.INT -> ops.add(KofLoadLiteral.ofInt(driver.parseIntLiteral(lit.value())));
-                    case ConcreteLiteralKind.LONG -> ops.add(KofLoadLiteral.ofLong(driver.parseLongLiteral(lit.value())));
+                    case ConcreteLiteralKind.INT -> ops.add(KofLoadLiteral.ofInt(CompilerTypeSupport.parseIntLiteral(lit.value())));
+                    case ConcreteLiteralKind.LONG -> ops.add(KofLoadLiteral.ofLong(CompilerTypeSupport.parseLongLiteral(lit.value())));
                     case ConcreteLiteralKind.FLOAT ->
-                        ops.add(KofLoadLiteral.ofFloat(driver.parseFloatLiteral(lit.value())));
+                        ops.add(KofLoadLiteral.ofFloat(CompilerTypeSupport.parseFloatLiteral(lit.value())));
                     case ConcreteLiteralKind.DOUBLE ->
-                        ops.add(KofLoadLiteral.ofDouble(driver.parseDoubleLiteral(lit.value())));
+                        ops.add(KofLoadLiteral.ofDouble(CompilerTypeSupport.parseDoubleLiteral(lit.value())));
                     case ConcreteLiteralKind.STRING -> ops.add(KofLoadLiteral.ofString(lit.value()));
                     case ConcreteLiteralKind.BOOLEAN -> ops.add(KofLoadLiteral.ofBool(Boolean.parseBoolean(lit.value())));
                     case ConcreteLiteralKind.CHAR -> ops.add(KofLoadLiteral.ofInt(lit.value().charAt(0)));
@@ -172,7 +172,10 @@ public final class ExpressionLowerer {
                 yield localIdx;
             }
             case MethodCallExpr mc -> {
-                yield ExpressionMethodCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+                MethodCallExpr fieldCall = driver.semanticAnalyzer == null ? null
+                        : driver.semanticAnalyzer.functionFieldCall(mc); // §820
+                yield ExpressionMethodCallLowerer.lower(driver, fieldCall != null ? fieldCall : mc,
+                        ops, owner, localIdx, locals);
             }
             case AssignmentExpr ae -> {
                 yield ExpressionAssignmentLowerer.lower(driver, ae, ops, owner, localIdx, locals);
@@ -249,7 +252,8 @@ public final class ExpressionLowerer {
                         && driver.externalClasspath.knows(ct.internalName())) {
                     // construtor de classe externa: descritor exato do classpath
                     ExternalClasspath.MethodSignature extCtor =
-                            driver.externalClasspath.resolveConstructor(ct.internalName(), ne.arguments().size());
+                            driver.externalClasspath.resolveMethodWithArgs(ct.internalName(), "<init>",
+                                    ne.arguments().size(), argTypes);
                     if (extCtor != null) {
                         List<Type> formal = new ArrayList<>();
                         for (String d : extCtor.parameterDescriptors()) {

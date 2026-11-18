@@ -6,6 +6,8 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
+import com.microsoft.playwright.Download;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 
 import java.nio.file.Files;
@@ -181,6 +183,198 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         }
     }
 
+    /** Fase 8: EMULAÇÃO MOBILE — o contexto com viewport/touch emulados e a
+     *  medida pelo MESMO contexto. O `isMobile` é chromium-only na API Java
+     *  do Playwright — honrado onde suportado (o toque é medido pelo
+     *  `hasTouch`, que é universal). */
+    public String deviceAssert(String kind, String url, int viewportWidth,
+                               int viewportHeight, boolean hasTouch,
+                               String locator, String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            BrowserType type = browserType(pw, kind);
+            Browser.NewContextOptions options = new Browser.NewContextOptions()
+                    .setViewportSize(viewportWidth, viewportHeight)
+                    .setHasTouch(hasTouch);
+            if (kind.equals("chromium")) {
+                options.setIsMobile(hasTouch);
+            }
+            try (Browser browser = type.launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+                 com.microsoft.playwright.BrowserContext context =
+                         browser.newContext(options)) {
+                Page page = context.newPage();
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.navigate(url);
+                return measure(resolve(page, parsed), want);
+            }
+        }
+    }
+
+    /** Fase 8: UPLOAD — `setInputFiles` (o evento change dispara no fixture)
+     *  e a medida do efeito no DOM. */
+    public String uploadAssert(String kind, String url, String inputLocator,
+                               java.nio.file.Path filePath, String locator,
+                               String assertion) throws Exception {
+        KofLocator.Parsed input = KofLocator.parseLocator(inputLocator);
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            resolve(page, input).setInputFiles(filePath);
+            return measure(resolve(page, parsed), want);
+        });
+    }
+
+    /** Fase 8: DOWNLOAD — o clique espera o download e o `saveAs` grava os
+     *  bytes reais em `targetPath`. */
+    public java.nio.file.Path downloadTo(String kind, String url,
+                                         String linkLocator,
+                                         java.nio.file.Path targetPath)
+            throws Exception {
+        KofLocator.Parsed link = KofLocator.parseLocator(linkLocator);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            Download download = page.waitForDownload(
+                    () -> resolve(page, link).click());
+            try {
+                download.saveAs(targetPath);
+            } finally {
+                download.delete();
+            }
+            return targetPath;
+        });
+    }
+
+    /** Fase 8: espera o TEXTO DIFERIR de `notValue` (a chegada assíncrona —
+     *  WebSocket/fetch/promessa) via waitForFunction, e o devolve. */
+    public String assertTextBecomes(String kind, String url, String locator,
+                                    String notValue, long timeoutMs) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            page.waitForFunction(
+                    "([el, notV]) => el.textContent !== notV",
+                    java.util.List.of(resolve(page, parsed).elementHandle(), notValue),
+                    new Page.WaitForFunctionOptions().setTimeout(timeoutMs));
+            return measure(resolve(page, parsed), KofLocator.parseAssertion("text"));
+        });
+    }
+
+    /** Fase 8: DIAGNÓSTICOS AVANÇADOS — o console e os erros JS da página,
+     *  coletados durante o load (page.on console/pageerror). */
+    public PageDiagnostics diagnostics(String kind, String url) throws Exception {
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try (com.microsoft.playwright.BrowserContext context = browser.newContext()) {
+                Page page = context.newPage();
+                var console = new java.util.ArrayList<String>();
+                var errors = new java.util.ArrayList<String>();
+                page.onConsoleMessage(msg ->
+                        console.add(msg.type() + ": " + msg.text()));
+                page.onPageError(err -> errors.add(String.valueOf(err)));
+                page.navigate(url);
+                page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+                return new dev.kof.browser.PageDiagnostics(java.util.List.copyOf(console), java.util.List.copyOf(errors));
+            }
+        }
+    }
+
+    /** Fase 8: VÍDEO — o contexto grava a sessão (setRecordVideoDir), a
+     *  navegação + o clique REAL acontecem, o close faz o FLUSH (o contrato
+     *  do Playwright: o vídeo só existe depois do close) e o saveAs o salva. */
+    public void videoRecord(String kind, String url, String locator,
+                            java.nio.file.Path videoPath) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try (com.microsoft.playwright.BrowserContext context =
+                         browser.newContext(new Browser.NewContextOptions()
+                                 .setRecordVideoDir(java.nio.file.Files.createTempDirectory("kof-vid")))) {
+                Page page = context.newPage();
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.navigate(url);
+                resolve(page, parsed).click();
+                com.microsoft.playwright.Video video = page.video();
+                context.close();   // the FLUSH point (the Playwright contract)
+                video.saveAs(videoPath);
+            }
+        }
+    }
+
+    /** Fase 8: TRACES — o contexto gravado (screenshots + snapshots), a
+     *  navegação + o clique, o `tracing().stop(path)` salvando o archive. */
+    public void traceRun(String kind, String url, String locator,
+                         java.nio.file.Path tracePath) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try (com.microsoft.playwright.BrowserContext context =
+                         browser.newContext()) {
+                context.tracing().start(new com.microsoft.playwright.Tracing.StartOptions()
+                        .setScreenshots(true)
+                        .setSnapshots(true));
+                Page page = context.newPage();
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.navigate(url);
+                resolve(page, parsed).click();
+                context.tracing().stop(new com.microsoft.playwright.Tracing.StopOptions()
+                        .setPath(tracePath));
+            }
+        }
+    }
+
+    /** Fase 8: o stub servido por uma rota de mock (status + content-type + body). */
+    public record Stub(int status, String contentType, String body) {
+    }
+
+    /** Fase 8: MOCKING DE REDE — `page.route(pattern)` + `Route.fulfill(stub)`
+     *  ANTES da navegação; a medida espera a rede assentar (o fetch da página
+     *  é assíncrono) e lê UMA vez. A rede real nunca é tocada. */
+    public String mockAssert(String kind, String url, String pattern, Stub stub,
+                             String locator, String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            try {
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.route(pattern, route -> route.fulfill(new Route.FulfillOptions()
+                        .setStatus(stub.status())
+                        .setContentType(stub.contentType())
+                        .setBody(stub.body())));
+                page.navigate(url);
+                page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+                return measure(resolve(page, parsed), want);
+            } finally {
+                browser.close();
+            }
+        }
+    }
+
+    /** Fase 8: a medida pós-rede (sem rota) — o portador da face negativa. */
+    public String settleAssert(String kind, String url, String locator,
+                               String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+            return measure(resolve(page, parsed), want);
+        });
+    }
+
     /** §6.5: o locator semântico → o engine equivalente do Playwright
      *  (role/text/label/placeholder/test-id nativos; css/xpath como escape). */
     private static Locator resolve(Page page, KofLocator.Parsed p) {
@@ -221,6 +415,8 @@ public final class PlaywrightLibProvider implements BrowserProvider {
             case "text" -> String.valueOf(l.textContent());
             case "value" -> String.valueOf(l.inputValue());
             case "attr" -> String.valueOf(l.getAttribute(want.attrName()));
+            case "focus" -> String.valueOf(l.evaluate(
+                    "el => el === document.activeElement"));
             default -> throw new IllegalArgumentException(
                     "unknown assertion kind '" + want.kind()
                             + "' (assertions: " + KofLocator.ASSERTIONS + ")");

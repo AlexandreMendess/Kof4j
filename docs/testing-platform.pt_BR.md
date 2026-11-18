@@ -807,12 +807,94 @@ Permitir screenshot de página/elemento/falha. Avaliar comparação de screensho
 componentes, layouts, dashboards e páginas críticas. Deve ser determinístico; regressão visual
 **não** é obrigatória para todos os testes.
 
+> **POUSADA 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI): a metade de COMPARAÇÃO
+> deste §8.2 está DENTRO** — `VisualRegression` (`dev.kof.browser`, kof-cli): o comparador pixel
+> puro e determinístico (RGB por pixel, tolerância por canal, 0 = bit a bit), a máscara PNG da
+> diferença por pixel escrita só no mismatch, o relatório carregando contagem + razão + a caixa
+> de extensão + motivo nomeado (dimensão divergente nunca recorta em silêncio — Q7 honesto). O
+> laço REAL provado no chromium deste host (`VisualRegressionTest` 7/7): a MESMA página tira
+> screenshots bit-idênticos entre execuções (tolerância 0), a página mutada dá mismatch com
+> razão > 0,5 e a máscara marca o centro divergente; as faces do motor são puras e
+> determinísticas por construção (sem browser). A família está verde (42 testes, 0F, os 2 skips
+> ambientais nomeados do webkit). A linha da fase 8 mantém: acessibilidade, mocking de rede,
+> WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados.
+
 ## 8.3 Acessibilidade (avaliar)
 
 Integração com ferramentas de acessibilidade para roles, labels, navegação por teclado, contraste
 quando suportado, nomes acessíveis e estrutura semântica. Nunca substitui o teste manual de
 acessibilidade.
 
+> **POUSADA 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI): as faces medidas deste
+> §8.3 estão DENTRO** — `PlaywrightA11yE2ETest` (4/4 no chromium deste host, gate de probe): (1)
+> nomes acessíveis resolvem pelo `getByRole` com `name=` — A computação de nome acessível (um
+> `aria-label` vence o conteúdo, e a resolução mede a ÁRVORE DE ACESSIBILIDADE, não o DOM cru);
+> (2) a associação `<label for>` dirige e mede o input por label (fill+medida num ÚNICO fluxo —
+> interações não atravessam chamadas, a semântica documentada do provider); (3) atributos
+> `role`/`aria-label` explícitos medidos via `attr=`; (4) o controle desabilitado mede
+> `enabled=false` PELO NOME; (5) navegação por teclado: Tab move o foco com desfecho MEDIDO — a
+> nova asserção `focus` (`el === document.activeElement`) em `KofLocator.ASSERTIONS` + o
+> `measure()` do provider, com a face negativa (o foco NÃO está no segundo input após um único
+> Tab). O fixture carrega `<meta charset="utf-8">` (nomes acessíveis acentuados viram mojibake
+> sem ele — medido). **FORA, nomeado:** contraste/scan wcag automatizado fica com ferramentas
+> dedicadas e teste manual (a própria fronteira do §8.3).
+
+> **NETWORK MOCKING — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** `page.route(pattern)`
+> + `Route.fulfill` through two honest SPI faces on the Playwright provider — `mockAssert(kind, url,
+> pattern, Stub, locator, assertion)` (the route registered BEFORE the navigation, the measure after
+> NETWORKIDLE — the fetch outcome is async) and `settleAssert` (the no-route carrier for the negative
+> face). `Stub(status, contentType, body)`. The proof (PlaywrightNetworkMockE2ETest 3/3, local HTTP
+> fixture with NO `/api/*` — a 404 would fire): the stub 200 JSON renders the mocked fields in the
+> real DOM, the stub 500 drives the page's own error branch, the negative face (no route) shows the
+> real 404 — proving the interception happens BEFORE the network. The other providers keep the
+> honest capability refusal. RED-first proven (`cannot find symbol: mock`).
+>
+> **UPLOAD/DOWNLOAD — POUSADO 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):** `uploadAssert(kind, url,
+> inputLocator, filePath, locator, assertion)` — `setInputFiles` dispara o evento change e o fixture lê
+> `file.name`/`file.size` SINCRONAMENTE (a face FileReader fica FORA — assíncrona sem contrato de settle
+> determinístico, nomeado); `downloadTo(kind, url, linkLocator, targetPath)` — click → `waitForDownload` →
+> `saveAs`, o teste comparando os bytes REAIS (o fixture gera um blob com o atributo `download`). A prova
+> (`PlaywrightTransferE2ETest` 2/2, HTTP local — downloads de file:// são bloqueados pelo chromium, a
+> lição da fatia de mock aplicada): o nome+tamanho do arquivo enviado medidos no DOM; os bytes baixados
+> iguais ao payload array-equal (conteúdo UTF-8 acento incluído). Os outros providers mantêm a recusa
+> honesta de capacidade. RED-first provado (as duas chamadas desconhecidas antes das faces).
+>
+> **EMULAÇÃO MOBILE — POUSADA 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):** `deviceAssert(kind, url,
+> viewportWidth, viewportHeight, hasTouch, locator, assertion)` — o contexto lançado com `setViewportSize`
+> + `setHasTouch` (a flag isMobile é só-do-chromium na API Java do Playwright — honrada onde suportada), a
+> medida pelo MESMO contexto. A prova (RED-first: a chamada desconhecida antes da face): o viewport
+> EMULADO é o que o window vê (390x844 medido do window), o contexto DEFAULT mede 1280x800 (a face
+> negativa), o touch é o que o window reporta (`ontouchstart`), e a media query estreita vira a
+> visibilidade — o CSS reagindo à emulação (`PlaywrightDeviceE2ETest` 4/4, HTTP local).
+>
+> **TRACES — POUSADO 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):**
+> `traceRun(kind, url, locator, tracePath)` — o pós-mortem gravado: o tracing do contexto
+> iniciado com screenshots + snapshots, a navegação + o clique REAL, o `tracing().stop(path)`
+> salvando o archive. A prova (`PlaywrightTraceE2ETest` 1/1, RED-first): o archive existe, é um
+> ZIP não-trivial (o formato de trace do Playwright) carregando o traço da ação + os chunks de
+> screenshot. Os outros providers mantêm a recusa honesta de capacidade. As faces restantes da
+> fase 8: WebSocket, vídeos, diagnósticos avançados (+ a face §6.10 KofWasm, escopo da lane WASI).
+>
+> **VÍDEOS — POUSADO 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):**
+> `videoRecord(kind, url, locator, videoPath)` — o contexto criado com
+> `setRecordVideoDir`, a navegação + o clique REAL, o close do contexto FAZ O FLUSH
+> do vídeo (o contrato do Playwright: o arquivo só existe depois do close) e o
+> `page.video().saveAs(videoPath)` o persiste. A prova (`PlaywrightVideoE2ETest`
+> 1/1, RED-first): o vídeo é um WEBM não-trivial (o magic EBML `1A 45 DF A3`
+> verificado byte a byte). As faces restantes da fase 8: WebSocket, diagnósticos
+> avançados (+ a face §6.10 KofWasm, escopo da lane WASI).
+>
+> **WEBSOCKET — POUSADO 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):** a CADEIA COMPLETA com um servidor ws Kof REAL nos dois extremos — um programa Kof servindo `app.ws("/chat")` com o handler de echo (a face RFC 6455 que o engine gerado entrega: o handshake + o codec de frames + o masking), a página do browser REAL discando `ws://127.0.0.1:PORTA/chat` (um laço retry-dial no JS da página — o browser é o esperador, sem sleep no teste, o ratchet de higiene), o echo do servidor escrito no DOM, medido pela NOVA face SPI `assertTextBecomes(kind, url, locator, notValue, timeoutMs)` (espera a chegada assíncrona via `waitForFunction` — a face settle-de-uma-vez não cobre um echo WS tardio, medido). `PlaywrightWsE2ETest` 1/1: `echo:kof-ws` devolvido pelo servidor Kof, byte-exato. A face restante da fase 8: diagnósticos avançados (+ a face §6.10 KofWasm, escopo da lane WASI).
+>
+> **DIAGNÓSTICOS AVANÇADOS — POUSADOS 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):**
+> `diagnostics(kind, url)` → `PageDiagnostics(console, errors)` — `page.on("console")` +
+> `page.on("pageerror")` coletados durante o load: a resposta acionável ao "por que este
+> teste falhou". A prova (`PlaywrightDiagnosticsE2ETest` 2/2, RED-first): uma página que
+> loga E arremessa captura AMBOS (o marcador de console + o `kof-diag-boom` não capturado);
+> uma página limpa reporta nenhum erro. A LINHA DA FASE 8 AGORA ESTÁ TOTALMENTE POUSADA
+> (todas as faces exceto a §6.10 KofWasm — escopo da lane WASI; PWM/I2C/SPI/Wi-Fi são os
+> H4-H7 do plano ESP8266, rastreados lá).
+>
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -899,7 +981,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual, acessibilidade, mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket (**POUSADO 15/11** — o echo browser↔servidor Kof + `assertTextBecomes`), upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile (**POUSADA 14/11** — `deviceAssert`), traces (**POUSADO 15/11** — `traceRun`), vídeos (**POUSADO 15/11** — `videoRecord`), diagnósticos avançados (**POUSADOS 15/11** — `diagnostics`: o console + os erros JS) |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o

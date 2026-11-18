@@ -1,13 +1,13 @@
 [English](kofscript-embedding-plan.md) | [Português](kofscript-embedding-plan.pt_BR.md)
 
-last: PROMOVIDO de `docs/development/future/` 17/10 (ordem da mantenedora "puxa uma de future" + `D-FUTURE-PROMOTION`)
-doing: spike-0 (o inventário) POUSADO 17/10 — os entry points MEDIDOS abaixo; as fatias de RUNTIME (2–4) seguem BLOQUEADAS atrás da decisão de contrato da mantenedora + do território ativo do interpretador da lane compiler
-next: a decisão de contrato da mantenedora (a superfície de embedding + o modelo de capacidades) — depois a fatia 2 (stepping)
-local: docs/development/future/kofscript-embedding-plan.pt_BR.md
-state: under-development
+last: 14/11/2026 — RE-PROMOVIDO para `docs/development/` pela ordem da mantenedora ("pega os dois ultimos de future antes do bootstrap", chat) — o gate da regra 6 (o contrato de embedding + o modelo de capacidade) é autorizado pela própria ordem (o precedente TLS/KofBOL/Kof.expr: a ordem nomeia o plano). A fatia de stepping toca o `KofInterpreter` (kof-compiler) — território antigo da lane do compilador — medido ÓRFÃO 14/11 (sem listener na :9092; sem claim vivo no DOING; stale >1 mês), reatribuível sob `D-PLAN-ONE-OWNER`. Fatia 1 (o inventário do spike-0) POUSADA 17/10.
+doing: FATIAS 2+3+4+4b POUSADAS 14/11 — o contrato de runtime é REAL (`KofEmbedSession`, kof-script): (2) STEPPING = `KofStepBudget` a cada limite de op de IR no `KofInterpreter.runFrame` + o worker da sessão que ESTACIONA quando a concessão acaba (prova: `anInfiniteLoopNeverBlocksTheHost`); (3) CAPACIDADES = `KofCapability` + o gate no funil runtimeFn recusando com `EMBED001` pelo nome (prova: `anUngrantedCapabilityRefusesByName` + `theGrantOpensTheSurface`); (4) BINDINGS DE SESSÃO = a tabela por sessão na fachada, nunca o caminho global `ScriptGlobals` (prova: `sessionBindingsAreScopedAndIsolated`); (4b) APIs DO HOST = `bindApi(name, returnType, fn)` → o script chama `hostcall_<nome>(...)`, uma superfície de RUNTIME (sem sintaxe Kof nova, por `D-KOF-EMBED`); a travessia é em TEXTO (o tipo de retorno padrão é String) e um nome não registrado é recusado pelo nome (`EMBED003`) — provas `theScriptSeesTheHostApi` + `anUnregisteredHostApiIsRefusedByName`. A bateria de regressão está verde: script+interpreter 72/0F.
+next: o plano está CONCLUÍDO (os três requisitos da issue #842 estão medidos e provados): o resto é o polimento de uma amostra mínima de host Java sob `examples/` — o CONTRATO não precisa de mais decisão
+local: docs
+state: under-development (re-promovido 14/11)
 
 > **⏸️ ESTACIONADO 24/10 (`D-FUTURE-CLOSE`, varredura da mantenedora após a morte de todas as lanes; devolvido a `future/` — zero código).** O plano nunca teve fatia pousada: seus dois gates estão genuinamente ausentes (medido 22/10) — a decisão do CONTRATO de embedding (a superfície + o modelo de capacidades, da mantenedora) bloqueia a fatia 1, e a fatia 2 (stepping) depende dela. Retomar: a decisão de contrato da mantenedora → promover por `D-FUTURE-PROMOTION`.
-dona: 192.168.15.30:9092 — assumido como ÓRFÃO em 22/10 sob D-PLAN-ORPHAN-ASSUME (diretriz da mantenedora; exceção a D-PLAN-ONE-OWNER)
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a (re-promoção da mantenedora; a órfã anterior .30:9092 não tem listener)
 
 intent: kofscript-embedding-api
 

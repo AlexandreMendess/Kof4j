@@ -37,6 +37,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class UiFocusE2ETest {
 
+    private static final String AUTO_PROGRAM = """
+            main() {
+                var janela = Window("auto")
+                var form = Column(listOf(Input("primeiro"), Input("segundo")))
+                form.setAutoFocus(true)
+                janela.bind(form)
+                println("ok")
+            }
+            """;
+
     private static final String PROGRAM = """
             main() {
                 var janela = Window("foco")
@@ -58,8 +68,6 @@ class UiFocusE2ETest {
         assertTrue(js.success(), "JS compile: " + js.diagnostics().getDiagnostics());
         String emitted = Files.readString(tmp.resolve("js/Default.mjs"));
         assertTrue(emitted.contains("kofUiWidgetFocus"), "focus() deve baixar para kofUiWidgetFocus");
-        assertFalse(emitted.contains("setAutoFocus"),
-                "setAutoFocus NÃO é desta fatia (a superfície é decisão da mantenedora)");
     }
 
     /** Nos alvos onde kof.ui é no-op (JVM) o programa continua compilando e rodando. */
@@ -87,12 +95,30 @@ class UiFocusE2ETest {
      * globais), e chamá-las de um eval separado daria `ReferenceError`, o mesmo
      * que o artefato real nunca faz.
      */
+    private String runInShimText(String body) throws IOException {
+        try (Context ctx = Context.newBuilder("js").allowAllAccess(true).build()) {
+            Source module = Source.newBuilder("js",
+                            JsRuntimeCore.CORE_RUNTIME
+                                    + JsRuntimeUiComponents.UI_COMPONENT_RUNTIME
+                                    + JsRuntimeUiWidgets.UI_WIDGET_RUNTIME
+                                    + JsRuntimeUiFocus.UI_FOCUS_RUNTIME
+                                    + "\nglobalThis.__kofTest = (function () {" + body + "})();\n",
+                            "runtime.mjs")
+                    .mimeType("application/javascript+module")
+                    .build();
+            ctx.eval(module);
+            Value r = ctx.eval("js", "globalThis.__kofTest");
+            return r.asString();
+        }
+    }
+
     private java.util.Map<String, Boolean> runInShim(String body) throws IOException {
         try (Context ctx = Context.newBuilder("js").allowAllAccess(true).build()) {
             Source module = Source.newBuilder("js",
                             JsRuntimeCore.CORE_RUNTIME
                                     + JsRuntimeUiComponents.UI_COMPONENT_RUNTIME
                                     + JsRuntimeUiWidgets.UI_WIDGET_RUNTIME
+                                    + JsRuntimeUiFocus.UI_FOCUS_RUNTIME
                                     + "\nglobalThis.__kofTest = (function () {" + body + "})();\n",
                             "runtime.mjs")
                     .mimeType("application/javascript+module")
@@ -145,4 +171,92 @@ class UiFocusE2ETest {
     }
 
 
+
+    /** #811 fatia 2: `setAutoFocus(Bool)` baixa para `kofUiWidgetSetAutoFocus`. */
+    @Test
+    void setAutoFocusLowersToTheRuntimeCall(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("auto.kf");
+        Files.writeString(src, AUTO_PROGRAM);
+        CompilationResult js = new CompilerDriver().compile(src, tmp.resolve("js"), Target.JS);
+        assertTrue(js.success(), "JS compile: " + js.diagnostics().getDiagnostics());
+        String emitted = Files.readString(tmp.resolve("js/Default.mjs"));
+        assertTrue(emitted.contains("kofUiWidgetSetAutoFocus"),
+                "setAutoFocus(true) deve baixar para kofUiWidgetSetAutoFocus: " + emitted);
+    }
+
+    /**
+     * #811 fatia 2, MEDIDO no shim do DOM: o setAutoFocus(true) num contêiner
+     * com um filho focável (um Button) faz o PRIMEIRO descendente focável
+     * receber o foco quando o contêiner conecta — document.activeElement vira
+     * o botão (o caso do formulário da issue).
+     */
+    @Test
+    void autoFocusPutsTheFocusOnTheFirstFocusableChild() throws IOException {
+        java.util.Map<String, Boolean> r = runInShim("""
+                const b = kofUiButtonNew("Salvar");
+                const form = kofUiColumnNew([b]);
+                kofUiWidgetSetAutoFocus(form, true);
+                document.getElementById("kof-root").appendChild(window.__kofNodes[form]);
+                kofUiAutoFocusApply(window.__kofNodes[form]);
+                const focused = document.activeElement === window.__kofNodes[b];
+                return { focused: focused };
+                """);
+        assertTrue(r.get("focused"), "o primeiro descendente focável recebe o foco");
+    }
+
+    /**
+     * #811 fatia 3, MEDIDO no shim do DOM: a RESTAURAÇÃO — o rebuild+prune
+     * substitui o nó focado (a raiz muda de tipo) e o foco volta para o nó na
+     * MESMA posição/tipo da nova subárvore (o Button em children[0]), nunca
+     * para o <body>.
+     */
+    @Test
+    void reRenderRestoresTheFocusAtTheSamePositionAndKind() throws IOException {
+        java.util.Map<String, Boolean> r = runInShim("""
+                const c = kofUiComponents.get(kofUiComponentNew(1));
+                let btn1 = 0, btn2 = 0;
+                c.view = function (st) {
+                    if (st === 1) {
+                        const col = kofUiColumnNew([(btn1 = kofUiButtonNew("Salvar"))]);
+                        return col;
+                    }
+                    const form = kofUiFormNew([(btn2 = kofUiButtonNew("Salvar"))]);
+                    return form;
+                };
+                kofUiComponentMount(c.id);
+                document.getElementById("kof-root").appendChild(c.el);
+                kofUiWidgetFocus(btn1);
+                const antes = document.activeElement === window.__kofNodes[btn1];
+                c.state = 2;
+                kofUiRender(c);
+                const depois = document.activeElement === window.__kofNodes[btn2];
+                return { antes: antes, depois: depois };
+                """);
+        assertTrue(r.get("antes"), "o foco começa no Button da primeira renderização");
+        assertTrue(r.get("depois"), "o foco é RESTAURADO na mesma posição/tipo da nova subárvore");
+    }
+
+    /**
+     * #811 fatia 3, o contraponto: o foco FORA da subárvore do componente não
+     * é roubado pela restauração (o contrato não deixa o componente capturar o
+     * foco de fora).
+     */
+    @Test
+    void reRenderDoesNotStealOutsideFocus() throws IOException {
+        java.util.Map<String, Boolean> r = runInShim("""
+                const c = kofUiComponents.get(kofUiComponentNew(1));
+                c.view = function (st) {
+                    return kofUiColumnNew([kofUiButtonNew("Salvar")]);
+                };
+                kofUiComponentMount(c);
+                const other = kofUiButtonNew("de-fora");
+                document.getElementById("kof-root").appendChild(window.__kofNodes[other]);
+                kofUiWidgetFocus(other);
+                c.state = 2;
+                kofUiRender(c);
+                const mantido = document.activeElement === window.__kofNodes[other];
+                return { mantido: mantido };
+                """);
+        assertTrue(r.get("mantido"), "o foco de fora NÃO é roubado pela restauração");
+    }
 }

@@ -34,12 +34,32 @@ final class StringTargetGaps {
     private static final Set<String> INCOMPLETE = Set.of(
             "matches", "replaceAll", "replaceFirst", "getBytes");
 
+    /**
+     * §827: JS tem {@code codePointAt} nativamente (mesmo contrato de índice
+     * UTF-16). O NATIVO ganhou a face com a fatia 6 do Kof.expr
+     * ({@code RuntimeExpr.kof_string_code_point_at} no x86-64 e
+     * {@code NativeRiscvAsmExpr} no cross riscv64/aarch64) — o mesmo valor
+     * escalar na unidade UTF-16.
+     */
+    private static final Set<String> NATIVE_ONLY_GAP = Set.of("codePointAt");
+
     static boolean isIncompleteMethod(String method) {
-        return INCOMPLETE.contains(method);
+        return INCOMPLETE.contains(method) || NATIVE_ONLY_GAP.contains(method);
     }
 
     static boolean refuses(Target target) {
         return target == Target.JS || target.isNative();
+    }
+
+    private static boolean refuses(String method, Target target) {
+        if (NATIVE_ONLY_GAP.contains(method)) {
+            // §827: o JS tem a face (mesmo contrato de índice UTF-16) e o
+            // nativo ganhou a face com a fatia 6 do Kof.expr
+            // (RuntimeExpr.kof_string_code_point_at no x86-64 e
+            // NativeRiscvAsmExpr no cross riscv64/aarch64).
+            return false;
+        }
+        return refuses(target);
     }
 
     /**
@@ -49,7 +69,7 @@ final class StringTargetGaps {
      * for the aborted compilation (same pattern as the NAT005/NAT006 gates).
      */
     static boolean refuse(CompilerDriver driver, MethodCallExpr mc) {
-        if (!isIncompleteMethod(mc.methodName()) || !refuses(driver.target)) {
+        if (!isIncompleteMethod(mc.methodName()) || !refuses(mc.methodName(), driver.target)) {
             return false;
         }
         if (driver.currentDiagnostics != null) {

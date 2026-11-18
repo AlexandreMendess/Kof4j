@@ -28,6 +28,7 @@ final class JsRuntimeSlices {
             new Block("ui-components", JsRuntimeUiComponents.UI_COMPONENT_RUNTIME, false),
             new Block("ui-link-image-icon", JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME, false),
             new Block("ui-widgets", JsRuntimeUiWidgets.UI_WIDGET_RUNTIME, false),
+            new Block("ui-focus", JsRuntimeUiFocus.UI_FOCUS_RUNTIME, false),
             new Block("ui-forms", JsRuntimeUiForms.UI_FORMS_RUNTIME, false),
             new Block("ui-layout", JsRuntimeUiLayout.UI_LAYOUT_RUNTIME, false),
             new Block("collections", JsRuntimeCollections.COLLECTIONS_RUNTIME, false),
@@ -54,6 +55,9 @@ final class JsRuntimeSlices {
             // #1126 fatia 2: a família do cliente HTTP em bloco próprio
             // (extraída do ui-layout no gate ≤500; seeded per-use pelos wrappers).
             new Block("http-client", JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME(), false),
+            // D-KOF-EXPR fatia 7: as classes de caractere no JS (predicados +
+            // as tabelas pinadas como dado; seeded por uso via registerRuntime)
+            new Block("expr", JsRuntimeExpr.EXPR_RUNTIME, false),
             new Block("io", JsRuntimeIo.IO_RUNTIME, true));
 
     private static final Pattern DECL = Pattern.compile(

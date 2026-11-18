@@ -120,6 +120,13 @@ final class ExprDeclarations {
         if (ctx.check(TokenType.IDENTIFIER)) {
             return parseWordUnit(ctx, code);
         }
+        // Fatia 4 (D-KOF-EXPR): um GRUPO `{ … }` nu é uma unidade — a
+        // sequência agrupada que o quantificador carrega inteira
+        // (`exactly(2) { "a" "b" }`). Antes as chaves só abriam como alvo de
+        // quantificador/captura; a forma é aditiva sobre a gramática Q1.
+        if (ctx.check(TokenType.LBRACE)) {
+            return parseBlock(ctx, code);
+        }
         return null;
     }
 
@@ -158,7 +165,19 @@ final class ExprDeclarations {
         String c = ctx.canonicalValue(ctx.peek().value());
         TokenType next = ctx.peekOffset(1).type();
         if (SIMPLE_QUANTIFIERS.contains(c)) {
-            return next == TokenType.LBRACE ? ContextualPosition.QUANTIFIER : ContextualPosition.OTHER_WORD;
+            // Fatia 2 (D-KOF-EXPR): além do bloco, os exemplos obrigatórios §3.4
+            // do plano soletram o açúcar de UM literal — `optional("+55")` — um
+            // quantificador sobre um átomo literal único. Aditivo (R2).
+            if (next == TokenType.LBRACE || next == TokenType.LPAREN) {
+                return ContextualPosition.QUANTIFIER;
+            }
+            // Fatia 9 (§3.2 do plano: "um único átomo OU um bloco"): o
+            // quantificador sobre o ÁTOMO NU seguinte — `zero_or_more any` no
+            // logLine obrigatório. O parseBlock consome o átomo seguinte.
+            if (next == TokenType.IDENTIFIER) {
+                return ContextualPosition.QUANTIFIER;
+            }
+            return ContextualPosition.OTHER_WORD;
         }
         if (c.equals("exactly") || c.equals("between")) {
             return next == TokenType.LPAREN ? ContextualPosition.QUANTIFIER : ContextualPosition.OTHER_WORD;
@@ -185,6 +204,12 @@ final class ExprDeclarations {
         int max = -1;
         if (ctx.check(TokenType.LPAREN)) {
             ctx.advance();
+            if (SIMPLE_QUANTIFIERS.contains(kind)) {
+                // `optional("x")` / `zero_or_more("x")` / `one_or_more("x")` —
+                // o açúcar §3.4: UM literal de texto como alvo único.
+                ExprNode target = literalSugar(ctx, code);
+                return new ExprQuantifierNode(p, kind, min, max, target);
+            }
             if (kind.equals("exactly")) {
                 min = parseCount(ctx);
                 max = min;
@@ -197,6 +222,19 @@ final class ExprDeclarations {
         }
         ExprNode target = parseBlock(ctx, "PARSE096");
         return new ExprQuantifierNode(p, kind, min, max, target);
+    }
+
+    /** O literal único do açúcar `optional("x")`: um átomo literal embrulhado em sequência. */
+    private static ExprNode literalSugar(ParseContext ctx, String code) {
+        SourcePosition p = ctx.pos();
+        if (!ctx.check(TokenType.STRING_LITERAL)) {
+            ctx.error("Expected a text literal inside the quantifier", "PARSE101");
+            ctx.advance();
+            return new ExprSequenceNode(p, List.of());
+        }
+        ExprAtomNode atom = new ExprAtomNode(p, "literal", List.of(ctx.advance().value()));
+        ctx.expect(TokenType.RPAREN, "Expected ')' after the quantifier literal", "PARSE101");
+        return new ExprSequenceNode(p, List.of(atom));
     }
 
     /** A contagem de um quantificador: Int literal ≥ 0, recusado ANTES do lowering. */

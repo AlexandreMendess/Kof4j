@@ -91,7 +91,8 @@ final class KofCliSupport {
         Target t = switch (value) {
             case "jvm", "native", "native.risc", "native.riscv64", "native.riscv",
                  "native.arm", "native.aarch64", "native.aarch", "js", "kofjs",
-                 "android", "script", "kofscript", "wasm", "wasi" -> Target.JVM;
+                 "android", "script", "kofscript", "wasm", "wasi",
+                 "native.esp8266", "esp8266", "native.esp" -> Target.JVM;
             default -> null;
         };
         if (t != null) return List.of();
@@ -109,6 +110,9 @@ final class KofCliSupport {
             case "native" -> Target.NATIVE;
             case "native.risc", "native.riscv64", "native.riscv" -> Target.NATIVE_RISCV64;
             case "native.arm", "native.aarch64", "native.aarch" -> Target.NATIVE_AARCH64;
+            // kof-esp8266 gate 4 (14/11): a terceira face MCU ganha a CLI (o
+            // workflow do plano); o helper delega ao TargetMatrix (a fonte).
+            case "native.esp8266", "esp8266", "native.esp" -> dev.kof.compiler.TargetMatrix.parse(value, null);
             case "js", "kofjs" -> Target.JS;
             case "android" -> Target.ANDROID;
             case "script", "kofscript" -> Target.SCRIPT;

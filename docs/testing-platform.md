@@ -810,11 +810,89 @@ capability (`baseline → new screenshot → pixel comparison → difference rep
 layouts, dashboards and critical pages. It must be deterministic; visual regression is **not**
 mandatory for all tests.
 
+> **LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI): the comparison half of
+> this §8.2 is IN** — `VisualRegression` (`dev.kof.browser`, kof-cli): the deterministic pure
+> pixel comparator (per-pixel RGB, tolerance per channel, 0 = bit-exact), the per-pixel diff
+> mask PNG written only on mismatch, the report carrying the count + ratio + the extent box +
+> a named reason (dimension mismatch never silently crops — honest Q7). The REAL loop proven
+> on this host's chromium (`VisualRegressionTest` 7/7): the SAME page screenshots bit-identical
+> across runs (tolerance 0), the mutated page mismatches with ratio > 0.5 and the mask marks
+> the divergent center; the engine faces are pure and deterministic by construction (no browser).
+> The family is green (42 tests, 0F, the 2 named webkit environmental skips). The phase-8 row
+> keeps: accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces,
+> videos, advanced diagnostics.
+
 ## 8.3 Accessibility (evaluate)
 
 Integration with accessibility tooling for roles, labels, keyboard navigation, contrast when
 supported, accessible names and semantic structure. Never replaces manual accessibility testing.
 
+> **LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI): the measured faces of this
+> §8.3 are IN** — `PlaywrightA11yE2ETest` (4/4 on this host's chromium, probe-gated): (1)
+> accessible names resolve through `getByRole` with `name=` — THE accessible-name computation
+> (an `aria-label` overrides the content, and the resolution measures the ACCESSIBILITY TREE,
+> not the raw DOM); (2) the `<label for>` association drives and measures the input by label
+> (fill+measure in ONE flow — interactions do not cross calls, the documented provider
+> semantics); (3) explicit `role`/`aria-label` attributes measured via `attr=`; (4) the disabled
+> control measures `enabled=false` BY NAME; (5) keyboard navigation: Tab moves focus with a
+> MEASURED outcome — the new `focus` assertion (`el === document.activeElement`) in
+> `KofLocator.ASSERTIONS` + the provider's `measure()`, with the negative face (focus is NOT on
+> the second input after a single Tab). The fixture carries `<meta charset="utf-8">` (accented
+> accessible names mojibake without it — measured). **OUT, named:** contrast/automated-wcag
+> scanning stays with dedicated tooling and manual testing (§8.3's own boundary).
+
+> **NETWORK MOCKING — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** `page.route(pattern)`
+> + `Route.fulfill` through two honest SPI faces on the Playwright provider — `mockAssert(kind, url,
+> pattern, Stub, locator, assertion)` (the route registered BEFORE the navigation, the measure after
+> NETWORKIDLE — the fetch outcome is async) and `settleAssert` (the no-route carrier for the negative
+> face). `Stub(status, contentType, body)`. The proof (PlaywrightNetworkMockE2ETest 3/3, local HTTP
+> fixture with NO `/api/*` — a 404 would fire): the stub 200 JSON renders the mocked fields in the
+> real DOM, the stub 500 drives the page's own error branch, the negative face (no route) shows the
+> real 404 — proving the interception happens BEFORE the network. The other providers keep the
+> honest capability refusal. RED-first proven (`cannot find symbol: mock`).
+>
+> **UPLOAD/DOWNLOAD — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** `uploadAssert(kind, url,
+> inputLocator, filePath, locator, assertion)` — `setInputFiles` fires the change event and the fixture
+> reads `file.name`/`file.size` SYNCHRONOUSLY (the FileReader face stays OUT — async without a
+> deterministic settle contract, named); `downloadTo(kind, url, linkLocator, targetPath)` — click →
+> `waitForDownload` → `saveAs`, the test comparing the REAL bytes (the fixture generates a blob with the
+> `download` attribute). The proof (`PlaywrightTransferE2ETest` 2/2, local HTTP — downloads from file://
+> are blocked by chromium, the mock slice's lesson applied): the uploaded file's name+size measured in the
+> DOM; the downloaded bytes array-equal the payload (UTF-8 accented content included). The other providers
+> keep the honest capability refusal. RED-first proven (both calls unknown before the faces).
+>
+> **MOBILE EMULATION — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):**
+> `deviceAssert(kind, url, viewportWidth, viewportHeight, hasTouch, locator, assertion)` — a context
+> launched with `setViewportSize` + `setHasTouch` (the `isMobile` flag is chromium-only in Playwright's
+> Java API — honored where supported), the measure through the SAME context. The proof
+> (`PlaywrightDeviceE2ETest` 4/4, RED-first; local HTTP): the emulated viewport is what the WINDOW sees
+> (390x844 measured from `window.innerWidth/innerHeight` — the DOM proves the emulation), the DEFAULT
+> context measures 1280x800 (the negative), touch is what the window reports (`ontouchstart`), and a
+> narrow CSS media query flips the desktop/mobile blocks (the responsive face). The other providers keep
+> the honest capability refusal.
+>
+> **TRACES — LANDED 15/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):**
+> `traceRun(kind, url, locator, tracePath)` — the recorded post-mortem: the context
+> tracing started with screenshots + snapshots, the navigation + the REAL click, the
+> `tracing().stop(path)` saving the archive. The proof (`PlaywrightTraceE2ETest` 1/1,
+> RED-first): the archive exists, is a non-trivial ZIP (the Playwright trace format)
+> carrying the action trace + the screenshot chunks. The other providers keep the
+> honest capability refusal. The remaining phase-8 faces: WebSocket, videos, advanced
+> diagnostics (+ the §6.10 KofWasm face, the WASI lane's scope).
+>
+> **VIDEOS — LANDED 15/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):**
+> `videoRecord(kind, url, locator, videoPath)` — the context created with
+> `setRecordVideoDir`, the navigation + the REAL click, the context close FLUSHES
+> the video (the Playwright contract: the file only exists after the close) and
+> `page.video().saveAs(videoPath)` persists it. The proof (`PlaywrightVideoE2ETest`
+> 1/1, RED-first): the video is a non-trivial WEBM (the EBML magic `1A 45 DF A3`
+> verified byte-level). The remaining phase-8 faces: WebSocket, advanced diagnostics
+> (+ the §6.10 KofWasm face, the WASI lane's scope).
+>
+> **WEBSOCKET — LANDED 15/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** the FULL chain with a REAL Kof ws server on BOTH ends — a Kof program serving `app.ws("/chat")` with the echo handler (the RFC 6455 face the generated engine ships: the handshake + the frame codec + the masking), the REAL browser page dialing `ws://127.0.0.1:PORT/chat` (a retry-dial loop in the page JS — the browser is the waiter, no test sleep, the hygiene ratchet), the server's echo written into the DOM, measured by the NEW `assertTextBecomes(kind, url, locator, notValue, timeoutMs)` SPI face (waits for the async arrival via `waitForFunction` — the settle-once face cannot cover a late WS echo, measured). `PlaywrightWsE2ETest` 1/1: `echo:kof-ws` returned by the Kof server, byte-exact. The remaining phase-8 face: advanced diagnostics (+ the §6.10 KofWasm face, the WASI lane's scope).
+>
+> **ADVANCED DIAGNOSTICS — LANDED 15/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** `diagnostics(kind, url)` → `PageDiagnostics(console, errors)` — `page.on("console")` + `page.on("pageerror")` collected during the load: the actionable answer to "why did this test fail". The proof (`PlaywrightDiagnosticsE2ETest` 2/2, RED-first): a page that logs AND throws captures BOTH (the console marker + the uncaught `kof-diag-boom`); a clean page reports no errors. THE PHASE-8 ROW IS NOW FULLY LANDED (every face except the §6.10 KofWasm face — the WASI lane's scope; PWM/I2C/SPI/Wi-Fi are the ESP8266 plan's H4-H7, tracked there).
+>
 ## 8.4 Test data and server lifecycle
 
 Mechanisms to seed DB, create users/fixtures and reset state; avoid permanent global fixtures —
@@ -900,7 +978,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression, accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket (**LANDED 15/11** — the browser↔Kof-server echo + `assertTextBecomes`), upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation (**LANDED 14/11** — `deviceAssert`), traces (**LANDED 15/11** — `traceRun`), videos (**LANDED 15/11** — `videoRecord`), advanced diagnostics (**LANDED 15/11** — `diagnostics`: the console + the JS errors) |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the

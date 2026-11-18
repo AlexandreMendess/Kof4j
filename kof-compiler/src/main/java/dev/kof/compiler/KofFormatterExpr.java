@@ -66,7 +66,16 @@ final class KofFormatterExpr {
         }
         if (expr instanceof MethodCallExpr mce) {
             StringBuilder sb = new StringBuilder();
-            if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p)).append(mce.methodName().isEmpty() ? "" : ".");
+            // #1013: o receiver é sufixo POSTFIX (precedência 9 — o parser
+            // consome `.m`/`(...)`/`[i]` em parsePostfix, acima de qualquer
+            // binário) — um receiver binário (`("" + x).trim()`) PRECISA dos
+            // parênteses de volta; sem isto o fmt reescreve outro programa.
+            // #1013 + §786: o receiver de sufixo liga mais apertado que
+            // qualquer operador — o helper receiver() formata em 10 E envolve
+            // unary/assignment/if/switch/lambda em parênteses (o minPrec 9
+            // inline deixava o receiver UNÁRIO nu: (-n).toString() →
+            // -n.toString(), outro programa).
+            if (mce.receiver() != null) sb.append(receiver(mce.receiver(), p)).append(mce.methodName().isEmpty() ? "" : ".");
             sb.append(mce.methodName());
             if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.typeList(p, mce.typeArguments())).append(">");
             sb.append("(");
@@ -94,8 +103,8 @@ final class KofFormatterExpr {
             for (ExpressionNode dim : nae.moreDims()) sb2.append("[").append(formatExpr(dim, p)).append("]");
             return sb2.toString();
         }
-        if (expr instanceof ArrayAccessExpr aae) return formatExpr(aae.receiver(), p) + "[" + formatExpr(aae.index(), p) + "]";
-        if (expr instanceof FieldAccessExpr fae) return formatExpr(fae.receiver(), p) + "." + fae.fieldName();
+        if (expr instanceof ArrayAccessExpr aae) return receiver(aae.receiver(), p) + "[" + formatExpr(aae.index(), p, 9) + "]";
+        if (expr instanceof FieldAccessExpr fae) return receiver(fae.receiver(), p) + "." + fae.fieldName();
         if (expr instanceof IfExpr ie) return KofFormatter.kw(p, "if") + " (" + formatExpr(ie.condition(), p) + ") "
                 + formatExpr(ie.thenExpr(), p) + " " + KofFormatter.kw(p, "else") + " " + formatExpr(ie.elseExpr(), p);
         if (expr instanceof SwitchExpr se) {
@@ -141,6 +150,18 @@ final class KofFormatterExpr {
             return pe.guard() == null ? head : head + " " + KofFormatter.kw(p, "if") + " " + formatExpr(pe.guard(), p);
         }
         return expr.toString();
+    }
+
+    /**
+     * §786: the receiver of a call, field access or index binds tighter than
+     * any operator (parsePostfix), so a binary/unary/assignment/if/switch/
+     * lambda receiver keeps its parentheses: `("" + x).trim()` printed as
+     * `"" + x.trim()` was a different program (and `(o as T).f()` lost its cast).
+     */
+    private static String receiver(ExpressionNode r, LanguageProfile p) {
+        String s = formatExpr(r, p, 10);
+        return r instanceof UnaryExpr || r instanceof AssignmentExpr || r instanceof IfExpr
+                || r instanceof SwitchExpr || r instanceof LambdaExpr ? "(" + s + ")" : s;
     }
 
     /**

@@ -2,7 +2,7 @@ package dev.kof.compiler.jvm;
 import dev.kof.compiler.Type;
 
 /**
- * Web JVM: dispatch de rotas, invoke de handlers, build de resposta, readRequest e acessores de contexto.
+ * Web JVM: dispatch de rotas, invoke de handlers, build de resposta e acessores de contexto.
  * Extraído de JvmRuntime.source (REFACTOR-500 Fase 5) — fragmento de source
  * do KofRuntime gerado; concatenação preserva ordem e conteúdo byte-a-byte.
  */
@@ -143,12 +143,20 @@ public final class JvmRuntimeWebDispatch {
                         }
                     }
                     // 6. auth: Bearer JWT obrigatório se `auth`; se Authorization
-                    //    estiver presente, um token inválido NUNCA passa. Quando
-                    //    há sessionHeader (modo sessão da lane .22), o passo 4
+                    //    estiver presente, um token inválido NUNCA passa — mas
+                    //    SÓ em app configurada (#1011, escopo D-SEC.4: a regra
+                    //    é documentada sob app.security(); na DEFAULT de uma app
+                    //    NUNCA configurada o 401 trancava gateways e apps com
+                    //    auth própria, e nenhum middleware podia desligar — a
+                    //    checagem corre depois dele). securityConfigured é
+                    //    setada por app.security() E app.policy(). Quando há
+                    //    sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
+                    //    §781: auth-if-present only under app.security()/policy (D-SEC.4).
                     if (p.requireAuth
-                            || (p.authHeader == null
+                            || (app.securityConfigured
+                                    && p.authHeader == null
                                     && req.headers.get("authorization") != null)) {
                         boolean authenticated = kof_sec_auth_authenticated();
                         if (!authenticated) {
@@ -211,10 +219,49 @@ public final class JvmRuntimeWebDispatch {
                     return null;
                 }
 
+                /** #1066: os headers deferidos ATÉ o momento (o map do
+                 *  middleware + a lista Set-Cookie da #1012 + os headers de
+                 *  security da C18) como linhas de head para o stream SSE — o
+                 *  dispatcher limpa tudo antes de devolver a rota não-HTTP e o
+                 *  server escrevia o head FIXO sem eles. Os nomes fixos do
+                 *  stream (e Content-Length/Transfer-Encoding) são pulados:
+                 *  um Content-Type de middleware nunca substitui
+                 *  text/event-stream. */
+                private static String kof_web_extra_head() {
+                    java.util.Set<String> fixed = java.util.Set.of(
+                            "content-type", "cache-control", "connection",
+                            "x-accel-buffering", "content-length",
+                            "transfer-encoding");
+                    StringBuilder hdr = new StringBuilder();
+                    for (java.util.Map.Entry<String, String> e
+                            : KOF_WEB_HEADERS.get().entrySet()) {
+                        if (fixed.contains(e.getKey().toLowerCase())) continue;
+                        hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                    }
+                    for (String[] sc : KOF_WEB_SET_COOKIES.get()) {
+                        if (fixed.contains(sc[0].toLowerCase())) continue;
+                        hdr.append(sc[0]).append(": ").append(sc[1]).append("\\r\\n");
+                    }
+                    for (java.util.Map.Entry<String, String> e
+                            : KOF_SEC_RESPONSE_HEADERS.get().entrySet()) {
+                        if (fixed.contains(e.getKey().toLowerCase())) continue;
+                        hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                    }
+                    return hdr.toString();
+                }
+
+                /** #1012: todo reset de headers por request limpa TAMBÉM a
+                 *  lista de Set-Cookie (sem isto um cookie vazaria para a
+                 *  resposta seguinte na mesma thread). */
+                private static void kof_web_clear_response_headers() {
+                    KOF_WEB_HEADERS.get().clear();
+                    KOF_WEB_SET_COOKIES.get().clear();
+                }
+
                 private static WebDispatchResult kof_web_dispatch(WebApp app, WebRequest req) {
                     KOF_WEB_REQUEST.set(req);
                     KOF_WEB_STATUS.remove();
-                    KOF_WEB_HEADERS.get().clear();
+                    kof_web_clear_response_headers();
                     KOF_SEC_RESPONSE_HEADERS.get().clear();
                     KOF_LOG_REQUEST_ID.set(kof_sec_random_hex(16));
                     try {
@@ -239,7 +286,7 @@ public final class JvmRuntimeWebDispatch {
                                 String text = kof_web_status_text(code);
                                 String resp = kof_web_build(code, text, String.valueOf(result));
                                 KOF_WEB_STATUS.remove();
-                                KOF_WEB_HEADERS.get().clear();
+                                kof_web_clear_response_headers();
                                 return new WebDispatchResult(RouteKind.HTTP, resp, null);
                             }
                         }
@@ -256,7 +303,7 @@ public final class JvmRuntimeWebDispatch {
                                 matched != null ? matched.path : "");
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
-                            KOF_WEB_HEADERS.get().clear();
+                            kof_web_clear_response_headers();
                             return new WebDispatchResult(RouteKind.HTTP, securityReject, null);
                         }
                         for (WebRoute route : app.routes) {
@@ -276,14 +323,21 @@ public final class JvmRuntimeWebDispatch {
                             if (!match) continue;
                             req.params.putAll(params);
                             if (route.kind != RouteKind.HTTP) {
+                                // #1066: o head do stream SSE leva TAMBÉM os
+                                // headers deferidos até aqui (middleware +
+                                // app.security()) — sem isto o limpar abaixo
+                                // os descartava e o server escrevia só o head
+                                // fixo. WS não tem head HTTP: null.
+                                String extraHead = route.kind == RouteKind.SSE
+                                        ? kof_web_extra_head() : null;
                                 KOF_WEB_STATUS.remove();
-                                KOF_WEB_HEADERS.get().clear();
-                                 return new WebDispatchResult(route.kind, null, route);
+                                kof_web_clear_response_headers();
+                                 return new WebDispatchResult(route.kind, extraHead, route);
                             }
                             Object result = kof_web_invoke(route.handler, req);
                             if (result == null) {
                                 KOF_WEB_STATUS.remove();
-                                KOF_WEB_HEADERS.get().clear();
+                                kof_web_clear_response_headers();
                                 return new WebDispatchResult(RouteKind.HTTP,
                                         kof_web_build(404, "Not Found",
                                                 kof_web_sec_response(effective, "notFound",
@@ -294,7 +348,7 @@ public final class JvmRuntimeWebDispatch {
                             String text2 = kof_web_status_text(code2);
                             String resp2 = kof_web_build(code2, text2, String.valueOf(result));
                             KOF_WEB_STATUS.remove();
-                            KOF_WEB_HEADERS.get().clear();
+                            kof_web_clear_response_headers();
                             return new WebDispatchResult(RouteKind.HTTP, resp2, null);
                         }
                         // Arquivos estáticos (app.serveDir): fallback quando
@@ -328,7 +382,7 @@ public final class JvmRuntimeWebDispatch {
                                 if (ranged && (start > end || start >= total)) {
                                     String h416 = "HTTP/1.1 416 Range Not Satisfiable\\r\\n"
                                             + "Content-Range: bytes */" + total + "\\r\\n"
-                                            + "Content-Length: 0\\r\\nConnection: close\\r\\n\\r\\n";
+                                            + "Content-Length: 0\\r\\n\\r\\n";
                                     return new WebDispatchResult(RouteKind.HTTP, h416, null);
                                 }
                                 byte[] staticBody = kof_web_static_read(start, end);
@@ -342,8 +396,7 @@ public final class JvmRuntimeWebDispatch {
                                             ? "Content-Range: bytes " + start + "-"
                                                     + (start + staticBody.length - 1) + "/" + total + "\\r\\n"
                                             : "")
-                                            + "Content-Length: " + staticBody.length + "\\r\\n"
-                                            + "Connection: close\\r\\n\\r\\n";
+                                            + "Content-Length: " + staticBody.length + "\\r\\n\\r\\n";
                                     return new WebDispatchResult(
                                             RouteKind.HTTP, head, null, staticBody);
                                 }
@@ -366,7 +419,7 @@ public final class JvmRuntimeWebDispatch {
                         }
                         String msg = root.getMessage() == null ? root.getClass().getSimpleName() : root.getMessage();
                         KOF_WEB_STATUS.remove();
-                        KOF_WEB_HEADERS.get().clear();
+                        kof_web_clear_response_headers();
                         return new WebDispatchResult(RouteKind.HTTP,
                                 kof_web_build(500, "Internal Server Error",
                                         "{\\"error\\": \\"handler error: " + msg + "\\"}"), null);
@@ -375,6 +428,7 @@ public final class JvmRuntimeWebDispatch {
                         KOF_LOG_REQUEST_ID.remove();
                         KOF_WEB_STATUS.remove();
                         KOF_WEB_HEADERS.remove();
+                        KOF_WEB_SET_COOKIES.remove();
                     }
                 }
 
@@ -452,8 +506,15 @@ public final class JvmRuntimeWebDispatch {
                     if (extra != null) {
                         for (java.util.Map.Entry<String, String> e : extra.entrySet()) {
                             if (e.getKey().equalsIgnoreCase("Content-Type")) hasContentType = true;
-                            hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                            for (String v : e.getValue().split("\\n")) {   // §784: repeated Set-Cookie
+                                hdr.append(e.getKey()).append(": ").append(v).append("\\r\\n");
+                            }
                         }
+                    }
+                    // #1012: UMA linha por Set-Cookie (RFC 6265 §3), na ordem
+                    // das chamadas.
+                    for (String[] sc : KOF_WEB_SET_COOKIES.get()) {
+                        hdr.append(sc[0]).append(": ").append(sc[1]).append("\\r\\n");
                     }
                     // D-SEC C18: headers do middleware de security sobrevivem
                     // ao clear do dispatch antes da rota.
@@ -469,84 +530,10 @@ public final class JvmRuntimeWebDispatch {
                             + ctHeader
                             + hdr.toString()
                             + "Content-Length: " + bodyBytes.length + "\\r\\n"
-                            + "Connection: close\\r\\n"
                             + "\\r\\n"
                             + body;
                 }
 
-                private static WebRequest readRequest(java.io.InputStream in) throws java.io.IOException {
-                    return readRequest(in, null, false);
-                }
-
-                private static WebRequest readRequest(java.io.InputStream in, String remoteAddr,
-                        boolean secure) throws java.io.IOException {
-                    byte[] buffer = new byte[8192];
-                    java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
-                    int headerEnd = -1;
-                    while (true) {
-                        int n = in.read(buffer);
-                        if (n == -1) throw new java.io.IOException("connection closed before headers");
-                        raw.write(buffer, 0, n);
-                        byte[] seen = raw.toByteArray();
-                        headerEnd = indexOfHeaderEnd(seen);
-                        if (headerEnd >= 0) break;
-                        if (raw.size() > 65536) throw new java.io.IOException("headers too large");
-                    }
-
-                    byte[] seen = raw.toByteArray();
-                    String headerBlock = new String(seen, 0, headerEnd,
-                            java.nio.charset.StandardCharsets.UTF_8);
-                    int bodyStart = headerEnd + 4;
-
-                    int contentLength = 0;
-                    for (String line : headerBlock.split("\\r\\n")) {
-                        if (line.toLowerCase().startsWith("content-length:")) {
-                            try {
-                                contentLength = Integer.parseInt(line.substring(line.indexOf(':') + 1).trim());
-                            } catch (NumberFormatException ignored) {
-                            }
-                        }
-                    }
-                    // O corpo é contado em BYTES (Content-Length), não em chars:
-                    // um corpo UTF-8 multibyte ("Olá") tem menos chars que bytes
-                    // e o loop antigo (body.length() < contentLength) lia além do
-                    // fim e travava a conexão até o timeout (blog E2E F12).
-                    java.io.ByteArrayOutputStream bodyBuf = new java.io.ByteArrayOutputStream();
-                    int already = seen.length - bodyStart;
-                    if (already > 0) bodyBuf.write(seen, bodyStart, already);
-                    while (bodyBuf.size() < contentLength) {
-                        int n = in.read(buffer);
-                        if (n == -1) break;
-                        bodyBuf.write(buffer, 0, n);
-                    }
-                    byte[] bodyBytes = bodyBuf.toByteArray();
-                    int keep = Math.min(bodyBytes.length, contentLength);
-                    String body = new String(bodyBytes, 0, keep,
-                            java.nio.charset.StandardCharsets.UTF_8);
-
-                    String[] lines = headerBlock.split("\\r\\n");
-                    String[] parts = lines.length > 0 ? lines[0].split(" ") : new String[0];
-                    String method = parts.length > 0 ? parts[0] : "GET";
-                    String fullPath = parts.length > 1 ? parts[1] : "/";
-                    String path = fullPath;
-                    String query = "";
-                    int q = fullPath.indexOf('?');
-                    if (q >= 0) {
-                        path = fullPath.substring(0, q);
-                        query = fullPath.substring(q + 1);
-                    }
-                    return new WebRequest(method, path, query, headerBlock, body, remoteAddr, secure);
-                }
-
-                private static int indexOfHeaderEnd(byte[] bytes) {
-                    for (int i = 0; i + 3 < bytes.length; i++) {
-                        if (bytes[i] == '\\r' && bytes[i + 1] == '\\n'
-                                && bytes[i + 2] == '\\r' && bytes[i + 3] == '\\n') {
-                            return i;
-                        }
-                    }
-                    return -1;
-                }
 
                 public static String kof_web_param(String name) {
                     WebRequest req = KOF_WEB_REQUEST.get();

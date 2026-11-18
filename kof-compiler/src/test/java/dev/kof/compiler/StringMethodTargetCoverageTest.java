@@ -33,7 +33,9 @@ class StringMethodTargetCoverageTest {
     /** Métodos cujo membro de {@code String.prototype} casa com a semântica Kof. */
     private static final Set<String> JS_NATIVE_MEMBER = Set.of(
             "substring", "contains", "startsWith", "endsWith", "indexOf",
-            "lastIndexOf", "concat", "trim", "toUpperCase", "toLowerCase");
+            "lastIndexOf", "concat", "trim", "toUpperCase", "toLowerCase",
+            // §827: String.prototype.codePointAt has the Java UTF-16 index contract.
+            "codePointAt");
 
     /** Conversões numéricas: o registry mapeia p/ {@code kof_string_to_*} (caso JS explícito). */
     private static final Set<String> RUNTIME_SUFFIX = Set.of(
@@ -45,6 +47,9 @@ class StringMethodTargetCoverageTest {
     private static final Set<String> JS_KNOWN_GAP = Set.of(
             "matches", "replaceAll", "replaceFirst", "getBytes");
 
+    /** §827: lowered on JS, refused with STR003 on Native ({@code StringTargetGaps}). */
+    private static final Set<String> NATIVE_ONLY_GAP = Set.of("codePointAt");
+
     private static Set<String> registryMethods() throws Exception {
         String src = Files.readString(
                 Path.of("src/main/java/dev/kof/compiler/StringMethodRegistry.java"));
@@ -55,9 +60,15 @@ class StringMethodTargetCoverageTest {
     }
 
     private static Set<String> jsExplicitCases() throws Exception {
-        String src = Files.readString(
-                Path.of("src/main/java/dev/kof/compiler/js/JsCallEmitter.java"));
-        return caseNames(src);
+        // the Kof.expr slice-7 split moved the String-op cases to
+        // JsStringOpEmitter — the ratchet reads BOTH files so a future split
+        // cannot blind it again.
+        var names = new LinkedHashSet<String>();
+        for (String f : List.of("JsCallEmitter.java", "JsStringOpEmitter.java")) {
+            names.addAll(caseNames(Files.readString(
+                    Path.of("src/main/java/dev/kof/compiler/js/" + f))));
+        }
+        return names;
     }
 
     /** Nomes de método de String tratados no x86 ({@code "x".equals(kc.methodName())}). */
@@ -148,6 +159,7 @@ class StringMethodTargetCoverageTest {
 
         Set<String> classified = new TreeSet<>(handled);
         classified.addAll(JS_KNOWN_GAP);
+        classified.addAll(NATIVE_ONLY_GAP);
 
         assertEquals(new TreeSet<>(registry), classified, () -> {
             var missing = new TreeSet<>(registry);

@@ -12,6 +12,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 
 /**
@@ -95,8 +96,11 @@ public final class KofInterpreter {
     private final KofInterpreterFrame frames;
     // #739: workDir fixo + estáticos compartilhados quando em sessão de REPL.
     private final Path sharedWorkDir;
+    // kofscript-embedding: the host-facing surface (budget + grants), kept in
+    // its own class so this one stays under the 500-line gate.
+    private final KofInterpreterEmbedding embedding = new KofInterpreterEmbedding(this);
 
-    KofInterpreter(IRModule module, PrintStream out, PrintStream err) { this(module, out, err, null, null); }
+    public KofInterpreter(IRModule module, PrintStream out, PrintStream err) { this(module, out, err, null, null); }
 
     KofInterpreter(IRModule module, PrintStream out, PrintStream err, Path sharedWorkDir,
                    Map<String, Map<String, Object>> sharedStatics) {
@@ -109,6 +113,26 @@ public final class KofInterpreter {
                 : new KofInterpreterMembers(this, module.classes(), sharedStatics);
         this.frames = new KofInterpreterFrame(this);
         this.builtins = new KofInterpreterBuiltins(this);
+    }
+
+    /**
+     * Embedding: the PUBLIC host-facing execution entry — runs the module's
+     * main() under the already-installed budget + grants, from the host's own
+     * thread (the budget parks at op boundaries).
+     */
+    public void runEmbedded(String[] args) throws Throwable {
+        ensureRuntimeForModule();
+        execute(args);
+    }
+
+    /** The public error formatter for hosts (mirrors the Result path). */
+    public static String describeError(Throwable t) {
+        return kofErrorMessage(t);
+    }
+
+    /** Embedding: the host-facing surface (budget, grants, host APIs). */
+    public KofInterpreterEmbedding embedding() {
+        return embedding;
     }
 
     /** UI002 (R6): kof.ui não renderiza no interpretador — warning único. */
@@ -130,42 +154,11 @@ public final class KofInterpreter {
 
     /** Como {@link #run(IRModule, String[])}, mas anexa os warnings do frontend. */
     public static Result run(IRModule module, String[] args, List<Diagnostic> warnings) {
-        ByteArrayOutputStream so = new ByteArrayOutputStream();
-        ByteArrayOutputStream se = new ByteArrayOutputStream();
-        PrintStream po = new PrintStream(so, true);
-        PrintStream pe = new PrintStream(se, true);
-        KofInterpreter interp = new KofInterpreter(module, po, pe);
-        int code = 0;
-        try {
-            interp.ensureRuntimeForModule();
-            interp.execute(args == null ? new String[0] : args);
-        } catch (Throwable t) {
-            code = 1;
-            pe.println(kofErrorMessage(t));
-            if (System.getProperty("kof.interp.trace") != null) t.printStackTrace(pe);
-        } finally {
-            po.flush();
-            pe.flush();
-        }
-        return new Result(code, so.toString(), se.toString(),
-                warnings == null ? List.of() : warnings);
+        return KofInterpreterEmbedding.runBatch(module, args, warnings);
     }
 
-    /**
-     * Executa sem capturar saída (stdout/stderr reais) — REPL do KofScript
-     * precisa de escrita imediata, linha a linha.
-     */
     public static Result runInherit(IRModule module, String[] args) {
-        KofInterpreter interp = new KofInterpreter(module, System.out, System.err);
-        int code = 0;
-        try {
-            interp.ensureRuntimeForModule();
-            interp.execute(args == null ? new String[0] : args);
-        } catch (Throwable t) {
-            code = 1;
-            System.err.println(kofErrorMessage(t));
-        }
-        return new Result(code, null, null);
+        return KofInterpreterEmbedding.runInheritBatch(module, args);
     }
 
     static String kofErrorMessage(Throwable t) {
@@ -253,6 +246,9 @@ public final class KofInterpreter {
     private void runFrame(KofInterpreterFrame.Frame f) throws Throwable {
         Deque<Object> st = f.stack;
         while (f.pc < f.ops.size()) {
+            // embedding slice 2: the budget ticks at an OP BOUNDARY (pc not yet
+            // advanced) so a suspended run always resumes at a safe point.
+            embedding.tick();
             KofOperation op = f.ops.get(f.pc++);
             try {
                 switch (op) {
@@ -457,6 +453,12 @@ public final class KofInterpreter {
 
     Object dispatch(KofCall kc, Object recv, Object[] args) throws Throwable {
         String name = kc.methodName();
+        // Embedding slice 4: a HOST BINDING registrada pela sessão — o script
+        // chama a API do host pelo nome (o mecanismo vive na família de
+        // embedding; um nome NÃO registrado é uma recusa NOMEADA — EMBED003).
+        if (name.startsWith("hostcall_")) {
+            return embedding.callHostApi(name.substring("hostcall_".length()), args);
+        }
         // box/unbox: identidade — a pilha do interpretador já é boxed (JVM)
         // — EXCETO bool (Kof): o literal chega Integer 0/1 (ofBool/§108) mas o
         // slot Nullable(Bool) e o caminho de valor do == comparam o wrapper
@@ -508,6 +510,7 @@ public final class KofInterpreter {
         if (ho != KofInterpreterBuiltins.NOT_HANDLED) return ho;
         // runtime gerado (json/io/http/db/... sobre valores JDK)
         if (JvmRuntime.hasRuntimeFn(name)) {
+            embedding.requireCapability(name);
             Object[] ra = (kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE
                     || kc.kind() == KofCallKind.SUPER)
                     ? prepend(recv, args) : args;

@@ -107,8 +107,18 @@
   "PARSE010": [
     {
       "arity": 0,
+      "en": "Expected '(' after 'lock'",
+      "pt": "esperado '(' depois de 'lock'"
+    },
+    {
+      "arity": 0,
       "en": "Expected '(' after 'using'",
       "pt": "esperado '(' depois de 'using'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')' to close lock (target)",
+      "pt": "esperado ')' para fechar lock (alvo)"
     },
     {
       "arity": 0,
@@ -881,6 +891,25 @@
       "pt": "módulo estrangeiro '{0}': ownership desconhecido '{1}' (esperado um de {2})"
     }
   ],
+  "PARSE100": [
+    {
+      "arity": 0,
+      "en": "'as' binds looser than arithmetic and shifts, so it casts the whole expression on its left; parenthesize the operand you mean",
+      "pt": "'as' liga mais frouxo que aritmética e shifts, então ele converte a expressão inteira à esquerda; parentetize o operando que você quer"
+    }
+  ],
+  "PARSE101": [
+    {
+      "arity": 0,
+      "en": "Expected ')' after the quantifier literal",
+      "pt": "esperado ')' depois do literal do quantificador"
+    },
+    {
+      "arity": 0,
+      "en": "Expected a text literal inside the quantifier",
+      "pt": "esperado um literal de texto dentro do quantificador"
+    }
+  ],
   "SEM001": [
     {
       "arity": 2,
@@ -1077,8 +1106,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)",
-      "pt": "Método não resolvido '{0}' no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)"
+      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/codePointAt/toInt/toLong/toFloat/toDouble)",
+      "pt": "Método não resolvido '{0}' no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/codePointAt/toInt/toLong/toFloat/toDouble)"
     },
     {
       "arity": 1,
@@ -1966,6 +1995,11 @@
       "arity": 1,
       "en": "pattern '{0}' collides with an existing type name",
       "pt": "o padrão '{0}' colide com um nome de tipo já existente"
+    },
+    {
+      "arity": 2,
+      "en": "pattern '{0}' collides with a character class name: bare '{1}' in a pattern body means the class, never this pattern — rename the pattern",
+      "pt": "o padrão '{0}' colide com um nome de classe de caractere: o '{1}' solto num corpo de padrão significa a classe, nunca este padrão — renomeie o padrão"
     }
   ]
 }

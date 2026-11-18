@@ -49,6 +49,74 @@ public final class SymbolTableBuilder {
             sa.putClass(ent.name(), sym);
             sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);
+        } else if (decl instanceof ExprDeclarationNode ex) {
+            // Kof.expr fatia 1 (D-KOF-EXPR): o padrão é uma CLASSE real — o
+            // mesmo modelo do enum: os membros são definidos AQUI (as duas
+            // operações estáticas da fatia) e o corpo é emitido pelo
+            // CompilerExprLowering. `match` devolve String? (capturas viram o
+            // resultado tipado na fatia 5 — Option T).
+            // Nunca SOBRESCREVE um tipo de mesmo nome: `class Point` + `expr
+            // Point` segue colidindo no SEM114 (o símbolo da classe fica; o
+            // próprio SemExprAnalyzer compara registered != own).
+            if (!sa.allClasses().containsKey(ex.name())) {
+                java.util.List<String> caps = KofExprShape.captureNames(ex.body());
+                SymbolTable members = new SymbolTable();
+                members.define(new SymbolTable.MethodSymbol("matches", ex.name(),
+                        Type.PrimitiveType.BOOL, List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                // Fatia 5 (Option T do §6): com capturas, `match` devolve o
+                // RECORD GERADO `nameMatch?` (campos = as capturas, todos
+                // String? — uma captura fora do caminho casado é null) e um
+                // símbolo de record é registrado para `m.day` resolver pelo
+                // caminho comum de campo. Sem capturas: String? (o sujeito).
+                Type matchReturn = caps.isEmpty()
+                        ? new Type.NullableType(BuiltinTypes.STRING)
+                        : new Type.NullableType(new Type.ClassType(sa.packageOf(ex), ex.name() + "Match", List.of()));
+                members.define(new SymbolTable.MethodSymbol("match", ex.name(),
+                        matchReturn, List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                members.define(new SymbolTable.MethodSymbol("captures", ex.name(),
+                        new Type.NullableType(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))),
+                        List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                // Fatia 8: as BUSCAS (§6/§7 do plano) — find devolve o índice
+                // da primeira ocorrência; findAll a lista dos TRECHOS (sem
+                // captura) ou dos records tipados (com captura); replace a
+                // substituição literal.
+                members.define(new SymbolTable.MethodSymbol("find", ex.name(),
+                        Type.PrimitiveType.INT, List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                Type findElem = caps.isEmpty() ? BuiltinTypes.STRING
+                        : new Type.ClassType(sa.packageOf(ex), ex.name() + "Match", List.of());
+                members.define(new SymbolTable.MethodSymbol("findAll", ex.name(),
+                        new Type.NullableType(new Type.ClassType("kof", "List", List.of(findElem))),
+                        List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                members.define(new SymbolTable.MethodSymbol("replace", ex.name(),
+                        BuiltinTypes.STRING, List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(ex.name(), sa.packageOf(ex),
+                        "Object", List.of(), members);
+                sa.putClass(ex.name(), sym);
+                sa.registerSymbol(decl, sym);
+                sa.currentScope().define(sym);
+                if (!caps.isEmpty()) {
+                    String recName = ex.name() + "Match";
+                    SymbolTable recMembers = new SymbolTable();
+                    SymbolTable.ClassSymbol recSym = new SymbolTable.ClassSymbol(recName, sa.packageOf(ex),
+                            "Record", List.of(), recMembers);
+                    Type capField = new Type.NullableType(BuiltinTypes.STRING);
+                    for (String cap : caps) {
+                        recMembers.define(new SymbolTable.FieldSymbol(cap, capField, 0, recName));
+                    }
+                    // SEM registerSymbol: o decl já aponta para o símbolo do
+                    // PADRÃO (o SEM114 compara registered != own através dele);
+                    // o record não passa por defineRecordMembers (os campos
+                    // foram definidos aqui em cima).
+                    sa.putClass(recName, recSym);
+                    sa.currentScope().define(recSym);
+                }
+            }
         } else if (decl instanceof EnumDeclarationNode en) {
             SymbolTable members = new SymbolTable();
             Type self = new Type.ClassType(sa.packageOf(en), en.name(), List.of()); // #445: pkg real (era "" raiz — quebrava arquivo importado)
@@ -121,6 +189,7 @@ public final class SymbolTableBuilder {
             case EntityDeclarationNode ent -> defineEntityMembers(sa, ent);
             case InterfaceDeclarationNode iface -> defineInterfaceMembers(sa, iface);
             case EnumDeclarationNode _ -> { }
+            case ExprDeclarationNode _ -> { } // membros definidos no pre-declare (o modelo do enum)
             default -> {}
         }
     }

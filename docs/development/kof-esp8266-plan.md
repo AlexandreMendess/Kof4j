@@ -1,10 +1,13 @@
 [English](kof-esp8266-plan.md) | [Português](kof-esp8266-plan.pt_BR.md)
 
-last: none
-doing: none-planned
-next: gate-0-architecture-and-feasibility-audit
-location: docs/development/future
-state: planned
+last: 14/11/2026 — GATES 0/1/2/3/4 ALL LANDED (this lane; see the per-gate records below and in the CHANGELOG) — GATE 5 (physical execution) is BLOCKED on the provisioning decision: every obtainable qemu path was measured today and NONE models the ESP8266 (the evidence block below)
+GATE 4 LANDED 14/11 — the CLI WORKFLOW (the plan's own gate: "a documented end-to-end workflow that does not make physical hardware mandatory for ordinary Kof builds"): `kof build <dir> --target native.esp8266` parses (the `parseTarget` + the known-spellings list + the usage line), compiles through `NativeEsp8266`, links through the overlay's crt0 and generates the FIRMWARE IMAGES via esptool (`KOF_ESPTOOL` or the PATH python; absent → a NAMED skip — the ELF remains the deliverable). MEASURED end to end on this host: the valid `ELF 32-bit LSB executable, Tensilica Xtensa` + the two flash images (`Main.img0x00000.bin` the boot section, `Main.img0x00010.bin` the app — the REAL flash layout). `CliUsageTargetsTest` 7/7 (the gate-4 face: the usage announces + the parse accepts). The esptool 5.x lesson recorded: `--chip` comes BEFORE the subcommand.
+the REMAINDER: gate 2 (the memory/stack reporting + the runtime constraints measured), gate 3 (the HAL breadth — GPIO/timers beyond the UART0 write), gate 5 (physical execution — HARDWARE or Espressif's qemu fork, the maintainer's provisioning decision, named).
+location: docs/development
+state: under-development (gates 0/1/2/3/4 landed 14/11; 5 remains — the provisioning decision)
+**Owner:** SEM DONO / OPEN — the landing lane (192.168.100.14:0) concluded its gates 0-4 and holds at gate 5, which awaits the maintainer's provisioning decision (measured exhaustively in the GATE 5 block above); no lane owns gate 5 right now (the honest per D-PLAN-ONE-OWNER — never a shared or silent owner).
+
+> **GATE 5 — THE EXECUTION SUBSTRATE MEASURED 14/11 (the provisioning evidence, exhaustive):** every obtainable qemu path was measured and NONE models the ESP8266: (a) upstream qemu — the xtensa machines are `sim`/`virt`/`xtfpga` ONLY (hw/xtensa/meson.build + xtfpga.c have zero esp references), and this host's distro carries NO `qemu-system-*` binaries; (b) Espressif's official qemu fork (esp-develop-9.2.2, 16 MB, RUNS on this host after the libslirp0 fetch) — the machine list is `esp32`/`esp32s3` ONLY (hw/xtensa: esp32.c/esp32s3.c; the esp8266 machine is NOT modeled, even in the fork); (c) the toolchain's own `sys.qemu.specs` (the esp8266 multilib overlay ships a qemu libgloss) cannot help without a qemu that models the SoC; (d) the third-party esp8266 qemu forks on GitHub publish no binaries. THE CONCLUSION: gate 5 ("physical execution is confirmed") requires a REAL ESP8266 BOARD on a lane with hardware access + the flash setup (`esptool write_flash` with the images the emitter produces — `Main.img0x00000.bin` at 0x0 and `Main.img0x00010.bin` at 0x10000) — the maintainer's provisioning decision, named, with the measured evidence that NO software path exists.
 
 intent: kof-esp8266-embedded-target
 

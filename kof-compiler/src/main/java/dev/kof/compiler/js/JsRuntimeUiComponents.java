@@ -268,6 +268,10 @@ public final class JsRuntimeUiComponents {
                         kofUiReuseRoot(oldEl, rootEl, c.root, rootId);
                         rootId = c.root;
                     } else {
+                        // D-UI-FOCUS (#811 fatia 3): a identidade do nó focado é
+                        // capturada ANTES da poda — o kofUiRemoveSubtree destrói os
+                        // parent links da subárvore antiga e o caminho viraria nulo.
+                        const focusSteps = oldEl ? kofUiCaptureFocus(oldEl) : null;
                         if (c.root !== rootId) {
                             // §300: the previous render's subtree must be pruned from
                             // BOTH the DOM and __kofNodes (detaching only the root
@@ -277,6 +281,10 @@ public final class JsRuntimeUiComponents {
                         if (rootEl && rootEl.parentNode !== c.el) {
                             c.el.appendChild(rootEl);
                         }
+                        // a restauração: o nó na MESMA posição/tipo da nova
+                        // subárvore; sem correspondência, a raiz do componente —
+                        // o foco nunca cai silenciosamente no <body>.
+                        if (oldEl) kofUiRestoreFocus(focusSteps, rootEl, c.el);
                     }
                 }
                 c.root = rootId;
@@ -417,6 +425,8 @@ public final class JsRuntimeUiComponents {
                 // D-UI-FOCUS (#811): a montagem é o ponto em que o foco pedido
                 // antes do nó existir (ou antes de ele conectar) é aplicado.
                 kofUiFocusFlush();
+                // fatia 2: o setAutoFocus dos widgets recém-renderizados.
+                if (n.el) kofUiAutoFocusApply(n.el);
             }
 
             export function kofUiComponentUnmount(c) {
@@ -463,6 +473,7 @@ public final class JsRuntimeUiComponents {
                 const childEl = window.__kofNodes && window.__kofNodes[child];
                 if (childEl) n.el.appendChild(childEl);
                 kofUiFocusFlush();
+                if (childEl) kofUiAutoFocusApply(childEl);
             }
 
             export function kofUiComponentRemove(c) {

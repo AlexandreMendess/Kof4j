@@ -940,11 +940,33 @@ science) **without** destroying the language's simplicity.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
-> **PROMOTED 03/11 (maintainer order "pega kof-expr como proximo"): `kof-expr-plan`** — moved from `future/` to
-> [`kof-expr-plan.md`](kof-expr-plan.md) (+PT), `UNDER DEVELOPMENT`, decision `D-KOF-EXPR`. The rule-6 gate (a new
+> **CONCLUDED & PROMOTED 14/11: `kofscript-embedding-plan` → [`docs/kofscript-embedding-plan.md`](../kofscript-embedding-plan.md) (+PT)** — the COMPLETE run: the maintainer's order ("pega os dois ultimos de future antes do bootstrap") promoted it AND the runtime contract landed the same day (`KofEmbedSession`, kof-script): bounded execution (`KofStepBudget` at every IR op boundary + the parking worker), capability confinement (`KofCapability` + `EMBED001` by name), per-session bindings, and the host-API face (`bindApi` → `hostcall_<name>(...)`, `EMBED003` for an unregistered name — a RUNTIME surface, no new Kof syntax, per `D-KOF-EMBED`). Proofs `KofEmbedSessionTest` 8/8 (RED-first: the infinite-loop face hangs without the stepping) + the script/interpreter battery 72/0F; the guide `docs/kofscript-embedding-guide.md` (+PT). The 500 gate forced the split (`KofInterpreterEmbedding`; `KofInterpreter` 594 lines).
+
+> **RE-PROMOTED 14/11 (maintainer order "pega os dois ultimos de future antes do bootstrap"): `kofscript-embedding-plan`** —
+> moved from `future/` to [`kofscript-embedding-plan.md`](kofscript-embedding-plan.md) (+PT), `UNDER DEVELOPMENT`, and the runtime
+> CONTRACT LANDED the same day (`KofEmbedSession`, kof-script): bounded execution (`KofStepBudget` at every IR op boundary +
+> the parking worker), capability confinement (`KofCapability` + `EMBED001` by name) and per-session bindings — proofs
+> `KofEmbedSessionTest` 6/6 (an infinite loop returns RUNNING, never blocks the host); the script+interpreter battery 70/0F;
+> the embedding guide `docs/kofscript-embedding-guide.md` (+PT). The rule-6 gate (the embedding contract) is authorized by the
+> maintainer's order itself (the TLS/KofBOL/Kof.expr precedent).
+
+> **CONCLUDED & PROMOTED 15/11: `kof-expr-plan` → [`docs/kof-expr.md`](../kof-expr.md) (+PT)** — the COMPLETE run:
+> spike-0 + slices 1–8 landed with executed proof on ALL FOUR backends (JVM, Script, Native x86-64 +
+> riscv64/aarch64 cross, JS through the node artifact vs the executed JVM oracle — the §3.4 corpus
+> byte-identical everywhere; the JS gate fell 14/11 when the quantifier chain was restructured into
+> single-if true-first states; slice 8 part 2, the iterative engine, is PARKED as the post-v1
+> optimization §11 explicitly accepts). The promoted page carries the §15 deliverables (the
+> user-facing summary + the mandatory "Kof.expr vs Regex" section). Decision `D-KOF-EXPR`.
+> (The history below records the ride from `future/` 03/11 to the promotion.) **PROMOTED 03/11 (maintainer order "pega kof-expr como proximo"): `kof-expr-plan`** — moved from `future/` to
+> the plan file (+PT), `UNDER DEVELOPMENT`, decision `D-KOF-EXPR`. The rule-6 gate (a new
 > language surface) is satisfied by the maintainer's own order, following the TLS precedent of 02/11. **Spike-0 LANDED**:
 > the grammar and the AST are locked and proven (`ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9),
 > with NO lowering — slices 1–9 (§17) stay open and each is promoted explicitly.
+> **SLICE 6 LANDED 13/11 (the NATIVE face):** the matcher runs on the native x86-64 AND the riscv64/aarch64 cross, answering
+> byte-identically to the JVM (`KofExprNativeE2ETest` 5/5 — incl. the point-by-point agreement of the native pinned table with
+> the JVM's `Character` across ~1,400 code points; `KofExprCrossE2ETest` 2/2 under qemu). The election was measured: the
+> native backend is a 1:1 op→instruction emitter (every matcher op declared in `NativeOpSupport`), the JS IR has no goto/label
+> at all. (The JS front FELL 14/11 — the gate is gone; the corpus answers byte-identically; slice-8 part 2 stays parked as post-v1.)
 
 > **RE-OPENED BY THE MAINTAINER 02/11 (order "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promoted from the `future/` TLS plan; the rule-6 decision is the maintainer’s own order, the frozen contract is `D-SEC.6` (additive only). **COMPLETE + PROMOTED 03/11 to [`docs/tls-hardening.md`](../tls-hardening.md) (+PT)** — ALL slices landed with executed proof; the final gate was the Pebble E2E (real issuance, serial 0dca413a13143cfa (a certificate serial, not a commit SHA)); `state: implemented`.
 
@@ -1004,7 +1026,8 @@ All remaining `future/` plans are authorized with their
 > one-at-a-time (`D-FUTURE-PROMOTION`).
 >
 > **NEW PLAN-ONLY (`future/`, 14/10 — maintainer request "Kof Future — ESP8266 Embedded Target"):**
-> [`kof-esp8266-plan.md`](future/kof-esp8266-plan.md) (+PT) — the ESP8266 (Xtensa L106, 32-bit
+> **RE-PROMOTED 14/11 (the maintainer's order "pega os dois ultimos de future antes do bootstrap"; the `D-ESP8266-DEFERRED` pointer IS this lane, which concluded kofscript-embedding; the plan untouched for a MONTH) and GATE 0 EXECUTED — the audit's findings are MEASURED: the Espressif crosstool-NG 16.2.0 + the esp8266 multilib overlay are REACHABLE today; `XTENSA_GNU_CONFIG=<lib>/xtensa_esp8266.so` flips the toolchain to elf32-xtensa-le (the real byte order); a hand-written freestanding stub + the overlay's REAL crt0 linked through a hand-written .ld (esp8266 ships NONE — the emitter writes its own, the `NativeMcuRiscv32` precedent) produced a valid `ELF 32-bit LSB executable, Tensilica Xtensa` and `esptool elf2image --chip esp8266` produced the REAL firmware images (`e9` header + the payload in the flash section). The verification substrate (running the image) needs real hardware or Espressif's qemu fork — a provisioning decision, named. Gate 1 (the emitter + the provisioning script) is the next slice.
+> [`kof-esp8266-plan.md`](kof-esp8266-plan.md) (+PT) — the ESP8266 (Xtensa L106, 32-bit
 > single-core Wi-Fi SoC) as a **planned** Kof target. **NOT promoted and NOT authorized**: it needs a
 > rule-6 maintainer decision (no `D-*` id is invented) and an **R12 override** (the same pattern as
 > `D-BAREMETAL-BOOT`) because it opens a new front. It deliberately does **not** re-invent the MCU

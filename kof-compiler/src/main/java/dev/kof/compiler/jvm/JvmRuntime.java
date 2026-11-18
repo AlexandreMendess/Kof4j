@@ -1,5 +1,6 @@
 package dev.kof.compiler.jvm;
 import dev.kof.compiler.IRClass;
+import dev.kof.compiler.KofExprUnicode;
 import dev.kof.compiler.Target;
 
 import javax.tools.JavaCompiler;
@@ -28,6 +29,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_cache_")
                 || methodName.startsWith("kof_buffer_")
                 || methodName.startsWith("kof_log_")
+                || methodName.startsWith("kof_lock_")
                 || methodName.startsWith("kof_db_")
                 || methodName.startsWith("kof_orm_")
                 || methodName.startsWith("kof_string_to_")
@@ -42,6 +44,8 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_random_")
                 || methodName.startsWith("kof_rng_")
                 || methodName.startsWith("kof_enum_")
+                // Kof.expr slice 3 (D-KOF-EXPR): the character-class predicates
+                || methodName.startsWith("kof_expr_is_")
                 || methodName.equals("kof_spawn_result") || methodName.equals("kof_await")
                 || methodName.equals("kof_poll") || methodName.equals("kof_done")
                 || methodName.equals("kof_cancel") || methodName.equals("kof_cancelled")
@@ -168,11 +172,13 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmMediaRuntime.source()
                 + JvmImageRuntime.source()
                 + JvmRuntimeWebServer.source()
+                + JvmWebWsRuntime.source()
                 + JvmRuntimeTlsServer.source()
                 + JvmAcmeRuntime.source()
                 + JvmAcmeOrderRuntime.source()
                 + JvmAcmeFinalizeRuntime.source()
                 + JvmRuntimeSockets.source()
+                + JvmRuntimeWebRequestReader.source()
                 + JvmRuntimeWebDispatch.source()
                 + JvmConfigRuntime.source()
                 + JvmCacheRuntime.source()
@@ -184,6 +190,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmOrmHistoryRuntime.source()
                 + JvmTimeRuntime.source()
                 + JvmStringRuntime.source()
+                + KofExprUnicode.JVM_SOURCE
                 + (usesExtern ? JvmFfiRuntime.source() : "")
                 + (usesVk
                         ? (target == Target.ANDROID ? JvmVkStubRuntime.source() : JvmVkRuntime.source())
@@ -198,6 +205,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmRuntimeUi.source()
                 + JvmRuntimeUiForms.source()
                 + JvmRuntimeCore.source()
+                + JvmLockRuntime.source()
                 + JvmRuntimeIo.source();
     }
 }

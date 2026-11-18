@@ -140,7 +140,12 @@ public final class KofInterpreterRuntime {
             // ponte o lookup falha e a rota morre em HTTP 500 no interpretador.
             if (name.equals("kof_web_route") || name.equals("kof_web_route_opts")
                     || name.equals("kof_web_sse_route") || name.equals("kof_web_ws_route")
-                    || name.equals("kof_web_use")) {
+                    || name.equals("kof_web_use")
+                    // §1150: mq handlers reach the runtime's reflective
+                    // invoke dispatch exactly like route handlers — wrap so
+                    // the KofObj answers invoke/1 (equality delegates to the
+                    // handler, so unsubscribe by identity still matches).
+                    || name.equals("kof_mq_subscribe") || name.equals("kof_mq_unsubscribe")) {
                 args = args.clone();
                 for (int i = 0; i < args.length; i++) {
                     if (args[i] instanceof KofInterpreter.KofObj ko) args[i] = new InterpretedCallable(interp, ko);
@@ -259,6 +264,10 @@ public final class KofInterpreterRuntime {
      * só existem como KofObj no interpretador.
      */
     private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
+        // §833: a record/class takes a JSON object; any other non-null value is JSN006
+        if (parsed != null && !(parsed instanceof java.util.Map<?, ?>))
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + KofInterpreterJson.shapeOf(parsed));
         KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c, interp);
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
@@ -287,8 +296,7 @@ public final class KofInterpreterRuntime {
         if (raw != null && !(raw instanceof List<?>)
                 && (BuiltinTypes.isList(type) || BuiltinTypes.isSet(type))) {
             throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
-                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
-                    : raw instanceof Number ? "a number" : "a scalar"));
+                    + KofInterpreterJson.shapeOf(raw));
         }
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
@@ -331,12 +339,15 @@ public final class KofInterpreterRuntime {
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
         // #1128: alvo mapa/record recebendo não-objeto = JSN006 na
-        // profundidade (o espelho do kof_json_bind JVM).
-        if (!(raw instanceof List<?>) && !(raw instanceof java.util.Map<?, ?>)
+        // profundidade (o espelho do kof_json_bind JVM). A PARIDADE Script
+        // (o teste do PR #1129) mediu o buraco: a condição antiga ISENTAVA
+        // `raw instanceof List`, então mapa<-array caía no coerceFor e
+        // explodia num ClassCastException cru (ArrayList→HashMap) que escapa
+        // do contrato de String capturável — o JVM responde o JSN006.
+        if (!(raw instanceof java.util.Map<?, ?>)
                 && (BuiltinTypes.isMap(type) || interp.kofClassOrNull(type) != null)) {
             throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
-                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
-                    : raw instanceof Number ? "a number" : "a scalar"));
+                    + KofInterpreterJson.shapeOf(raw));
         }
         if (raw instanceof java.util.Map<?, ?> m && BuiltinTypes.isMap(type)) {
             Type vt = ((Type.ClassType) type).typeArguments().size() >= 2

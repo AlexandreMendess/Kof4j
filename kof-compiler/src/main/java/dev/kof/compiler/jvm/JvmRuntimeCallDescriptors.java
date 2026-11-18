@@ -187,6 +187,7 @@ public final class JvmRuntimeCallDescriptors {
              case "kof_ui_widget_set_id", "kof_ui_widget_set_class" -> "(ILjava/lang/String;)V";
              case "kof_ui_widget_set_disabled" -> "(II)V";
              case "kof_ui_widget_focus" -> "(I)V";
+             case "kof_ui_widget_set_auto_focus" -> "(IZ)V";
              // D-UI-A11Y (#789): setAccessibleName(String) / setAnnounce(Bool).
              case "kof_ui_widget_set_accessible_name" -> "(ILjava/lang/String;)V";
              case "kof_ui_widget_set_announce" -> "(II)V";
@@ -298,6 +299,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_db_query3" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_db_query4" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_db_transaction" -> "(Ljava/lang/Object;)V";
+            case "kof_expr_is_letter", "kof_expr_is_digit", "kof_expr_is_space",
+                    "kof_expr_is_word", "kof_expr_is_hex" -> "(I)Z";
             case "kof_string_to_int" -> "(Ljava/lang/String;)I";
             case "kof_string_to_long" -> "(Ljava/lang/String;)J";
             case "kof_string_to_double" -> "(Ljava/lang/String;)D";
@@ -474,6 +477,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_list_slice" -> "(Ljava/util/ArrayList;II)Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "(Ljava/util/ArrayList;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_spawn_result", "kof_await" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
+            case "kof_lock_enter", "kof_lock_exit" -> "(Ljava/lang/Object;)V"; // G240
             case "kof_poll" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_done", "kof_cancel" -> "(Ljava/lang/Object;)Z";
             case "kof_cancelled" -> "()Z";

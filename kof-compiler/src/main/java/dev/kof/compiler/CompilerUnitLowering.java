@@ -54,17 +54,19 @@ final class CompilerUnitLowering {
             }
         }
         for (AstNode decl : unit.declarations()) {
+            driver.fileImports.enter(decl);
             String declPkg = driver.declPackage(decl, unit.packageName());
             if (decl instanceof ClassDeclarationNode cls) classes.add(CompilerClassLowering.lowerClass(driver, cls, declPkg, nextTypeId++));
             else if (decl instanceof InterfaceDeclarationNode iface) classes.add(CompilerIfaceRecordLowering.lowerInterface(driver, iface, declPkg, nextTypeId++));
             else if (decl instanceof RecordDeclarationNode rec) classes.add(CompilerIfaceRecordLowering.lowerRecord(driver, rec, declPkg, nextTypeId++));
             else if (decl instanceof EnumDeclarationNode en) classes.add(CompilerEnumLowering.lowerEnum(driver, en, declPkg, nextTypeId++)); // #445
-            // Kof.expr spike-0 (D-KOF-EXPR): o padrão fica só na AST por enquanto —
-            // a gramática é TRAVADA antes de qualquer IR (§17 do plano). Um `expr`
-            // declara um DESCRITOR e nenhum símbolo executável, então não baixar
-            // nada aqui é a semântica do spike-0, não um stub: o valor/API do
-            // padrão (`match`/`matches`) entra na fatia 1, com o lowering junto.
-            else if (decl instanceof ExprDeclarationNode) { }
+            // Kof.expr fatias 1+5 (D-KOF-EXPR): o lowering devolve as CLASSES
+            // do padrão — o matcher e, com capturas, o record gerado da Opção T
+            // (lista vazia = o corpo recusou e o compile já falha).
+            else if (decl instanceof ExprDeclarationNode ex) {
+                classes.addAll(CompilerExprLowering.lower(driver, ex, declPkg, nextTypeId));
+                nextTypeId += 2;
+            }
             else switch (decl) {
                 case EntityDeclarationNode ent -> {
                     driver.entitySchemas.put(ent.name(), ent.fields());
@@ -109,7 +111,9 @@ final class CompilerUnitLowering {
                 }
                 case null, default -> { }  // no-op p/ null ou tipo nao-casado (paridade com o if-else original)
             }
-        }        if (!topLevelFunctions.isEmpty()) {
+        }
+        driver.fileImports.enter(null);
+        if (!topLevelFunctions.isEmpty()) {
             String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";
             classes.add(0, new IRClass(mainClassName, "java/lang/Object", List.of(),
                     AccessFlags.PUBLIC | AccessFlags.SUPER, List.of(), topLevelFunctions, List.of(), null, 0));

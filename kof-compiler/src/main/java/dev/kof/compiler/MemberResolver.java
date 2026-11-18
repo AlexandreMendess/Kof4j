@@ -146,14 +146,15 @@ public final class MemberResolver {
         for (String imp : unit.imports()) {
             if (!imp.endsWith("*") && imp.endsWith("." + name)) {
                 String pkg = imp.substring(0, imp.lastIndexOf('.'));
-                return new Type.ClassType(pkg, name, List.of());
+                Type.ClassType nested = JdkNestedImport.resolve(pkg, name, external);
+                return nested != null ? nested : new Type.ClassType(pkg, name, List.of());
             }
         }
         if (external != null) {
             for (String imp : unit.imports()) {
                 if (imp.endsWith(".*")) {
                     String pkg = imp.substring(0, imp.length() - 2);
-                    if (external.knows(pkg.replace('.', '/') + "/" + name)) {
+                    if (external.knowsMembers(pkg.replace('.', '/') + "/" + name)) {
                         return new Type.ClassType(pkg, name, List.of());
                     }
                 }

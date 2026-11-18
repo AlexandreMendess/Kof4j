@@ -22,6 +22,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiComponents.UI_COMPONENT_RUNTIME)
                 .append(JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME)
                 .append(JsRuntimeUiWidgets.UI_WIDGET_RUNTIME)
+                .append(JsRuntimeUiFocus.UI_FOCUS_RUNTIME)  // #811 fatia 2: o bloco "ui-focus" (a família de foco extraída)
                 .append(JsRuntimeUiForms.UI_FORMS_RUNTIME)
                 .append(JsRuntimeUiLayout.UI_LAYOUT_RUNTIME)
                 .append(JsRuntimeCollections.COLLECTIONS_RUNTIME)
@@ -47,6 +48,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiWs.WS_RUNTIME)
                 .append(JsRuntimeUiEvents.UI_EVENT_RUNTIME)
                 .append(JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME())  // #1126: o bloco "http-client" é o ÚLTIMO core (a ordem da lista define o emit)
+                .append(JsRuntimeExpr.EXPR_RUNTIME)  // D-KOF-EXPR fatia 7: o bloco "expr" (o novo último core)
                 .toString();
     }
 

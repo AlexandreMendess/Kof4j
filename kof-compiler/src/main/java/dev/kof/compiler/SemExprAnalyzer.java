@@ -57,8 +57,28 @@ final class SemExprAnalyzer {
                             + "'", "SEM110");
                 }
                 if (sa.allClasses().containsKey(ex.name())) {
+                    // Fatia 1 (D-KOF-EXPR): o pre-declare agora registra o
+                    // `expr` como CLASSE real — o símbolo sob o próprio nome É
+                    // o deleite, não uma colisão. Colide só quando a classe
+                    // registrada veio de OUTRA declaração (o caso SEM114).
+                    SymbolTable.ClassSymbol registered = sa.allClasses().get(ex.name());
+                    SymbolTable.ClassSymbol own = sa.symbolForDecl(ex);
+                    if (registered == null || registered != own) {
+                        report(sa, ex.position(), "pattern '" + ex.name()
+                                + "' collides with an existing type name", "SEM114");
+                    }
+                }
+                if (KofExprUnicode.CLASSES.contains(ex.name())) {
+                    // Fatia §5 (D-KOF-EXPR): um `expr` não pode se chamar
+                    // letter/digit/whitespace/word/hex/any — o nome é um
+                    // ÁTOMO de classe na gramática, e o parser o leria como a
+                    // classe, nunca como a referência (medido: `expr word`
+                    // produzia kof_expr_is_word no lugar do corpo do
+                    // usuário). A ambiguidade é recusada no compile.
                     report(sa, ex.position(), "pattern '" + ex.name()
-                            + "' collides with an existing type name", "SEM114");
+                            + "' collides with a character class name: bare '"
+                            + ex.name() + "' in a pattern body means the class, "
+                            + "never this pattern — rename the pattern", "SEM114");
                 }
             }
         }
