@@ -50,6 +50,25 @@ public final class FfiStructLayout {
                 && PKG.equals(ct.packageName()) && "array".equals(ct.name());
     }
 
+    /** A fatia COPY-OUT (o #1156 face, 15/11): o módulo declarou
+     *  `ownership borrowed` — o array cruza como o ponteiro do PAYLOAD direto
+     *  (obj+24, o padrão Buffer A2; o heap Kof nativo não move objetos) e a C
+     *  escreve no array do chamador. Marker PRÓPRIO (não o "array" by-value):
+     *  o backend x86-64 distingue pack (by-value) vs payload direto (borrowed). */
+    public static Type arrayOutPtrType(char elem) {
+        return new Type.ClassType(PKG, "arrayout", List.of(primitiveOf(elem)));
+    }
+
+    public static boolean isArrayOutPtr(Type t) {
+        return t instanceof Type.ClassType ct
+                && PKG.equals(ct.packageName()) && "arrayout".equals(ct.name());
+    }
+
+    public static Character arrayOutElem(Type t) {
+        if (!isArrayOutPtr(t)) return null;
+        return FfiSignature.charOfType(((Type.ClassType) t).typeArguments().get(0));
+    }
+
     /** D6-3 / D-R3-BUFFER (fatias A2 + B): `Buffer(U8)` INOUT crosses as a C
      *  `unsigned char*` pointing at the buffer payload (object offset 24). The
      *  marker carries no element (U8 only). Binds on the native targets — x86-64
@@ -321,9 +340,10 @@ public final class FfiStructLayout {
                 nInt++;
                 continue;
             }
-            if (isArrayPtr(t)) {
+            if (isArrayPtr(t) || isArrayOutPtr(t)) {
                 // D-MEM-FFI-CROSS-FULL: array escalar `T[]`→ptr é um ponteiro
                 // INTEGER (um ordinal) — mesma forma do buffer-ptr no LP64/AAPCS64.
+                // O marker "arrayout" (a fatia copy-out) é o MESMO ordinal.
                 if (nInt >= 8) return false;
                 nInt++;
                 continue;
@@ -377,9 +397,13 @@ public final class FfiStructLayout {
     public static boolean x86Bindable(List<Type> paramTypes, int intReserved) {
         int nInt = intReserved, nFlt = 0;
         for (Type t : paramTypes) {
-            if (isArrayPtr(t)) {
-                // 3.7 D6-2: array→ptr é um ponteiro INTEGER (um ordinal).
-                if (nInt >= 6) return false;
+            if (isArrayPtr(t) || isArrayOutPtr(t)) {
+                // 3.7 D6-2: array→ptr é um ponteiro INTEGER (um ordinal). O
+                // marker "arrayout" (a fatia copy-out) é o MESMO ordinal — o
+                // payload direto cruza como um ponteiro inteiro igual. PASSADO
+                // 6 ordinais INTEGER o arg DERRAMA para a pilha (o emitter
+                // NativeFfiCall tem o scratch + o push por-arg — o gemm de 9
+                // ints é o caso real); o Buffer idêntico (A2) nunca recusou.
                 nInt++;
                 continue;
             }

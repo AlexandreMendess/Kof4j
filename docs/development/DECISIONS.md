@@ -82,7 +82,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-COBOL-TRANSLATOR-GO** — `kof-cobol-translator` (COBOL source → Kof source) PROMOTED `future/` → `docs/development/`; Phase 1 (the project scanner) landed as pure-Kof `libs/cobol/Scanner.kf` (maintainer order 15/10, chat)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-KOF-EMBED** — the KofScript embedding CONTRACT is DECIDED (maintainer 14/11, chat, answer to the direct question): the plan's **three parts are accepted as written** — (1) cooperative stepping with a per-step work budget and the `Running`/`Yielded`/`Done`/`Failed` states, host driving the loop; (2) a capability set granted by the host, **denied by default** (filesystem/network/process/reflection off), with a NAMED diagnostic when a builtin needs an ungranted capability (never a silent no-op — the platform rule); (3) per-SESSION host bindings replacing the global `ScriptGlobals` map as the embedding path, with no escape to arbitrary Java classes. No new Kof syntax (host-facing runtime contract). Promotion of `kofscript-embedding-plan` per `D-FUTURE-PROMOTION` follows this decision; the stepping slice still touches `KofInterpreter` (kof-compiler) — coordinate with that lane rather than race it.
-- **D-ESP8266-DEFERRED** — the `kof-esp8266-plan` is NOT promoted by this lane (maintainer 14/11, chat: "outro agente j[a] esta trabalhando nos planos"). It stays in `docs/development/future/` and the other lane owns it; this lane does not claim, promote or touch it (collision rule).
+- **D-ESP8266-DEFERRED** — SUPERSEDED 15/11: the deferral (the plan stays in `docs/development/future/` while the other lane owned it — maintainer 14/11, chat: "outro agente j[a] esta trabalhando nos planos") EXPIRED when that lane landed the plan: `kof-esp8266` is now CONCLUDED (all five gates, gate 5 EXECUTED on the real ESP8266EX 15/11) and PROMOTED to `docs/kof-esp8266.md` (+PT). The decision stands as the record of WHO owned it, never as the plan's home.
 - **D-RELEASE-ROADMAP-1114** — the release ladder is RE-ANCHORED to work, not to calendar (maintainer 14/11, chat): **0.8.0** = the TWO remaining `docs/development/future/` plans before `PLAN-BOOTSTRAP` (the `kof-esp8266-plan` NEW-TARGET record and the `kofscript-embedding-plan` — parked 24/10 pending its contract decision) — CONCLUDING them closes 0.8.0; **0.9.0** = every open issue corrected; **1.0.0** = every gap corrected. The maintainer ACCEPTS going 1.0.0 WITHOUT the bootstrap if all three close inside November. This SUPERSEDES the weekly-cadence ceiling of `D-RELEASE-CADENCE` as the target ladder (the 1-release/day floor of `D-RELEASE-CADENCE` still applies); `D-LAB-STABILITY` still governs each cut. NOTE the measured cost, recorded rather than glossed: the ESP8266 plan is a NEW TARGET (Rule 6 gate) and the embedding plan's slice 1 waits on a maintainer contract decision — so 0.8.0 needs BOTH a decision and new-target work, not only lane throughput.
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
@@ -5174,3 +5174,144 @@ each still requiring its own decision when picked up.
 - **What is NOT authorized:** any lowering, any runtime, any `match`/`matches`/`find`/`replace` surface, any per-target backend, any Change to `STR003` or `validation.matches`, any stub. A `expr` declaration is a DESCRIPTOR that emits no executable symbol in spike-0 — that is the spike's semantics, not an unfinished branch.
 - **Proof (executed):** `ExprDeclarationParseE2ETest` 6/6 (atoms/sequence/quantifiers/captures/`either`/composition by name/`expr` as an ordinary identifier/PortuKof AST identity), `ExprDeclarationSemanticsE2ETest` 9/9 (all seven diagnostic codes), `scripts/gen_portukof_diags.py --check` rc=0.
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-STR-UNICODE (the regex deferral this answers), D-KOF-FIRST (rule 12), D-PORTUKOF (absolute parity rule), rule 6, rule 11, rule 12`.
+
+
+## D-1.0-BLOCKS-NO-HONEST-LIMITS — every honest limit is a tracked 1.0 edge: labeled, ledgered, with a closure criterion (maintainer order 16/11/2026, chat directive mid-sweep)
+
+**Date:** 2026-11-16 · **State:** `DECIDED` (maintainer directive during the
+flatt lane's ASan sweep, docs/lab 192.168.100.14:0).
+
+- **Directive (verbatim, chat):** *"não quero apenas limite honesto. todo
+  limite honesto é 1.0 block. registre isso. quero todos corrigidos e o
+  comportamento esperado CORRETAMENTE DESENVOLVIDO"* — the stabilization
+  operation's honest limits are not waivers: each one becomes a tracked
+  `1.0-blocks` issue with the measured facts, the ledger row, and the
+  closure criterion that names the CORRECT behavior to be developed.
+- **Mechanics:** (1) the limit is measured (never inferred); (2) a GitHub
+  issue carries the facts + the closure criterion and the `1.0-blocks`
+  label; (3) `scripts/release-blockers.tsv` gets the row; (4) the
+  sanitizer/tests ledger records the measurement trail. A limit "documented
+  and forgotten" is the forbidden state.
+- **Applied same-day (executed evidence):**
+  - **#1166** (NEW, `1.0-blocks`): ASan/LSan could not initialize on the
+    raw-_start native binaries (the crt-ctor gap; 4 no-crt link forms
+    measured, all SEGV inside libasan). The DEVELOPMENT the directive
+    demands landed the same cycle: the `KOF_ASAN` emit mode (the emitter
+    renames the entry + emits the `main` bridge + exits via `exit@PLT` with
+    the alignment discipline — the glibc exit path does `movaps`, the raw
+    entry leaves rsp 8-mod-16, the same §1134-class face measured and fixed
+    at the emitter root); `scripts/asan-ffi-sweep.sh` GREEN with the
+    deliberate-leak control CAUGHT (the LSan report works on the native
+    binaries; the 4 pointer-heavy FFI faces CLEAN).
+  - **#1134** `1.0-outside` → `1.0-blocks` (the aarch64 real-hardware
+    SIGBUS; supersedes the 14/11 demotion route where they conflict; the
+    closure criterion is the push/pop redesign provable on arm64 hw or the
+    qemu SP-alignment assertion).
+  - **#1135** `1.0-outside` → `1.0-blocks` (the Native-on-macOS absence;
+    the `D-NATIVE-MACOS` decision stays the FIRST step — rule 6, new
+    target; the label does not open it, it records that the absence blocks
+    the RC until decided+developed or the maintainer demotes the target).
+- **What this decision does NOT do:** it does not reclassify issues whose
+  subjects are genuinely OUTSIDE the 1.0 surface by the maintainer's own
+  earlier surface decisions (those `1.0-outside` rows stay); it applies to
+  limits INSIDE supported-surface behavior.
+- **Relationships:** `Related: D-RELEASE-1.0 (the no-open-edge law this
+  mechanizes), D-1.0-EDGES (the surface), D-RELEASE-ROADMAP-1114 (the
+  ladder: 1.0.0 = every gap corrected), rule 10 (no conclusions without
+  verifiable evidence), rule 14 (record precisely what was not executed —
+  now each such record carries a closure criterion)`.
+
+## D-NATIVE-MACOS — the Native target opens on macOS: arm64 AND x86-64 (both architectures in the target matrix); the #1135 issue becomes the implementation front with its staged plan (M-1..M-8) and @FabioRocha231 as the named front owner (maintainer 17/11/2026, chat decision via the issues/tooling lane)
+
+**Date:** 2026-11-17 · **State:** `DECIDED` (maintainer, rule-6 poll via the
+flatt issues/tooling lane 192.168.15.15:0).
+
+- **Decision:** the Native target OPENS on macOS (Mach-O). First
+  architectures: **arm64 (Apple silicon) AND x86-64 (Intel)** — both in the
+  target matrix; the issue's M-8 (`MACOS_X64`, reusing the x86-64 emitter
+  with the Mach-O directives) is IN scope, not optional. The CI cost is
+  accepted (macOS runners for the Native E2E corpus, gate M-7).
+- **What it unlocks:** issue **#1135** leaves the decision-gated state and
+  becomes the IMPLEMENTATION front per its own measured plan — gate 0 (this
+  decision) is now MET; gates 1–2 (the #1134 SP-alignment redesign — CLOSED
+  16/11 — and the `kof_plat_*` seam completeness) precede the stages M-1
+  (`NativeProfile.MACOS_ARM64` + the Mach-O directive emitter + `_main`) →
+  M-8. Nothing is coded before the gates 1–2 verifications named there.
+- **What stays honest until each stage lands:** capabilities without a
+  macOS face are refused at compile time with a named diagnostic (R6), and
+  the #1135 `1.0-blocks` ledger row STAYS until the issue's own criterion
+  (a macOS face running the Native E2E corpus, or the named stages' gate
+  progress the maintainer accepts) is met — the decision opens the front,
+  it does not close the block. Proving macOS faces requires a macOS host
+  (Xcode CLT); on this Linux fleet the emitter+link-line faces are proven
+  by golden/structural tests until a runner exists (M-7).
+- **Decisions inside the plan already carried by this vote:** rule 6
+  questions 1 (open the target: YES, before 1.0) and 2 (arm64 AND x86-64:
+  BOTH) are answered; questions 3–6 (emitter route, `__ulock` vs
+  `os_unfair_lock`, codesign, the release matrix) stay the implementation
+  front's measured calls recorded on the #1135 thread, per its plan.
+- **Relationships:** `Related: D-1.0-BLOCKS-NO-HONEST-LIMITS (the row
+  stays until developed), #1135 (the front), D-RELEASE-ROADMAP-1114, rule
+  6 (new target = maintainer decision, now given)`.
+
+## D-SPLIT-LITERAL — the `String.split` separator is LITERAL (never a regex); the §111 oracle note ("Java `String.split(regex)`, `split(regex,0)`) is SUPERSEDED on the separator-interpretation axis (maintainer-delegated call 17/11/2026, the 1.0.0 total-pushdown order "priorize TUDO, quero tudo funcionando, nada fica de fora"; pending her ratification at the next review)
+
+**Date:** 2026-11-17 · **State:** `DECIDED` (delegated execution under the
+total-pushdown order; recorded here before the flip so the audit trail
+carries it).
+
+- **The decision:** `s.split(sep)` splits on the LITERAL character sequence
+  `sep`. No metacharacter is ever interpreted: `"a.b".split(".")` = 2 parts
+  `[a, b]`, `"a|b".split("|")` = 2, `"a[b".split("[")` = 2 — and the
+  `PatternSyntaxException` class ceases to exist for Kof programs.
+- **What is PRESERVED unchanged:** the §111/§655 empty/trailing/limit rules
+  (the JDK `split(regex, 0)` semantics on everything EXCEPT the pattern
+  interpretation: trailing empties trimmed at limit 0, `""` → `[""]`,
+  `limit > 0` = the rest rides in the last piece, `limit < 0` keeps all).
+- **Why literal (the reasons in order):** (1) 3 of the 4 real backends
+  (Native x86-64/riscv64/aarch64 + JS) were ALREADY literal — the divergence
+  was JVM/Script-only, so literal is the minimal-change alignment; (2) the
+  platform rules forbid a regex engine on the native targets (no new
+  dependency; `matches`/`replaceAll`/`replaceFirst` already refuse with
+  STR003 there), so regex parity could never be total; (3) the pre-fix JVM
+  behavior was a trap — an UNCAUGHT `PatternSyntaxException` killing the
+  program on user data (rule 5: never a crash the language cannot catch).
+- **Implementation:** the JVM-compiled path routes to the new runtime pair
+  `kof_string_split_literal`/`kof_string_split_literal_limit`
+  (`JvmStringCoreRuntime` — the JDK `split(Pattern.quote(sep), limit)`, so
+  the §111 mechanics are byte-identical); the Script interpreter quotes the
+  separator the same way (`KofInterpreterCollections`); the JS
+  (`kofSplit`) and Native (`kof_string_split*`) faces are untouched (they
+  were the correct side).
+- **Relationships:** `Related: §742 (the divergence this closes), §111/§655
+  (the preserved rules), §740 (the native literal split), D-KOF-FIRST
+  (simplicity: the separator is data, not a program)`.
+
+## D-RECORD-FIELD-RAW — `p.x` on a record is a RAW FIELD read; the accessor participates ONLY in the explicit call `p.x()` (maintainer-delegated call 17/11/2026, the 1.0.0 total-pushdown order "priorize TUDO, quero tudo funcionando, nada fica de fora"; pending her ratification at the next review)
+
+**Date:** 2026-11-17 · **State:** `DECIDED` (delegated execution under the
+total-pushdown order; recorded here before the flip).
+
+- **The decision:** the field-access syntax `p.x` ALWAYS reads the component
+  FIELD directly — even when the record declares an explicit accessor of the
+  same name. The accessor participates only in the explicit method call
+  `p.x()` (which the docs already specify as "accessor by method",
+  `classes.md:112`). `p.x` and `p.x()` are therefore DISTINCT expressions
+  with distinct semantics on every target.
+- **Why raw-field (the reasons in order):** (1) 3-of-4 backends
+  (Script/JS/Native) already read the raw field — raw is the
+  minimal-change alignment, the same argument that decided
+  `D-SPLIT-LITERAL`; (2) the syntax is field SYNTAX (`p.x`, no
+  parentheses) — reading it as a method call made the JVM the divergent
+  side and turned a silent field read into a computed value the other
+  targets never see (rule 5: the same source must mean the same thing);
+  (3) it keeps the record invariant LOCAL: `p.x` is the stored component,
+  the accessor is policy on top of it.
+- **The JVM fix:** `ExpressionFieldAccessLowerer` must not route a record
+  component's field access through the same-name accessor — the
+  `resolveFieldInHierarchy` fallback that resolves to the METHOD symbol
+  (`MemberResolver.resolveInHierarchy`) is the divergence; the field wins
+  when the receiver is a record declaring the component.
+- **Relationships:** `Related: §715 (the divergence this closes),
+  classes.md (the documented `p.x()` accessor / `p.x` direct-read duality),
+  D-SPLIT-LITERAL (the same delegated minimal-change method)`.

@@ -5161,3 +5161,147 @@ trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
 - **O que NÃO está autorizado:** qualquer lowering, qualquer runtime, qualquer superfície `match`/`matches`/`find`/`replace`, qualquer backend por alvo, qualquer mudança em `STR003` ou `validation.matches`, qualquer stub. Uma declaração `expr` é um DESCRITOR que não emite símbolo executável no spike-0 — essa é a semântica do spike, não um ramo inacabado.
 - **Prova (executada):** `ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9 (os sete códigos), `scripts/gen_portukof_diags.py --check` rc=0.
 - **Relacionamentos:** `Relacionados: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-STR-UNICODE (o adiamento de regex que isto responde), D-KOF-FIRST (regra 12), D-PORTUKOF (regra absoluta de paridade), regra 6, regra 11, regra 12`.
+
+
+## D-1.0-BLOCKS-NO-HONEST-LIMITS — todo limite honesto é uma aresta rastreada do 1.0: rotulada, no ledger, com critério de fechamento (ordem da mantenedora 16/11/2026, diretriz no chat no meio da varredura ASan)
+
+**Data:** 16/11/2026 · **Estado:** `DECIDIDO` (mantenedora) — a diretriz veio
+durante a varredura ASan da lane docs/lab (192.168.100.14:0).
+
+- **Diretriz (verbatim, chat):** *"não quero apenas limite honesto. todo
+  limite honesto é 1.0 block. registre isso. quero todos corrigidos e o
+  comportamento esperado CORRETAMENTE DESENVOLVIDO"* — os limites honestos da
+  operação de estabilização não são perdões: cada um vira um issue rastreado
+  `1.0-blocks` com os fatos medidos, a linha do ledger e o critério de
+  fechamento que nomeia o COMPORTAMENTO CORRETO a desenvolver.
+- **Mecânica:** (1) o limite é medido (nunca inferido); (2) um issue do GitHub
+  carrega os fatos + o critério de fechamento e o label `1.0-blocks`; (3) o
+  `scripts/release-blockers.tsv` ganha a linha; (4) o ledger de
+  sanitizers/testes registra o rastro da medição. Um limite "documentado e
+  esquecido" é o estado proibido.
+- **Aplicada no mesmo dia (evidência executada):**
+  - **#1166** (NOVO, `1.0-blocks`): o ASan/LSan não inicializava nos binários
+    nativos de `_start` cru (o gap do ctor do crt; 4 formas sem-crt medidas,
+    todas SEGV dentro do libasan). O DESENVOLVIMENTO que a diretriz exige
+    pousou no mesmo ciclo: o modo `KOF_ASAN` (o emitter renomeia o entry +
+    emite a ponte `main` + sai pela `exit@PLT` com a disciplina de
+    alinhamento — o caminho de saída do glibc faz `movaps`, o entry cru
+    deixa rsp 8-mod-16, a mesma classe §1134 medida e corrigida na raiz do
+    emitter); `scripts/asan-ffi-sweep.sh` VERDE com o controle de leak
+    deliberado PEGO (o report do LSan funciona nos binários nativos; as 4
+    faces FFI pointer-heavy LIMPAS).
+  - **#1134** `1.0-outside` → `1.0-blocks` (a SIGBUS aarch64 em hw real;
+    supera a rota de desmotação de 14/11 onde conflitar; o critério de
+    fechamento é o redesign push/pop provável só em hw arm64 real ou com a
+    asserção de alinhamento SP no qemu).
+  - **#1135** `1.0-outside` → `1.0-blocks` (a ausência do Native no macOS; a
+    decisão `D-NATIVE-MACOS` segue o PRIMEIRO passo — regra 6, novo target; o
+    label não a abre, registra que a ausência bloqueia o RC até decidida +
+    desenvolvida ou até a mantenedora demover o alvo com justificativa
+    técnica documentada).
+- **O que esta decisão NÃO faz:** não reclassifica issues cujos assuntos são
+  genuinamente FORA da superfície do 1.0 pelas próprias decisões de superfície
+  anteriores da mantenedora (essas linhas `1.0-outside` ficam); aplica-se aos
+  limites DENTRO do comportamento da superfície suportada.
+- **Relacionamentos:** `Relacionados: D-RELEASE-1.0 (a lei sem-aresta-aberta
+  que isto mecaniza), D-1.0-EDGES (a superfície), D-RELEASE-ROADMAP-1114 (a
+  escada: 1.0.0 = todo gap corrigido), regra 10 (nada concluído sem evidência
+  verificável), regra 14 (registrar com precisão o que não foi executado —
+  agora cada registro desse carrega um critério de fechamento)`.
+
+## D-NATIVE-MACOS — o alvo Native ABRE no macOS: arm64 E x86-64 (as duas arquiteturas na matriz de alvos); a issue #1135 vira a frente de implementação com o plano em fatias dela (M-1..M-8) e @FabioRocha231 como o dono nomeado da frente (mantenedora 17/11/2026, decisão no chat via a lane issues/tooling)
+
+**Data:** 2026-11-17 · **Estado:** `DECIDIDO` (mantenedora, enquete rule-6
+via a lane issues/tooling do flatt 192.168.15.15:0).
+
+- **Decisão:** o alvo Native ABRE no macOS (Mach-O). Primeiras arquiteturas:
+  **arm64 (Apple silicon) E x86-64 (Intel)** — ambas na matriz de alvos; o
+  M-8 da issue (`MACOS_X64`, reusando o emitter x86-64 com as diretivas
+  Mach-O) está NO escopo, não é opcional. O custo de CI é aceito (runners
+  macOS para o corpus E2E Native, gate M-7).
+- **O que destrava:** a issue **#1135** sai do estado gated-por-decisão e
+  vira a frente de IMPLEMENTAÇÃO pelo próprio plano medido dela — o gate 0
+  (esta decisão) está AGORA ATENDIDO; os gates 1–2 (o redesign de
+  alinhamento de SP do #1134 — FECHADO 16/11 — e a completude da costura
+  `kof_plat_*`) precedem as fases M-1 (`NativeProfile.MACOS_ARM64` + o
+  emitter de diretivas Mach-O + `_main`) → M-8. Nada é codificado antes das
+  verificações dos gates 1–2 nomeadas lá.
+- **O que segue honesto até cada fase pousar:** capacidades sem face macOS
+  são recusadas em compile-time com diagnóstico nomeado (R6), e a linha
+  `1.0-blocks` do #1135 no ledger SEGUE até o critério da própria issue
+  (uma face macOS rodando o corpus E2E Native, ou o progresso de gates das
+  fases nomeadas que a mantenedora aceitar) ser atendido — a decisão ABRE a
+  frente, não fecha o block. Provar as faces macOS exige um host macOS
+  (Xcode CLT); nesta frota Linux as faces de emitter+linha-de-link são
+  provadas por testes golden/estruturais até existir um runner (M-7).
+- **Decisões internas do plano já carregadas por esta votação:** as perguntas
+  rule-6 1 (abrir o alvo: SIM, antes do 1.0) e 2 (arm64 E x86-64: AS DUAS)
+  estão respondidas; as perguntas 3–6 (rota do emitter, `__ulock` vs
+  `os_unfair_lock`, codesign, a matriz de release) seguem sendo as chamadas
+  medidas da frente de implementação registradas no thread do #1135, pelo
+  plano dela.
+- **Relações:** `Relaciona: D-1.0-BLOCKS-NO-HONEST-LIMITS (a linha segue até
+  desenvolvido), #1135 (a frente), D-RELEASE-ROADMAP-1114, regra 6 (alvo
+  novo = decisão da mantenedora, agora dada)`.
+
+## D-SPLIT-LITERAL — o separador do `String.split` é LITERAL (nunca uma regex); a nota de oráculo do §111 ("Java `String.split(regex)`, `split(regex,0)`) é SUPERADA no eixo de interpretação do separador (chamada delegada da mantenedora 17/11/2026, a ordem do total-pushdown da 1.0.0 "priorize TUDO, quero tudo funcionando, nada fica de fora"; pendente de ratificação dela na próxima revisão)
+
+**Data:** 2026-11-17 · **Estado:** `DECIDIDO` (execução delegada sob a ordem
+do total-pushdown; registrado aqui antes do flip para o rastro de auditoria
+carregar).
+
+- **A decisão:** `s.split(sep)` divide na sequência de caracteres LITERAL
+  `sep`. Nenhum metacaractere é interpretado: `"a.b".split(".")` = 2 partes
+  `[a, b]`, `"a|b".split("|")` = 2, `"a[b".split("[")` = 2 — e a classe
+  `PatternSyntaxException` deixa de existir para programas Kof.
+- **O que permanece intocado:** as regras de vazios/trailing/limit do
+  §111/§655 (a semântica do `split(regex, 0/limit)` do JDK em tudo EXCETO a
+  interpretação do padrão: vazios finais podados no limit 0, `""` → `[""]`,
+  `limit > 0` = o resto vai na última peça, `limit < 0` mantém tudo).
+- **Por que literal (as razões em ordem):** (1) 3 dos 4 backends reais
+  (Native x86-64/riscv64/aarch64 + JS) JÁ eram literais — a divergência era
+  só JVM/Script, então literal é o alinhamento de mudança mínima; (2) as
+  regras de plataforma proíbem um motor de regex nos alvos nativos (nenhuma
+  dependência nova; `matches`/`replaceAll`/`replaceFirst` já recusam com
+  STR003 lá), então a paridade regex jamais seria total; (3) o comportamento
+  pré-fix do JVM era uma armadilha — um `PatternSyntaxException` NÃO
+  capturável matando o programa sobre dado do usuário (regra 5: nunca um
+  crash que a linguagem não consegue capturar).
+- **Implementação:** o caminho compilado-JVM roteia para o novo par de
+  runtime `kof_string_split_literal`/`kof_string_split_literal_limit`
+  (`JvmStringCoreRuntime` — o `split(Pattern.quote(sep), limit)` do JDK,
+  então a mecânica do §111 é byte-idêntica); o interpretador Script cita o
+  separador do mesmo jeito (`KofInterpreterCollections`); as faces JS
+  (`kofSplit`) e Native (`kof_string_split*`) são intocadas (elas eram o
+  lado correto).
+- **Relações:** `Relaciona: §742 (a divergência que isto fecha), §111/§655
+  (as regras preservadas), §740 (o split literal nativo), D-KOF-FIRST
+  (simplicidade: o separador é dado, não programa)`.
+
+## D-RECORD-FIELD-RAW — `p.x` num record é LEITURA DE CAMPO CRU; o acessor participa SOMENTE da chamada explícita `p.x()` (chamada delegada da mantenedora 17/11/2026, a ordem do total-pushdown da 1.0.0 "priorize TUDO, quero tudo funcionando, nada fica de fora"; pendente de ratificação dela na próxima revisão)
+
+**Data:** 2026-11-17 · **Estado:** `DECIDIDO` (execução delegada sob a ordem
+do total-pushdown; registrado aqui antes do flip).
+
+- **A decisão:** a sintaxe de acesso a campo `p.x` SEMPRE lê o CAMPO do
+  componente diretamente — mesmo quando o record declara um acessor
+  explícito de mesmo nome. O acessor participa apenas da chamada explícita
+  `p.x()` (que a documentação já especifica como "accessor by method",
+  `classes.md:112`). `p.x` e `p.x()` são portanto expressões DISTINTAS com
+  semânticas distintas em todo alvo.
+- **Por que campo cru (as razões em ordem):** (1) 3-de-4 backends
+  (Script/JS/Native) já liam o campo cru — cru é o alinhamento de mudança
+  mínima, o mesmo argumento que decidiu `D-SPLIT-LITERAL`; (2) a sintaxe é
+  de CAMPO (`p.x`, sem parênteses) — lê-la como chamada de método tornava o
+  JVM o lado divergente e transformava uma leitura silenciosa de campo num
+  valor calculado que os outros alvos nunca veem (regra 5: a mesma fonte
+  tem de significar a mesma coisa); (3) preserva o invariante do record
+  LOCAL: `p.x` é o componente armazenado, o acessor é política sobre ele.
+- **O fix no JVM:** o `ExpressionFieldAccessLowerer` não pode rotear o
+  acesso a campo de um componente de record pelo acessor de mesmo nome — o
+  fallback do `resolveFieldInHierarchy` que resolve para o símbolo de
+  MÉTODO (`MemberResolver.resolveInHierarchy`) é a divergência; o campo
+  vence quando o receiver é um record que declara o componente.
+- **Relações:** `Relaciona: §715 (a divergência que isto fecha), classes.md
+  (a dualidade documentada `p.x()` acessor / `p.x` leitura direta),
+  D-SPLIT-LITERAL (o mesmo método delegado de mudança mínima)`.

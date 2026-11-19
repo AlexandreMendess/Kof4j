@@ -44,6 +44,10 @@ final class CompilerFfiBinding {
                 // D6-2 / 3.8b fatia 3: `T[]` escalar binda por valor (ptr + copies)
                 // no JVM E no runner JS (copy-in 21/09: o Marshal lê o array JS e
                 // copia para a arena da chamada). Native fica no gap code (R6).
+                // A fatia COPY-OUT ('P' — o módulo borrowed): o marshal JS
+                // empacota o array + registra o copy-back element-typed
+                // (KofJsFfiMarshal packArrayOut/copyBack) — binda no JS como o
+                // by-value (o copy-in é o mesmo; o copy-back é pós-downcall).
                 if (FfiSignature.arrayElemChar(param.type()) != null) continue;
                 // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` binda no
                 // JVM (FFM). O runner JS ainda não tem o marshal de `char**`
@@ -135,7 +139,16 @@ final class CompilerFfiBinding {
             // segue FFI001 (R6).
             Character ae = FfiSignature.arrayElemChar(param.type());
             if (ae != null) {
-                paramTypes.add(FfiStructLayout.arrayPtrType(ae));
+                // A fatia COPY-OUT: o módulo `ownership borrowed` = o array
+                // cruza como o payload direto (obj+24, o write da C volta).
+                // TODOS os nativos (o heap Kof não move objetos em nenhum
+                // deles; o espelho riscv/aarch64 pousou 15/11 — o aarch64 roda
+                // o MESMO texto riscv via o tradutor).
+                if ("borrowed".equals(ext.ownership())) {
+                    paramTypes.add(FfiStructLayout.arrayOutPtrType(ae));
+                } else {
+                    paramTypes.add(FfiStructLayout.arrayPtrType(ae));
+                }
                 continue;
             }
             // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` — um

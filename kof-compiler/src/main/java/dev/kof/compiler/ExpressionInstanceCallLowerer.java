@@ -335,7 +335,7 @@ public final class ExpressionInstanceCallLowerer {
         // #1054/#89 (split do gate 500): conversões numéricas em receiver
         // primitivo — PrimitiveConversionLowerer (a ponte #845 abre a caixa
         // do receiver estreitado antes do alargamento cru).
-        return PrimitiveConversionLowerer.lower(driver, mc, recvType, ops, owner, localIdx, locals);
+        return PrimitiveConversionLowerer.lower(driver, mc, recvType, ops, localIdx, locals);
     } else if (TypeMetrics.isPrimitiveType(recvType) && "toString".equals(mc.methodName())
             && mc.arguments().isEmpty()) {
         // primitivo.toString(): o primitivo não tem classe —
@@ -451,6 +451,11 @@ public final class ExpressionInstanceCallLowerer {
     }
     String runtimeMethod = BuiltinTypes.isString(recvType)
             ? StringMethodRegistry.stringRuntimeMethod(mc.methodName()) : null;
+    // §742 / D-SPLIT-LITERAL: o split LITERAL é do COMPILADO-JVM (o
+    // invokevirtual java/lang/String direto interpretava o separador como
+    // regex). JS (kofSplit) e Native (kof_string_split) já eram literais —
+    // essas faces seguem seus caminhos próprios.
+    runtimeMethod = StringLiteralSplit.route(driver, mc, recvType, runtimeMethod);
     // receiver de classe EXTERNA sem símbolo resolvido: última
     // linha de defesa — assinatura vem do classpath, senão o
     // descritor sairia errado (owner vazio / retorno Object)

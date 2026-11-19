@@ -133,7 +133,7 @@ final class NativeArchEmitter {
         sb.append("    ld \\r, 0(sp)\n");
         sb.append("    addi sp, sp, 8\n");
         sb.append(".endm\n");
-        boolean usesSpawn = nb.usesSpawn(module);
+        boolean usesSpawn = NativeRiscvSpawn.usesSpawn(module);
         for (IRClass c : module.classes()) {
             nb.currentClass = c;
             for (IRMethod m : c.methods()) {
@@ -198,9 +198,9 @@ final class NativeArchEmitter {
             }
             if (nb.usesHttp) break;
         }
-        if (nb.usesHttp) nb.emitRiscvHttp(sb);
+        if (nb.usesHttp) NativeBackend.emitRiscvHttp(sb);
         if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(sb);
-        if (usesSpawn) nb.emitRiscvSpawn(sb);
+        if (usesSpawn) NativeRiscvSpawn.emitRiscvSpawn(sb);
 
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
@@ -354,7 +354,7 @@ final class NativeArchEmitter {
         riscvSb.append("    ld \\r, 0(sp)\n");
         riscvSb.append("    addi sp, sp, 8\n");
         riscvSb.append(".endm\n");
-        boolean usesSpawnA = nb.usesSpawn(module);
+        boolean usesSpawnA = NativeRiscvSpawn.usesSpawn(module);
         for (IRClass c : module.classes()) {
             nb.currentClass = c;
             for (IRMethod m : c.methods()) {
@@ -418,9 +418,9 @@ final class NativeArchEmitter {
             }
             if (usesHttpA) break;
         }
-        if (usesHttpA) nb.emitRiscvHttp(riscvSb);
+        if (usesHttpA) NativeBackend.emitRiscvHttp(riscvSb);
         if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(riscvSb);
-        if (usesSpawnA) nb.emitRiscvSpawn(riscvSb);
+        if (usesSpawnA) NativeRiscvSpawn.emitRiscvSpawn(riscvSb);
 
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
         if (nb.debugInfo) nb.kofDwarf.emit(riscvSb, nb.sourceFile);
@@ -436,6 +436,16 @@ final class NativeArchEmitter {
             NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
             NativeAarch64Peephole.dropSelfMoves(a64Lines);
         }
+        // #1134 fatia 2 (16/11): o alinhador de SP — o push/pop riscv de 8
+        // bytes desalinha o sp no aarch64 real (o SIGBUS medido; o qemu não
+        // enforcementa). Roda DEPOIS do peephole (os pares colapsados não
+        // desalinham) e DEPOIS da aritmética dos call-sites (a fatia 1 do
+        // plano já emitiu o stride 16 ali). FORA do gate do peephole: a
+        // conformidade de SP é CORREÇÃO (o SIGBUS em hw real) — desligar o
+        // peephole não pode reabilitá-la (e o delta do teste de paridade
+        // §17 isola o peephole, não o alinhador).
+        int spAligned = NativeAarch64SpAligner.align(a64Lines);
+        System.err.println("NativeBackend: KOF_SP_ALIGN sites rewritten: " + spAligned);
         StringBuilder sb = new StringBuilder();
         for (String t : a64Lines) sb.append(t).append("\n");
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();

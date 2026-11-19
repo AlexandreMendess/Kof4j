@@ -18,6 +18,7 @@ public final class FfiSignature {
         if (isLongFFI(t)) return 'j';
         if (isFloatFFI(t)) return 'f';
         if (isBoolFFI(t)) return 'b';
+        if (isHandleName(t)) return 'H';
         return null;
     }
 
@@ -72,9 +73,13 @@ public final class FfiSignature {
                     sb.append('@');
                 }
             } else if (arrayElemChar(p.type()) != null) {
-                // D6-2 / 3.8b fatia 3: `T[]` primitivo vira `ptr` C — token `p` +
-                // o char do ELEMENTO (o runtime faz copy-in por chamada).
-                sb.append('p').append(arrayElemChar(p.type()).charValue());
+                // D6-2 / 3.8b fatia 3: `T[]` primitivo vira `ptr` C. O token é
+                // `p`+elem (BY-VALUE copy-in — o default, o C não altera o array
+                // do chamador) OU `P`+elem (a fatia COPY-OUT, o #1156 face: o
+                // módulo declarou `ownership borrowed` = a C PODE escrever o
+                // array emprestado durante a chamada e o write VOLTA).
+                boolean borrowed = "borrowed".equals(ext.ownership());
+                sb.append(borrowed ? 'P' : 'p').append(arrayElemChar(p.type()).charValue());
             } else if (isStringArray(p.type())) {
                 // D-MEM-FFI-CROSS-FULL face 2: `String[]` vira `char**` (token
                 // `pS`; o runtime empacota o payload de cada String).
@@ -210,6 +215,11 @@ public final class FfiSignature {
         if (isFloatFFI(r)) return Type.PrimitiveType.FLOAT;
         if (isBoolFFI(r)) return Type.PrimitiveType.BOOL;
         if (CompilerPipeline.isStringType(r)) return BuiltinTypes.STRING;
+        // D-R3-3.3 (opção A): o Handle nominal opaco — o retorno do kof_ffi
+        // devolve o endereço cru; o slot é uma REFERÊNCIA (o fall-through
+        // para INT emitia checkcast Integer + intValue + um slot int →
+        // VerifyError, medido 15/11 no pcap_open_dead).
+        if (isHandleName(r)) return BuiltinTypes.HANDLE;
         return Type.PrimitiveType.INT;
     }
 
@@ -232,6 +242,7 @@ public final class FfiSignature {
         }
         if (t instanceof Type.NullableType nt) return charOfType(nt.inner());
         if (BuiltinTypes.isString(t)) return 'S';
+        if (BuiltinTypes.HANDLE.equals(t)) return 'H';
         return null;
     }
 
@@ -244,7 +255,21 @@ public final class FfiSignature {
         if (isBoolFFI(t)) return Type.PrimitiveType.BOOL;
         if (CompilerPipeline.isStringType(t)) return BuiltinTypes.STRING;
         if (CompilerPipeline.isDoubleType(t)) return Type.PrimitiveType.DOUBLE;
+        if (isHandleName(t)) return BuiltinTypes.HANDLE;
         return null;
+    }
+
+    /** D-R3-3.3 (opção A, 21/09): o {@code Handle} nominal opaco — o portador
+     *  de ponteiro NÃO aritmético para os faces pointer-heavy (pcap_t*, ...).
+     *  O FFI o carrega como um endereço cru (o token 'H'): o mesmo objeto
+     *  devolvido por um extern volta e passa adiante — nunca um Int/Long no
+     *  nível da linguagem (R6). */
+    public static boolean isHandleName(String t) {
+        return "Handle".equals(t);
+    }
+
+    public static boolean isHandleType(Type t) {
+        return BuiltinTypes.HANDLE.equals(t);
     }
 
     static boolean isLongFFI(String t) { return "long".equals(t) || "Long".equals(t); }

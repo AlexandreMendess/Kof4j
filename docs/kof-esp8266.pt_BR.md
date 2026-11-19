@@ -1,25 +1,30 @@
-[English](kof-esp8266-plan.md) | [Português](kof-esp8266-plan.pt_BR.md)
+[English](kof-esp8266.md) | [Português](kof-esp8266.pt_BR.md)
 
-last: 14/11/2026 — GATES 0/1/2/3/4 TODOS POUSADOS (esta lane; veja os registros por gate abaixo e no CHANGELOG) — GATE 5 (execução física) está BLOQUEADO na decisão de provisionamento: todo caminho qemu obtível foi medido hoje e NENHUM modela o ESP8266 (o bloco de evidência abaixo)
+last: 15/11/2026 — GATE 5 POUSADO: O PROGRAMA KOF EXECUTOU NO HARDWARE REAL (a mantenedora plugou a placa: "esp plugado na usb"; veja o bloco GATE 5 EXECUTADO abaixo). OS CINCO GATES POUSADOS — o plano CONCLUI.
 GATE 4 POUSADO 14/11 — o WORKFLOW da CLI (o gate do próprio plano: "um workflow ponta a ponta documentado que não torna o hardware físico obrigatório para builds Kof comuns"): `kof build <dir> --target native.esp8266` parseia (o `parseTarget` + a lista de grafias conhecidas + a linha de usage), compila pelo `NativeEsp8266`, linka pelo crt0 do overlay e gera as IMAGENS DE FIRMWARE via esptool (`KOF_ESPTOOL` ou o python do PATH; ausente → um skip NOMEADO — o ELF continua sendo o entregável). MEDIDO ponta a ponta neste host: o `ELF 32-bit LSB executable, Tensilica Xtensa` válido + as duas imagens de flash (`Main.img0x00000.bin` a seção de boot, `Main.img0x00010.bin` a app — o layout REAL de flash). `CliUsageTargetsTest` 7/7 (a face do gate 4: o usage anuncia + o parse aceita). A lição do esptool 5.x registrada: o `--chip` vem ANTES do subcomando.
-o RESTANTE: gate 2 (o relato de memória/pilha + as restrições de runtime medidas), gate 3 (a amplitude do HAL — GPIO/timers além do write UART0), gate 5 (execução física — HARDWARE ou o fork qemu da Espressif, decisão de provisionamento da mantenedora, nomeada).
-local: docs/development
-estado: under-development (gates 0/1/2/3/4 landed 14/11; 5 remains — the provisioning decision)
-**Dono:** SEM DONO / ABERTO — a lane que pousou (192.168.100.14:0) concluiu os gates 0-4 e segura no gate 5, que aguarda a decisão de provisionamento da mantenedora (medida exaustivamente no bloco GATE 5 acima); nenhuma lane é dona do gate 5 agora (o honesto pelo D-PLAN-ONE-OWNER — nunca um dono compartilhado ou silencioso).
+O RESTANTE: NADA — os cinco gates pousados (o 5 no ESP8266EX real, 15/11). O plano conclui; a promoção para docs/ segue no commit deste ciclo.
+local: docs
+estado: concluído (os cinco gates pousados; o gate 5 EXECUTADO no ESP8266EX real 15/11; promovido de docs/development/ para docs/ em 15/11)
+**Dono:** a lane que pousou 192.168.100.14:0 (flatt CLI) — o gate 5 executado na placa provisionada pela mantenedora (o CH340 em /dev/ttyUSB0, ESP8266EX chip-id 0x00b3ad34).
 
 > **GATE 5 — O SUBSTRATO DE EXECUÇÃO MEDIDO 14/11 (a evidência de provisionamento, exaustiva):** todo caminho qemu obtível foi medido e NENHUM modela o ESP8266: (a) o qemu upstream — as máquinas xtensa são `sim`/`virt`/`xtfpga` APENAS (hw/xtensa/meson.build + xtfpga.c sem referência a esp), e a distro deste host não carrega binários `qemu-system-*`; (b) o fork oficial da Espressif (esp-develop-9.2.2, 16 MB, RODA neste host após o fetch do libslirp0) — a lista de máquinas é `esp32`/`esp32s3` APENAS (hw/xtensa: esp32.c/esp32s3.c; a máquina esp8266 NÃO é modelada, nem no fork); (c) o `sys.qemu.specs` da própria toolchain (o overlay multilib esp8266 traz um libgloss qemu) não ajuda sem um qemu que modele o SoC; (d) os forks esp8266 de terceiros no GitHub não publicam binários. A CONCLUSÃO: o gate 5 ("execução física confirmada") exige uma PLACA ESP8266 REAL numa lane com acesso a hardware + o setup de flash (`esptool write_flash` com as imagens que o emitter produz — `Main.img0x00000.bin` em 0x0 e `Main.img0x00010.bin` em 0x10000) — decisão de provisionamento da mantenedora, nomeada, com a evidência medida de que nenhum caminho de software existe.
 
+> **GATE 5 — EXECUTADO NO HARDWARE REAL 15/11 (o provisionamento da mantenedora: "esp plugado na usb" + o sudo para o grupo dialout; o CH340 em /dev/ttyUSB0, o ESP8266EX chip-id 0x00b3ad34, MAC a4:cf:12:b3:ad:34, flash 4 MB — o chip-id/flash-id do esptool medidos ao vivo).** A CADEIA EXECUTADA, cada passo medido: (1) o emitter compilou o programa do gate 5 (`print("KO ESP8266 GATE5"); print("kof on the esp8266ex"); print(7 * 6)`) — o ELF Xtensa válido + as imagens; (2) `esptool write_flash` em 0x0 — hash verificado; (3) o log de boot do ROM a 74880 baud — os segmentos carregam com checksums OK; (4) O CONSOLE IMPRIMIU OS PRÓPRIOS BYTES DO PROGRAMA: `KO ESP8266 GATE5kof on the esp8266ex42` — byte-exato para `print` (sem newline). TRÊS LEIS DE HARDWARE medidas no caminho (cada uma uma correção nomeada, nunca um ajuste silencioso): **(a) A LEI DO ENTRY** — o entry ELF default caiu no pool de literais do crt0 (Fatal exception 0 na primeira palavra, epc1=0x40200010 num laço de crashes medido) → o .ld carrega `ENTRY(_start)`; **(b) A LEI DO IRAM** — o loader V1 do ROM carrega APENAS os segmentos RAM da imagem e NÃO mapeia a flash em 0x40200000 (nenhum setup de cache): código na região mapeada da flash falta na primeira instrução → o .text inteiro vive na IRAM 0x40100000 (o subset do gate 5 mediu 1 KB — bem dentro da janela de 32 KB); **(c) A LEI DO FIFO UART** — o FIFO está na base UART0 0x60000000, NÃO no endereço qemu do gate 0 0x60000074 (nada imprimiu; o stub mínimo com 0x60000000 imprimiu 'A\n'); o write de tuning do CONF em `kof_plat_exit` caiu (a face de exit é o laço de halt apenas). Mais a correção de DYNAMIC-PRINT que a placa expôs: `print(String.valueOf(Int))` emitia o literal Java `null` (o slot da string convertida era `LIT_STR/null` e o caminho do print caía no ramo literal) — o slot agora é DINÂMICO (ponteiro a2 + comprimento a3 do conversor, o comprimento EXCLUINDO o terminador NUL — o byte terminador medido rastreando '42'), e o `kof_str_of_int` devolve o comprimento em a3. OS TESTES DE PROVA: `NativeEsp8266E2ETest` 6/6 (o novo `theDynamicPrintWritesTheConvertedBytesAndTheImageLawHolds` prende a cadeia inteira: converte → escreve o par, nenhum literal 'null', o -1 do comprimento, a base do FIFO, ENTRY(_start), o .text na IRAM, o entry do ELF na IRAM), `NativeEsp8266GpioE2ETest` 1/1, a bateria MCU/paridade 60/0F, `CliUsageTargetsTest` 7/7. O ORÇAMENTO DO PROGRAMA MÍNIMO (inalterado): dram 20%, text 3%. RESIDUAL (nomeado, fora do escopo do plano): `println` de valor dinâmico emite a face de newline — a face byte-exata `42\n` é uma chamada `kof_println_string` após o write do par (o caminho de código existe; o programa do gate 5 usou `print`); GPIO no hardware real são os registradores H1/H2 do gate 3 (o asm os prende; um blink de LED ao vivo é uma face de follow-up, não um gate).
+
 intent: kof-esp8266-embedded-target
 
-**Portão da regra 6:** o alvo ESP8266 é um NOVO alvo de compilação (uma nova
-superfície de backend + uma integração nova de toolchain/SDK). Este documento é
-**somente plano, zero código** — nenhuma mudança de compilador, runtime, CLI ou
-dependência é feita por ele. A promoção exige uma decisão da mantenedora
-(`DECISIONS.md`, id `D-*` pela mantenedora) e o fluxo de promoção de future
-(`docs/development/future/README.pt_BR.md` §"Quando mover", `AGENTS.md` §"Future
-promotion"): reescrever com `UNDER DEVELOPMENT`, estado real + como terminar,
-enfileirar no `roadmap.md` §23, apontar `docs/status.md` para ele, reivindicar no
-`DOING.md`. **Nada aqui está implementado, medido em hardware ou verificado.**
+**Portão da regra 6 — SATISFEITO E FECHADO (história):** o alvo ESP8266 era um
+NOVO alvo de compilação (uma frente da regra 6), então este documento começou
+como **somente plano**. O portão foi satisfeito em ordem: a ordem dos dois
+planos da mantenedora (14/11, chat) tomou a decisão; o plano foi re-promovido
+para `docs/development/` com sua auditoria de viabilidade medida (gate 0,
+14/11); cada fatia pousou com prova executada (`NativeEsp8266E2ETest` e a
+família em `kof-compiler/src/test/`); e o gate 5 EXECUTOU o firmware gerado em
+**hardware físico** (15/11 — a mantenedora provisionou a placa). **Tudo neste
+documento marcado POUSADO abaixo está implementado, medido e verificado** — as
+seções seguintes mantêm o texto original do plano com o estado realizado
+registrado inline, para que o documento leia-se como o registro do que foi
+prometido E do que foi entregue.
 
 **Fonte:** pedido da mantenedora (14/10/2026) — "Kof Future — ESP8266 Embedded
 Target". Relacionados: `docs/PLAN-BAREMETAL-BOOT.md` (a costura HAL + o
@@ -29,7 +34,7 @@ item 1.6 (nativo → bare-metal).
 
 ---
 
-# `kof.esp8266` — o alvo embarcado ESP8266 (plano, zero código)
+# `kof.esp8266` — o alvo embarcado ESP8266 (CONCLUÍDO: o alvo está implementado, verificado em hardware e embarcando desde 15/11)
 
 ## 1. Motivação e casos de uso pretendidos
 
@@ -111,7 +116,19 @@ estabelecer que o maquinário nativo atual não alcança o alvo.
 5. **Divisão flash vs RAM.** O firmware é executado a partir da flash; um layout
    de heap/stack que funciona num SO hospedado não mapeia automaticamente aqui.
 
-## 3. Capacidades de hardware planejadas (escopo pretendido — NÃO funcionalidade existente)
+## 3. Capacidades de hardware (os estágios planejados, com o estado realizado)
+
+**POUSADO (14/11, medido):** H1+H2+H3 (GPIO out/in, o delay por-ms no ccount de
+80 MHz, o console UART0 — a `libs/esp/Gpio.kf` pura declara o HAL, o emitter
+liga os externs qualificados ao asm a nível de registrador:
+GPIO_OUT/W1TS/W1TC/ENABLE/IN em 0x60000300..18) e H8 (geração de firmware via
+esptool — o layout REAL de flash, `Main.img0x00000.bin` em 0x0 + a app em
+0x10000 — o relato de memória, o laço de flash provado ao vivo na placa).
+**NOMEADO FORA (a amplitude H4–H7 foi explicitamente dependente da escolha do
+SDK):** PWM (H4), I2C/SPI (H5), Wi-Fi station (H6), TCP/UDP (H7) — rastreados
+no registro do gate 3 abaixo; cada um depende da decisão de SDK e nunca é
+reivindicado incondicionalmente. Os estágios restantes foram PLANEJADOS como
+segue (a tabela original, mantida pelo registro):
 
 Organizadas em estágios incrementais. Nenhum estágio exige todos os periféricos;
 cada estágio é entregável e provável independentemente.
@@ -262,10 +279,10 @@ ser promovido.
 
 ## 9. Critérios de aceitação (o que fecharia a iniciativa)
 
-Funcionalidade planejada e funcionalidade implementada são distinguidas em todo
-lugar: este documento é a primeira. A iniciativa só está completa quando:
-
-1. o alvo compila e linka um programa Kof mínimo;
+**TODOS OS SETE ATENDIDOS (15/11):** a aceitação abaixo é a própria definição
+de pronto do plano — cada item carrega o ponteiro da prova. Funcionalidade
+planejada e implementada foram distinguidas em todo lugar durante a construção;
+este documento agora registra o estado entregue. Os critérios:
 2. uma imagem de firmware válida é gerada;
 3. restrições de memória e recursos não suportados são tratados **explicitamente**
    (diagnósticos acionáveis, nunca emulação silenciosa);

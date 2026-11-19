@@ -92,28 +92,17 @@ public final class JvmOpEmitter {
                     if (KofProcess.isResult(lf.ownerType())) {
                         owner = "dev/kof/runtime/KofRuntime$ProcessResult";
                     }
-                    boolean isRecord = false;
-                    boolean isSelfRecordAccess = false;
-                    if (lf.ownerType() instanceof Type.ClassType ct) {
-                        String internal = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
-                        if (c.module() != null) {
-                            for (IRClass k : c.module().classes()) {
-                                if (k.name().equals(internal) && "java/lang/Record".equals(k.superName())) {
-                                    isRecord = true;
-                                    // If we are inside the record's own accessor, use GETFIELD directly to avoid recursion
-                                    if (c.currentClass() != null && c.currentClass().name().equals(internal)) {
-                                        isSelfRecordAccess = true;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (isRecord && !isSelfRecordAccess) {
-                        c.mv().visitMethodInsn(INVOKEVIRTUAL, owner, lf.name(), "()" + JvmTypeMapper.toDescriptor(lf.fieldType()), false);
-                    } else {
-                        c.mv().visitFieldInsn(GETFIELD, owner, lf.name(), JvmTypeMapper.toDescriptor(lf.fieldType()));
-                    }
+                    // §715 / D-RECORD-FIELD-RAW (17/11): `p.x` num record é
+                    // LEITURA DE CAMPO CRU — SEMPRE GETFIELD, em todo contexto
+                    // (inclusive fora do próprio record; o antigo
+                    // `invokevirtual accessor` para accessos externos era a
+                    // divergência do §715: o JVM devolvia 107 onde
+                    // Script/JS/nativo liam o campo cru 7). O ACESSOR só é
+                    // emitido pela CHAMADA explícita `p.x()` (um KofCall
+                    // INSTANCE, nunca um KofLoadField). O GETFIELD é seguro
+                    // dentro do próprio acessor também (evitava a recursão —
+                    // o corpo do acessor lê o campo com this.x).
+                    c.mv().visitFieldInsn(GETFIELD, owner, lf.name(), JvmTypeMapper.toDescriptor(lf.fieldType()));
                 }
             }
             case KofStoreField sf -> {
@@ -235,7 +224,11 @@ public final class JvmOpEmitter {
                     c.mv().visitInsn(ACONST_NULL);
                     c.mv().visitLabel(end);
                 } else {
-                    c.mv().visitTypeInsn(CHECKCAST, castTargetName(cc.type()));
+                    String tgt = castTargetName(cc.type());
+                    if (System.getenv("KOF_CAST_DEBUG") != null) {
+                        System.err.println("CC2-DBG checkcast → " + tgt + " type=" + cc.type());
+                    }
+                    c.mv().visitTypeInsn(CHECKCAST, tgt);
                 }
             }
             case KofInstanceOf io -> {
@@ -243,8 +236,12 @@ public final class JvmOpEmitter {
             }
             case KofNewArray na -> {
                 if (na.elementType() instanceof Type.ClassType ct) {
-                    // array de referência: ANEWARRAY (NEWARRAY é só primitivo)
-                    c.mv().visitTypeInsn(ANEWARRAY, JvmTypeMapper.toInternalName(ct.packageName(), ct.name()));
+                    // array de referência: ANEWARRAY (NEWARRAY é só primitivo).
+                    // A erasure passa pelo MESMO mapa do toInternalName (o Handle
+                    // nu apaga para Object — o FFI face; o toInternalName cru
+                    // emitia a classe inexistente `kof/concurrent/Handle`).
+                    String owner = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
+                    c.mv().visitTypeInsn(ANEWARRAY, owner);
                 } else if (na.elementType() instanceof Type.TypeVariable
                         || na.elementType() instanceof Type.WildcardType) {
                     // §355: `new T[n]` — componente é variável de tipo; o ramo
@@ -290,6 +287,19 @@ public final class JvmOpEmitter {
         Type x = t instanceof Type.NullableType nt ? nt.inner() : t;
         if (x instanceof Type.PrimitiveType pt) x = TypeMetrics.boxedTypeFor(pt);
         if (x instanceof Type.ClassType ct) {
+            // #1171 (17/11): o Handle é TYPE-ARGS-AWARE no checkcast — o
+            // toInternalName (só nome) mapeava TODO Handle para Object (o
+            // mundo FFI), então o checkcast do spawn virava no-op e o
+            // putfield num campo CompletableFuture falhava o verificador
+            // (Object não atribuível). O descriptor (type-aware) decide:
+            // Handle<T> com args → CompletableFuture (o runtime de spawn);
+            // o Handle NU → Object (o FFI copy-out).
+            if ("kof.concurrent".equals(ct.packageName()) && "Handle".equals(ct.name())) {
+                // #1171: type-args-aware — Handle<T> com args → CompletableFuture
+                // (o runtime de spawn); o Handle NU → Object (o mundo FFI)
+                String d = JvmTypeMapper.classDescriptor(ct);
+                return d.substring(1, d.length() - 1);
+            }
             return JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
         }
         if (x instanceof Type.ArrayType) {
