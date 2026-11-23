@@ -117,7 +117,11 @@ final class WasmStateCode {
             // FATIA MAP-D (28/10, #776): o tipo do LOAD erasa o nullable — o
             // rastro REAL vem do lv.type() (o slot allocation o viu)
             String lt = ctx.localNullableTrace.get(ll.index());
+            // fase 4 (#776): o receiver do kof.io = o path (o handle i32 da
+            // String) — o rastro e' "string", nunca o nome da classe (o
+            // File/Path/Directory NAO e' um objeto: e' o caminho).
             ctx.lastPush = lt != null ? lt
+                    : WasmIoTypes.isIoReceiver(ll.type()) ? "string"
                     : (ll.type() instanceof Type.ClassType ct && !("String".equals(ct.name())
                     && "java.lang".equals(ct.packageName()))) ? ct.name() : typeName(ll.type());
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
@@ -185,7 +189,13 @@ final class WasmStateCode {
             ctx.lastPushWide = false;
         } else if (op instanceof KofUnary un) {
             emitUnary(un, out);
-            ctx.lastPush = typeName(un.operandType());
+            // O `operandType()` de um KofUnary e' o tipo do OPERANDO, nao o do
+            // RESULTADO — um I2D tem operandType int e resultado double. Usar
+            // o operandType aqui deixava o rastro errado e o println
+            // despachava o helper i64 sobre um f64 (modulo INVALIDO, medido
+            // 22/11 na prova de paridade dos casts). O resultado sai do
+            // proprio op.
+            ctx.lastPush = resultTypeName(un);
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
         } else if (op instanceof KofNewObject no && ctx.classOf(no.type()) != null) {
@@ -225,6 +235,18 @@ final class WasmStateCode {
             // o MESMO (o wasm nao distingue largura no descarte); o desugar
             // do remove de List<Int> chega com ele (a fatia LIST-5 mediu)
             out.add(new WasmInstr.Simple(0x1a, "drop"));
+            // o drop CONSOME o valor — limpar o rastro (o mesmo do store, §143
+            // abaixo): sem isto o `crossLiveValue` da fronteira de bloco
+            // acreditava que o valor ainda estava na PILHA e emitia o
+            // `local.set` do join sem nada abaixo — o modulo saia INVALIDO
+            // ("expected i32 but nothing on stack", medido: uma chamada de
+            // INSTANCIA dentro de um `if` — o `drop` ja tinha esvaziado a
+            // pilha; o call de metodo ESTATICO nao passa por este caminho e
+            // por isso o caso comum nao acusava). A lei do join: o valor que
+            // CRUZA a fronteira e' o do PRODUTOR vivo do ramo; um descarte
+            // nao e' produtor (o `isValueProducer` ja o exclui).
+            ctx.lastPush = null;
+            ctx.lastPushWide = false;
         } else if (WasmArrayOps.emit(op, WasmOperandShape.allocName(ops, idx, ctx), ctx, out)) {
             // os ops de array (ARRAY-1) — WasmArrayOps (split check_500); o
             // alloc roteia pela profundidade (GC-2)

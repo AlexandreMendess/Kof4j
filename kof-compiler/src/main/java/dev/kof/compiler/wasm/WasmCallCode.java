@@ -281,6 +281,22 @@ final class WasmCallCode {
             out.add(new WasmInstr.Call(rn));
             ctx.lastPush = "object";
             ctx.lastPushWide = false;
+        } else if (ctx.wasi && WasmWasiFs.NAMES.contains(kc.methodName())) {
+            // fase 4 (#776): o kof.io — o nome do call do Kof mapeia no
+            // runtime do host (kof.io.*). O path chega como HANDLE de
+            // String (o layout [len][bytes] do bump heap) e o retorno e' o
+            // handle i32 (0 = null para o readText).
+            out.add(new WasmInstr.Call(WasmWasiFs.runtimeName(kc.methodName())));
+            ctx.lastPush = WasmWasiFs.resultShape(kc.methodName());
+            ctx.lastPushWide = false;
+        } else if (ctx.wasi && WasmWasiCaps.STRING_NAMES.contains(kc.methodName())) {
+            // fase 4 (#776): as faces de random que ALOCAM String — o retorno
+            // e' o HANDLE i32 (o layout [len][bytes] do bump heap); o rastro
+            // "string" SEM o wide (o `== null` compara o handle com o 0 i32,
+            // nunca com um i64 — o modulo saia invalido sem isto)
+            out.add(new WasmInstr.Call(kc.methodName()));
+            ctx.lastPush = "string";
+            ctx.lastPushWide = false;
         } else if (ctx.wasi && WasmMathRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (26/10, #776): a familia INT do math — o nome DA
             // funcao e' o nome do runtime (kof_math_*, aritmetica i64
@@ -297,6 +313,7 @@ final class WasmCallCode {
                     || kc.methodName().equals("kof_math_dmax")
                     || kc.methodName().equals("kof_math_dclamp")
                     || kc.methodName().equals("kof_math_sin")
+                    || kc.methodName().equals("kof_math_cos")
                     || kc.methodName().equals("kof_math_tan")
                     || kc.methodName().equals("kof_math_atan")
                     || kc.methodName().equals("kof_math_asin")

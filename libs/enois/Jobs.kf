@@ -1,0 +1,241 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `vagas` (`src/routes/vagas.tsx`), a listagem de vagas.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `jobs`), sem invencao:
+//   * o titulo          `title` = "Oportunidades"
+//   * o subtitulo       a linha explicativa do topo (text-sm muted)
+//   * a busca           `searchPlaceholder` = "Buscar vagas (ex.: java -estagio)"
+//   * os filtros        `filters.level` = "Nivel:", `filters.location` =
+//                       "Local:", `filters.type` = "Tipo:", com os valores
+//                       REAIS `locations` = Remoto/Hibrido/Presencial e
+//                       `levels` = Junior/Pleno/Senior/Lideranca
+//   * a acao            `clearFilters` = "Limpar filtros"
+//
+// As MEDIDAS vem do markup (`vagas.tsx`), MEDIDAS:
+//   * o container       `surface-card p-4 sm:p-6` = 24 px no desktop
+//   * o titulo          `text-2xl font-semibold tracking-tight` = 24 px
+//   * o subtitulo       `mt-1 text-sm text-muted-foreground` = 14 px
+//   * a pilula do filtro `inline-flex h-9 ... rounded-full border
+//                       border-border-soft px-3 text-sm font-medium` = 36 px
+
+/** As medidas da listagem de vagas, em px. */
+class JobsMetrics {
+    static Int cardPad() { return 24 }        // sm:p-6
+    static Int titleSize() { return 24 }      // text-2xl
+    static Int subtitleSize() { return 14 }   // text-sm
+    static Int chipHeight() { return 36 }     // h-9
+    static Int chipGap() { return 8 }
+    static Int chipPadX() { return 12 }       // px-3
+}
+
+class JobsScreen {
+
+    /** Pinta o cabecalho da listagem (titulo + subtitulo + a busca) a partir
+     *  de (x, y). Devolve a altura usada. */
+    static Int paintHeader(Sdl3Backend b, Font titleFont, Font bodyFont,
+                           Int x, Int y, Int w, String title, String subtitle, String search) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val pad = JobsMetrics.cardPad()
+        val searchH = JobsMetrics.chipHeight()
+        val h = pad + JobsMetrics.titleSize() + 8 + JobsMetrics.subtitleSize() + 16
+                + searchH + pad
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, pad + w + pad, h)
+        titleFont.drawTextColoured(b, title, x + pad, y + pad + 18,
+                strong.r(), strong.g(), strong.b())
+        var cy = y + pad + JobsMetrics.titleSize() + 8
+        bodyFont.drawTextColoured(b, subtitle, x + pad, cy + 12,
+                muted.r(), muted.g(), muted.b())
+        cy = cy + JobsMetrics.subtitleSize() + 16
+        // a busca: uma pilula de 36 px com a borda
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x + pad, cy, w, 1)
+        bodyFont.drawTextColoured(b, search, x + pad + 12, cy + 24,
+                muted.r(), muted.g(), muted.b())
+        return h
+    }
+
+    /** Pinta a linha de FILTROS: as pilulas de 36 px, com a borda. Devolve a altura. */
+    static Int paintFilters(Sdl3Backend b, Font chipFont, Int x, Int y, Int w,
+                            List<String> chips) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val muted = Tokens.MutedForeground()
+        val h = JobsMetrics.chipHeight() + 16
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        var cx = x
+        var i = 0
+        while (i < chips.size) {
+            val cw = chipFont.measure(chips[i]) + JobsMetrics.chipPadX() * 2
+            // a borda da pilula: quatro linhas de 1 px
+            SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+            b.fillRect(cx, y, cw, 1)
+            b.fillRect(cx, y + JobsMetrics.chipHeight() - 1, cw, 1)
+            b.fillRect(cx, y, 1, JobsMetrics.chipHeight())
+            b.fillRect(cx + cw - 1, y, 1, JobsMetrics.chipHeight())
+            chipFont.drawTextColoured(b, chips[i], cx + JobsMetrics.chipPadX(), y + 23,
+                    muted.r(), muted.g(), muted.b())
+            cx = cx + cw + JobsMetrics.chipGap()
+            i = i + 1
+        }
+        return h
+    }
+}
+
+/** As medidas do CARD de vaga (`vagas.tsx`, o `visibleJobs.map`), MEDIDAS:
+ *  `surface-card flex flex-col p-5`, avatar `h-12 w-12 rounded-xl` = 48 px
+ *  com raio 12 (NAO e' circulo — e' um quadrado arredondado), titulo
+ *  `font-semibold`, empresa `text-sm text-muted-foreground`, e as pilulas
+ *  `px-2.5 py-1 text-xs`. */
+class JobCardMetrics {
+    static Int pad() { return 20 }            // p-5
+    static Int avatar() { return 48 }         // h-12 w-12
+    static Int avatarRadius() { return 12 }   // rounded-xl
+    static Int avatarGap() { return 12 }      // gap-3
+    static Int titleSize() { return 16 }
+    static Int companySize() { return 14 }    // text-sm
+    static Int chipHeight() { return 22 }     // px-2.5 py-1 text-xs
+    static Int chipGap() { return 8 }         // gap-2
+}
+
+class JobCard {
+
+    /** A altura do card para uma linha de meta (`chips`). */
+    static Int heightFor() {
+        return JobCardMetrics.pad() * 2 + JobCardMetrics.avatar()
+                + 12 + JobCardMetrics.chipHeight()
+    }
+
+    /** Pinta um card de vaga: avatar quadrado-arredondado, titulo, empresa e a
+     *  fileira de pilulas (match / local / salario). Devolve a altura. */
+    static Int paint(Sdl3Backend b, Font titleFont, Font bodyFont, Font chipFont,
+                     Int x, Int y, Int w, String title, String company, List<String> chips) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val soft = Tokens.PrimarySoft()
+        val primary = Tokens.Primary()
+        val pad = JobCardMetrics.pad()
+        val h = heightFor()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // a borda do card
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y, w, 1)
+        b.fillRect(x, y + h - 1, w, 1)
+        // o avatar: `h-12 w-12 rounded-xl` = um quadrado arredondado, nao um circulo
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + pad, y + pad, JobCardMetrics.avatar(), JobCardMetrics.avatar())
+        // (os cantos arredondados do raio 12: o fundo do card por cima dos 4 cantos)
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        var cy = 0
+        while (cy < JobCardMetrics.avatarRadius()) {
+            val cut = JobCardMetrics.avatarRadius() - cy
+            b.fillRect(x + pad, y + pad + cy, cut, 1)
+            b.fillRect(x + pad + JobCardMetrics.avatar() - cut, y + pad + cy, cut, 1)
+            b.fillRect(x + pad, y + pad + JobCardMetrics.avatar() - 1 - cy, cut, 1)
+            b.fillRect(x + pad + JobCardMetrics.avatar() - cut, y + pad + JobCardMetrics.avatar() - 1 - cy, cut, 1)
+            cy = cy + 1
+        }
+        // o titulo e a empresa
+        val tx = x + pad + JobCardMetrics.avatar() + JobCardMetrics.avatarGap()
+        titleFont.drawTextColoured(b, title, tx, y + pad + 16, strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, company, tx, y + pad + 36, muted.r(), muted.g(), muted.b())
+        // as pilulas: match em --primary-soft, as outras em --muted
+        var cx = x + pad
+        val chy = y + pad + JobCardMetrics.avatar() + 12
+        var i = 0
+        while (i < chips.size) {
+            val cw = chipFont.measure(chips[i]) + 20
+            if (i == 0) {
+                SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            } else {
+                SDL_SetRenderDrawColor(b.rendererHandle, muted.r(), muted.g(), muted.b(), 40)
+            }
+            b.fillRect(cx, chy, cw, JobCardMetrics.chipHeight())
+            chipFont.drawTextColoured(b, chips[i], cx + 10, chy + 16,
+                    primary.r(), primary.g(), primary.b())
+            cx = cx + cw + JobCardMetrics.chipGap()
+            i = i + 1
+        }
+        return h
+    }
+}
+
+/** As medidas do DETALHE da vaga (`vagas.$jobId.tsx`), MEDIDAS:
+ *  o container `mx-auto w-full max-w-2xl space-y-4` = 672 px com 16 px entre
+ *  os blocos, o card `surface-card p-4 sm:p-6` = 24 px, o cabecalho com
+ *  `border-b border-border-soft pb-4`, o avatar `h-12 w-12 rounded-xl
+ *  bg-surface-2`, o titulo `text-xl font-semibold tracking-tight` = 20 px. */
+class JobDetailMetrics {
+    static Int maxWidth() { return 672 }      // max-w-2xl
+    static Int gap() { return 16 }            // space-y-4
+    static Int pad() { return 24 }            // sm:p-6
+    static Int avatar() { return 48 }         // h-12 w-12
+    static Int titleSize() { return 20 }      // text-xl
+    static Int companySize() { return 14 }    // text-sm
+    static Int headingSize() { return 16 }
+    static Int bodyLine() { return 24 }       // leading-normal
+}
+
+class JobDetail {
+
+    /** Pinta o detalhe: o link de voltar, o cabecalho (avatar + titulo +
+     *  empresa) e a secao "Sobre a vaga". Devolve a altura usada. */
+    static Int paint(Sdl3Backend b, Font backFont, Font titleFont, Font bodyFont,
+                     Int windowWidth, Int y, String backLabel, String title,
+                     String company, String aboutLabel, List<String> bodyLines) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val muted = Tokens.MutedForeground()
+        val soft = Tokens.Surface1()
+        val w = JobDetailMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y
+        backFont.drawTextColoured(b, backLabel, x, cy + 14, muted.r(), muted.g(), muted.b())
+        cy = cy + 20 + JobDetailMetrics.gap()
+        // o cabecalho
+        val headH = JobDetailMetrics.pad() * 2 + JobDetailMetrics.avatar()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, headH)
+        // o avatar `rounded-xl bg-surface-2`
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + JobDetailMetrics.pad(), cy + JobDetailMetrics.pad(),
+                JobDetailMetrics.avatar(), JobDetailMetrics.avatar())
+        val tx = x + JobDetailMetrics.pad() + JobDetailMetrics.avatar() + 12
+        titleFont.drawTextColoured(b, title, tx, cy + JobDetailMetrics.pad() + 20,
+                strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, company, tx, cy + JobDetailMetrics.pad() + 42,
+                subtle.r(), subtle.g(), subtle.b())
+        cy = cy + headH + JobDetailMetrics.gap()
+        // a secao "Sobre a vaga" no mesmo card
+        val bodyH = JobDetailMetrics.pad() * 2 + JobDetailMetrics.headingSize()
+                + JobDetailMetrics.gap() + bodyLines.size * JobDetailMetrics.bodyLine()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, bodyH)
+        bodyFont.drawTextColoured(b, aboutLabel, x + JobDetailMetrics.pad(),
+                cy + JobDetailMetrics.pad() + 12, strong.r(), strong.g(), strong.b())
+        var ly = cy + JobDetailMetrics.pad() + JobDetailMetrics.headingSize() + JobDetailMetrics.gap()
+        var i = 0
+        while (i < bodyLines.size) {
+            bodyFont.drawTextColoured(b, bodyLines[i], x + JobDetailMetrics.pad(), ly + 15,
+                    muted.r(), muted.g(), muted.b())
+            ly = ly + JobDetailMetrics.bodyLine()
+            i = i + 1
+        }
+        cy = cy + bodyH
+        return cy - y
+    }
+}

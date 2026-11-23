@@ -40,6 +40,14 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatWrite(StringBuilder sb) {
+        // M-2 (#1135): no perfil macOS o Darwin NÃO tem syscall Linux cru —
+        // a costura fala com a libSystem (a libc do macOS): write/writev/exit
+        // são chamadas de libc, não `syscall`. A ABI de argumentos é a mesma
+        // (SysV x86-64: %rdi/%rsi/%rdx), então só o corpo muda.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitWrite(sb);
+            return;
+        }
         // B-2: no perfil UEFI os syscalls Linux não existem — a costura fala
         // com o firmware (OutputString/Exit) via RuntimeUefi.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()) {
@@ -144,6 +152,13 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatTime(StringBuilder sb) {
+        // M-2 (#1135): no macOS o relógio vem da libSystem (clock_gettime) —
+        // e o CLOCK_MONOTONIC do Darwin é 6 (no Linux é 1), medido nos
+        // headers do SDK (RuntimePlatMacos).
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitTime(sb);
+            return;
+        }
         // B-5 (D-BAREMETAL-BODIES, 24/09): no UEFI o relógio de parede vem de
         // RuntimeServices->GetTime (time.now()) e o monotônico do TSC calibrado
         // por BootServices->Stall; sleep por Stall — nada de recusa, roda bare.
@@ -188,6 +203,13 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatRandom(StringBuilder sb) {
+        // M-2 (#1135): no macOS a aleatoriedade vem do CSPRNG do Darwin
+        // (arc4random_buf) — a getentropy do Linux NÃO EXISTE no Darwin
+        // (medido nos headers do SDK) e teria o limite de 256 bytes.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitRandom(sb);
+            return;
+        }
         // B-5: corpo real por face bare-metal (RDRAND/TSC + xorshift64),
         // compartilhado BIOS/UEFI — nunca um syscall Linux silencioso.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
@@ -207,6 +229,12 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatThreadId(StringBuilder sb) {
+        // M-5 (#1135): no macOS o id da thread vem da API pública do Darwin
+        // (pthread_threadid_np) — o gettid do Linux não existe lá.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitThreadId(sb);
+            return;
+        }
         // B-2: UEFI roda sem threads — TID constante (o GC do hello não marca concorrente).
         // B-3b-3: BIOS single-thread — mesmo contrato.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
@@ -225,6 +253,13 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatSync(StringBuilder sb) {
+        // M-5 (#1135): no macOS o futex não existe — a costura fala a API
+        // ulock do Darwin (__ulock_wait/__ulock_wake), com a semântica
+        // medida na fonte do XNU (RuntimePlatMacos).
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitSync(sb);
+            return;
+        }
         // B-2: UEFI é single-threaded — o futex nunca tem contensão;
         // no-op é semântica correta (não é silenciamento: não há threads
         // para esperar — kof_plat_thread_create é recusado com diagnóstico).
@@ -261,6 +296,12 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatIo(StringBuilder sb) {
+        // M-2 (#1135): no macOS a io é a da libSystem (read/close) — a mesma
+        // ABI do Linux (fd=%rdi, buf=%rsi, len=%rdx).
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitIo(sb);
+            return;
+        }
         // B-2: família sem corpo UEFI nesta fatia — recusa NOMEADA (R6),
         // nunca um syscall Linux silencioso que não existe no firmware.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
@@ -285,12 +326,50 @@ public final class RuntimePlat {
             """);
     }
 
+    /**
+     * M-4 (#1135): a família TLS do runtime (a cadeia de exceções
+     * {@code kof_exc_chain}) pela costura — o Linux usa o TLS ELF
+     * local-exec; o macOS usa uma pthread key (os corpos em RuntimePlatMacos).
+     * O par get/set é TRANSPARENTE: só o {@code %rax} do get muda (o valor)
+     * e o set preserva todos os registradores.
+     */
+    public static void emitPlatTls(StringBuilder sb) {
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosTls.emitTls(sb);
+            return;
+        }
+        sb.append("""
+            .section .text
+            .globl kof_plat_tls_init
+            .type kof_plat_tls_init, @function
+            kof_plat_tls_init:
+                ret                     # no Linux o TLS ELF ja existe (initial-exec)
+
+            .globl kof_plat_tls_get
+            .type kof_plat_tls_get, @function
+            kof_plat_tls_get:
+                movq %fs:kof_exc_chain@tpoff, %rax
+                ret
+
+            .globl kof_plat_tls_set
+            .type kof_plat_tls_set, @function
+            kof_plat_tls_set:
+                movq %rdi, %fs:kof_exc_chain@tpoff
+                ret
+            """);
+    }
+
     public static void emitPlatNet(StringBuilder sb) {
         // B-2: família sem corpo UEFI nesta fatia — recusa NOMEADA (R6),
         // nunca um syscall Linux silencioso que não existe no firmware.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
                 || dev.kof.compiler.nat.NativeProfile.activeIsBios()) {
             RuntimeBios.refuse(sb, "kof_plat_net_socket, kof_plat_net_connect, kof_plat_net_bind, kof_plat_net_listen, kof_plat_net_accept, kof_plat_net_send");
+            return;
+        }
+        // M-6 (#1135): no macOS a rede fala os sockets do libSystem.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosNet.emitNet(sb);
             return;
         }
         sb.append("""

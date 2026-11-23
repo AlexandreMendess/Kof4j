@@ -86,10 +86,13 @@ public final class RuntimeMemory {
                 jz .Lkof_alloc_locked
                 # ocupado: futex wait
                 movl $1, %edx                    # val=1
+                leaq kof_alloc_lock(%rip), %rdi  # uaddr = &lock
+                xorl %esi, %esi                  # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_alloc_lock(%rip), %rsi  # restaura &lock p/ o cmpxchg
                 jmp .Lkof_alloc_lock_try
             .Lkof_alloc_locked:
                 movq $0, 8(%rsp)                 # flag: GC ainda nao tentou
@@ -318,6 +321,11 @@ public final class RuntimeMemory {
         // agnóstico de plataforma (o seam é o ponto único de plataforma).
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()) {
             RuntimeUefi.emitUefiHeapGrow(sb);
+        } else if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            // M-3 (#1135): no macOS o allocator cresce pela libSystem
+            // (mmap/munmap) — as flags e o registro da 4a flag são os do
+            // Darwin (medidos no SDK: 0x1042 e %rcx).
+            RuntimePlatMacos.emitHeapGrow(sb);
         } else if (dev.kof.compiler.nat.NativeProfile.active == dev.kof.compiler.nat.NativeProfile.FREESTANDING
                 || dev.kof.compiler.nat.NativeProfile.activeIsBios()) {
             // B-1: sem SO para mmap — a arena vem do linker script.

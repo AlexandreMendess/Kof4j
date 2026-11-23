@@ -104,7 +104,16 @@ final class WasmClosureScan {
                             // Fase E (27/10, #776): a fatia SET<Int>
                             || (wasi && WasmSetRuntime.NAMES.contains(kc.methodName()))
                             // Fase E (27/10, #776): a caixa de erasure §284
-                            || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())))) {
+                            || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName()))
+                            // fase 4 (#776): o CLOCK + a familia RANDOM —
+                            // os host-calls preview1 com runtime proprio
+                            || (wasi && WasmWasiCaps.NAMES.contains(kc.methodName()))
+                            // fase 4 (#776): as faces de random que ALOCAM
+                            // String (o hex e o randomString)
+                            || (wasi && WasmWasiCaps.STRING_NAMES.contains(kc.methodName()))
+                            // fase 4 (#776): o kof.io — as faces de arquivo
+                            // do host (o path_open/fd_read/fd_write)
+                            || (wasi && WasmWasiFs.NAMES.contains(kc.methodName())))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {

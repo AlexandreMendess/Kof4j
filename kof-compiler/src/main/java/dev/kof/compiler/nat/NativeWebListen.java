@@ -169,7 +169,26 @@ public final class NativeWebListen {
                 incq %r8
                 jmp .Lwh_p
             .Lwh_p_done:
-                movq %r8, %r12                   # path_end
+                # §1159 (21/11): o PATH é separado do QUERY STRING — o
+                # roteamento casa o path SEM o "?..." (antes, o request
+                # "/list?page=2" casava "/list?page=2" e dava 404) e o
+                # path() devolve o path sem o query (o contrato do
+                # readRequest do JVM: path = fullPath.substring(0, q)).
+                # O helper devolve o comprimento do path SEM o query.
+                movq %r11, %rdi                  # path chars
+                movq %r8, %rsi
+                subq %r11, %rsi                  # path len (com o query)
+                pushq %r8
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                call kof_web_split_query
+                popq %r11
+                popq %r10
+                popq %r9
+                popq %r8
+                addq %r11, %rax                  # path_end = path_start + len
+                movq %rax, %r12
 
                 # r9=method_start r10=method_end r11=path_start r12=path_end
 
@@ -206,29 +225,45 @@ public final class NativeWebListen {
                 incl %eax
                 jmp .Lwh_cm
             .Lwh_cmdone:
-                # Se matchou method, compara path
-                movq 8(%r8), %rdi                # path kof ptr  — mas r8 mudou... rei_load_from rcx
+                # §1159 (20/11): o match do PATH agora é por SEGMENTO (aceita
+                # `:name` e captura o valor) — o helper preenche .Lweb_params.
+                # r9/r10/r11 (os limites do method/path) e rcx (o índice da
+                # rota) sobrevivem ao call: o helper usa-os como scratch.
                 movq %rcx, %rax
                 imulq $32, %rax, %rax
                 leaq (%r14,%rax), %r8
-                movq 8(%r8), %rdi                # path ptr
-                movl 16(%rdi), %eax              # kof path len
-                movq %r12, %rdx                  # path_end
-                subq %r11, %rdx                  # path_req_len
-                cmpl %eax, %edx
-                jne .Lwh_next
-                leaq 24(%rdi), %rsi
-                movq %r11, %rdi                  # req path start
-                xorl %eax, %eax
-            .Lwh_cp:
-                cmpl %edx, %eax
-                jae .Lwh_cpdone
-                movb (%rsi,%rax), %r8b
-                cmpb (%rdi,%rax), %r8b
-                jne .Lwh_next
-                incl %eax
-                jmp .Lwh_cp
+                movq 8(%r8), %rdi                # path pattern kofstr
+                movq %r11, %rsi                  # req path chars
+                movq %r12, %rdx
+                subq %r11, %rdx                  # req path len
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                pushq %rcx
+                call kof_web_match_path
+                popq %rcx
+                popq %r11
+                popq %r10
+                popq %r9
+                testl %eax, %eax
+                jne .Lwh_cpdone
+                jmp .Lwh_next
             .Lwh_cpdone:
+                # ------- §1159 (20/11): o CONTEXTO é guardado ANTES do
+                # handler rodar: método (r9..r10) e path (r11..r12) para
+                # kof_web_method()/kof_web_path(). (Os r9..r12 estão vivos
+                # aqui; r13/r14 são os dados do lookup.)
+                # o índice da rota (rcx) é REUSADO pelo código abaixo — o
+                # pushq o preserva e ALINHA o rsp para o call (SysV).
+                pushq %rcx
+                movq %r9, %rdi                 # method chars
+                movq %r10, %rsi
+                subq %r9, %rsi                 # method len
+                movq %r11, %rdx                # path chars
+                movq %r12, %rcx
+                subq %r11, %rcx                # path len
+                call kof_web_set_req_ctx
+                popq %rcx
                 # ------- MATCH: invoca handler via trampolim -------
                 # handler obj está em 16(%r14,%rax-slot-atual) — reaponto:
                 movq %rcx, %rax
@@ -281,10 +316,85 @@ public final class NativeWebListen {
                 movq %r13, %rdi
                 call kof_web_append_cstr
                 movq %rax, %r13
-                leaq .Lweb_ok(%rip), %rsi
-                movq %r13, %rdi
-                call kof_web_append_cstr
-                movq %rax, %r13
+                # §1159 (20/11): o status guardado (default 200) — o número
+                # vai pelo kof_int_to_string e o texto pelo ponteiro guardado
+                # pelo kof_web_status (0 = "OK"/200).
+                movq .Lweb_status_code(%rip), %rdi
+                testq %rdi, %rdi
+                jne .Lwb_st_num
+                movl $200, %edi
+            .Lwb_st_num:
+                call kof_int_to_string
+                movl 16(%rax), %edx
+                leaq 24(%rax), %rsi
+            .Lwb_st_cl:
+                movb (%rsi), %cl
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                decl %edx
+                jnz .Lwb_st_cl
+                movb $32, (%r13); incq %r13
+                movq .Lweb_status_text(%rip), %rsi
+                testq %rsi, %rsi
+                jne .Lwb_st_txt
+                leaq .Lweb_st_ok(%rip), %rsi
+            .Lwb_st_txt:
+                movb (%rsi), %cl
+                testb %cl, %cl
+                je .Lwb_st_done
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                jmp .Lwb_st_txt
+            .Lwb_st_done:
+                movb $13, (%r13); incq %r13
+                movb $10, (%r13); incq %r13
+                # §1159 (20/11): a FILA de headers (setados pelo handler).
+                # Sem chamadas dentro do laço: r10/r11 são scratch seguros.
+                xorq %r14, %r14
+            .Lwb_hdrs:
+                cmpq .Lweb_hdrq_n(%rip), %r14
+                jae .Lwb_hdrs_done
+                movq %r14, %rax
+                imulq $32, %rax, %rax
+                leaq .Lweb_hdrq(%rip), %r10
+                addq %rax, %r10
+                # nome (kofstr ptr @0): len @16, chars @24
+                movq 0(%r10), %rsi
+                movl 16(%rsi), %r11d
+                addq $24, %rsi
+                xorq %r8, %r8
+            .Lwb_hn:
+                cmpl %r11d, %r8d
+                jae .Lwb_hn_done
+                movzbl (%rsi,%r8), %eax
+                movb %al, (%r13)
+                incq %r13
+                incq %r8
+                jmp .Lwb_hn
+            .Lwb_hn_done:
+                movb $58, (%r13); incq %r13
+                movb $32, (%r13); incq %r13
+                # valor (kofstr ptr @8)
+                movq 8(%r10), %rsi
+                movl 16(%rsi), %r11d
+                addq $24, %rsi
+                xorq %r8, %r8
+            .Lwb_hv:
+                cmpl %r11d, %r8d
+                jae .Lwb_hv_done
+                movzbl (%rsi,%r8), %eax
+                movb %al, (%r13)
+                incq %r13
+                incq %r8
+                jmp .Lwb_hv
+            .Lwb_hv_done:
+                movb $13, (%r13); incq %r13
+                movb $10, (%r13); incq %r13
+                incq %r14
+                jmp .Lwb_hdrs
+            .Lwb_hdrs_done:
                 leaq .Lweb_hct(%rip), %rsi
                 movq %r13, %rdi
                 call kof_web_append_cstr

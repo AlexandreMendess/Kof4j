@@ -43,23 +43,38 @@ public final class RuntimeStringParseOrDefault {
                 movq %rax, 0(%rsp)
                 movq %rsp, 8(%rsp)
                 movq %rbp, 16(%rsp)
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq %rax, 24(%rsp)
-                movq %rsp, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                leaq 16(%rsp), %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 # args do parse: %rdi já é a String; default fica salvo no rbp
                 movq %rsi, -8(%rbp)
                 call kof_string_to_int
                 # sucesso: restaura chain e devolve %rax
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq %rbp, %rsp
                 popq %rbp
                 ret
             .Lkof_stiod_handler:
                 # chega com a String do erro em %rdi; devolve o default
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq -8(%rbp), %rax
                 movq %rbp, %rsp
                 popq %rbp
@@ -80,20 +95,35 @@ public final class RuntimeStringParseOrDefault {
                 movq %rax, 0(%rsp)
                 movq %rsp, 8(%rsp)
                 movq %rbp, 16(%rsp)
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq %rax, 24(%rsp)
-                movq %rsp, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                leaq 16(%rsp), %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq %rsi, -8(%rbp)
                 call kof_string_to_long
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq %rbp, %rsp
                 popq %rbp
                 ret
             .Lkof_stlod_handler:
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq -8(%rbp), %rax
                 movq %rbp, %rsp
                 popq %rbp
@@ -117,22 +147,37 @@ public final class RuntimeStringParseOrDefault {
                 movq %rax, 0(%rsp)
                 movq %rsp, 8(%rsp)
                 movq %rbp, 16(%rsp)
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq %rax, 24(%rsp)
-                movq %rsp, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                leaq 16(%rsp), %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 # default (bits crus em %rsi) salvo no rbp; parse lê %rdi
                 movq %rsi, -8(%rbp)
                 call kof_string_to_double
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq %xmm0, %rax
                 movq %rbp, %rsp
                 popq %rbp
                 ret
             .Lkof_stdod_handler:
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 # devolve o default por xmm0 (bits crus do rbp)
                 movq -8(%rbp), %rax
                 movq %rax, %xmm0

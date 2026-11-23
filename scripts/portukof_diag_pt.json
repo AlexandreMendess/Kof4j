@@ -1171,6 +1171,11 @@
     },
     {
       "arity": 2,
+      "en": "Cannot resolve method '{0}' on type 'kof.http.Response' (valid: {1})",
+      "pt": "não é possível resolver o método '{0}' no tipo 'kof.http.Response' (válidos: {1})"
+    },
+    {
+      "arity": 2,
       "en": "Cannot resolve method '{0}' on type '{1}'",
       "pt": "não é possível resolver o método '{0}' no tipo '{1}'"
     },
@@ -1186,6 +1191,11 @@
     },
     {
       "arity": 2,
+      "en": "Cannot resolve static method '{0}' on type '{1}'",
+      "pt": "não é possível resolver o método estático '{0}' no tipo '{1}'"
+    },
+    {
+      "arity": 2,
       "en": "cannot assign to external static field '{0}.{1}' (external class fields are read-only)",
       "pt": "não é possível atribuir ao campo estático externo '{0}.{1}' (campos de classe externa são somente leitura)"
     },
@@ -1198,6 +1208,11 @@
       "arity": 3,
       "en": "Cannot resolve method '{0}' on namespace 'db' with {1} argument(s) (valid: {2})",
       "pt": "não é possível resolver o método '{0}' no namespace 'db' com {1} argumento(s) (válidos: {2})"
+    },
+    {
+      "arity": 3,
+      "en": "Cannot resolve method '{0}' on type '{1}' (valid: {2})",
+      "pt": "não é possível resolver o método '{0}' no tipo '{1}' (válidos: {2})"
     }
   ],
   "SEM026": [
@@ -2000,6 +2015,13 @@
       "arity": 2,
       "en": "pattern '{0}' collides with a character class name: bare '{1}' in a pattern body means the class, never this pattern — rename the pattern",
       "pt": "o padrão '{0}' colide com um nome de classe de caractere: o '{1}' solto num corpo de padrão significa a classe, nunca este padrão — renomeie o padrão"
+    }
+  ],
+  "SEM115": [
+    {
+      "arity": 3,
+      "en": "'{0}' espera {1} (recebeu {2}) — a forma errada nao tem runtime: construa o widget pela forma documentada em training/idioms/ui.md",
+      "pt": "'{0}' espera {1} (recebeu {2}) — a forma errada não tem runtime: construa o widget pela forma documentada em training/idioms/ui.md"
     }
   ]
 }

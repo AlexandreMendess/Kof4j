@@ -27,7 +27,7 @@
           repository root. The release pipeline reads it and updates this property
           (scripts/bump-version.sh). Do not edit this by hand.
         -->
-        <revision>0.8.0</revision>
+        <revision>0.8.1</revision>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!--
@@ -136,7 +136,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
-                <version>1.8.0</version>
+                <version>1.9.0</version>
                 <configuration>
                     <flattenMode>resolveCiFriendliesOnly</flattenMode>
                 </configuration>

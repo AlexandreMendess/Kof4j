@@ -55,37 +55,8 @@ public final class MemberCallTyper {
         }
         // Nome de CLASSE KOF (de qualquer pacote do modulo) como
         // receiver para metodo ESTATICO: Desconto.aplicar(c)
-        if (mc.receiver() instanceof IdentifierExpr krid
-                && !SemExpressionTyper.isLocalName(scope, krid.name())
-                && sa.allClasses().containsKey(krid.name())
-                && !sa.importShadowsProjectClass(krid.name())) {
-            SymbolTable.Symbol km = MemberResolver.resolveInHierarchy(sa, krid.name(), mc.methodName());
-            if (km instanceof SymbolTable.MethodSet set) {
-                List<Type> argTypes0 = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) argTypes0.add(SemExpressionTyper.inferType(sa, arg, scope));
-                SymbolTable.MethodSymbol kms = set.select(mc.arguments().size(), argTypes0);
-                if (kms != null) {
-                    SymbolTable.ClassSymbol kt = sa.allClasses().get(krid.name());
-                    sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(
-                            kms.name(), kt.internalName(), kms.returnType(),
-                            kms.parameterTypes(), kms.accessFlags(),
-                            SymbolTable.DispatchKind.STATIC));
-                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes0, kms.parameterTypes(), mc.arguments());
-                    return kms.returnType();
-                }
-            }
-            if (km instanceof SymbolTable.MethodSymbol kms
-                    && kms.parameterTypes().size() == mc.arguments().size()) {
-                SymbolTable.ClassSymbol kt = sa.allClasses().get(krid.name());
-                sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(
-                        kms.name(), kt.internalName(), kms.returnType(),
-                        kms.parameterTypes(), kms.accessFlags(),
-                        SymbolTable.DispatchKind.STATIC));
-                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), inferArgTypes(sa, mc, scope), kms.parameterTypes(), mc.arguments());
-                return kms.returnType();
-            }
-        }
+        Type moduleStatic = ModuleStaticCallTyper.infer(sa, mc, scope);
+        if (moduleStatic != null) return moduleStatic;
         // Nome de CLASSE EXTERNA como receiver: Button.inflate(...)
         // — resolve pelo classpath antes dos namespaces builtin
         // (Button também é widget do kof.ui; o import decide)
@@ -379,6 +350,34 @@ public final class MemberCallTyper {
             if (mediaCall != null) {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return mediaCall.returnType();
+            }
+            // A recusa abaixo é para VERBO INEXISTENTE. `toString` não é verbo
+            // da tabela: todo valor o herda (StringMethodRegistry
+            // .objectMethodSignature), e a recusa que fechou a face 2 do #1185
+            // o matou junto — StdlibIdiomsCompileTest.mediaFacesCompile ficou
+            // RED em ff7ed6b73. O membro universal é resolvido ANTES da
+            // recusa; a recusa segue valendo para o resto (img.scaled(4)).
+            if (StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size()) != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return StringMethodRegistry.objectMethodSignature(
+                        mc.methodName(), mc.arguments().size()).returnType();
+            }
+            // #1185 face 2: a face do RUNTIME é a única fonte da verdade para o
+            // nome do verbo. Não achá-la aqui não pode virar Unknown silencioso:
+            // o lowering não emite chamada nenhuma e o consumidor (width no
+            // exemplo do relato) sai como `Method "".width` → ClassFormatError
+            // (Illegal class name ""), medido no #1183/#1179. O tipo receptor é
+            // nomeado para o caller corrigir; a lista vem da tabela de verbos.
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error(mc,
+                        "Cannot resolve method '" + mc.methodName() + "' on type '"
+                                + (KofMedia.isImageData(recvType) ? "kof.media.ImageData" : "kof.media.Audio")
+                                + "' (valid: " + String.join("/", KofMedia.isImageData(recvType)
+                                        ? KofMedia.mediaMethodNames()
+                                        : KofMedia.audioMethodNames()) + ")",
+                        "SEM025");
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return Type.UnknownType.UNKNOWN;
             }
         }
         if (recvType instanceof Type.FunctionType ft) {

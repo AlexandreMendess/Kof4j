@@ -338,9 +338,15 @@ final class NativeMethodEmitter {
                 sb.append("    movq %rax, 0(%rsp)\n");
                 sb.append("    movq %rsp, 8(%rsp)\n");
                 sb.append("    movq %rbp, 16(%rsp)\n");
-                sb.append("    movq %fs:kof_exc_chain@tpoff, %rcx\n");
+                sb.append("    call kof_plat_tls_get        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("    movq %rax, %rcx\n");
                 sb.append("    movq %rcx, 24(%rsp)\n");
-                sb.append("    movq %rsp, %fs:kof_exc_chain@tpoff\n");
+                sb.append("pushq %rdi\n");
+                sb.append("pushq %rcx\n");
+                sb.append("leaq 16(%rsp), %rdi\n");
+                sb.append("call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("popq %rcx\n");
+                sb.append("popq %rdi\n");
             }
             case KofStatementIf _ -> {
                 // §267: marcador de if de statement (uso exclusivo do dispatcher JS) — no-op
@@ -354,15 +360,25 @@ final class NativeMethodEmitter {
                 // NÃO é necessariamente `rsp` — lê do TOPO da cadeia (o TLS
                 // kof_exc_chain guarda a base salva no KofTryStart), religa o
                 // prev e restaura rsp antes de transferir o controle.
-                sb.append("    movq %fs:kof_exc_chain@tpoff, %rax\n");
+                sb.append("    call kof_plat_tls_get        # M-4 (#1135): a cadeia pela costura\n");
                 sb.append("    movq 24(%rax), %rcx\n");
-                sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("pushq %rdi\n");
+                sb.append("pushq %rcx\n");
+                sb.append("movq %rcx, %rdi\n");
+                sb.append("call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("popq %rcx\n");
+                sb.append("popq %rdi\n");
                 sb.append("    movq %rax, %rsp\n");
                 sb.append("    addq $32, %rsp\n");
             }
             case KofTryEnd _ -> {
                 sb.append("    movq 24(%rsp), %rcx\n");
-                sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("pushq %rdi\n");
+                sb.append("pushq %rcx\n");
+                sb.append("movq %rcx, %rdi\n");
+                sb.append("call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("popq %rcx\n");
+                sb.append("popq %rdi\n");
                 sb.append("    addq $32, %rsp\n");
             }
             case KofJump kj -> sb.append("    jmp ").append(nb.resolveLabel(kj.target())).append("\n");
@@ -475,6 +491,14 @@ final class NativeMethodEmitter {
             sb.append("\n.globl _start\n");
             sb.append("_start:\n");
         }
+        // §1187 (22/11): o vetor de argumentos vem de FONTES DIFERENTES por
+        // modo de entrada — a leitura TEM que acontecer antes do swap de rsp
+        // do freestanding, e o modo ASAN recebe a ABI C do crt (NAO a pilha
+        // do kernel!). A classe NativeMainArgs tem o detalhe (o comment la
+        // explica as tres fontes e o modo de falhar de cada uma).
+        if (mainHasArgs) {
+            NativeMainArgs.emit(sb, asan);
+        }
         if (nb.freestanding) {
             // B-1: pilha vinda do linker script, nao a que o carregador deu.
             sb.append("    leaq __kof_stack_top(%rip), %rsp\n");
@@ -483,20 +507,24 @@ final class NativeMethodEmitter {
         // qualquer push) — o kof_gc_mark varre a pilha INTEIRA ate aqui, nao so
         // o frame corrente (causa (1) do §260: String viva no frame de main
         // enquanto um helper aloca era INVISIVEL ao mark -> sweep liberava vivo)
+        // (o fundo e' a pilha em que o main RODA — depois do swap freestanding)
         sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
         // grava o TID do main thread — limita GC ao main (B-0: via costura kof_plat_)
         sb.append("    call kof_plat_thread_id\n");
         sb.append("    movq %rax, kof_main_tid(%rip)\n");
-        if (mainHasArgs) {
-            // N3: passa array vazio — evita segfault ao tratar argc como ponteiro
-            sb.append("    xorl %edi, %edi\n");
-            sb.append("    movl $8, %esi\n");
-            sb.append("    call kof_array_alloc\n");
-            sb.append("    movq %rax, %rdi\n");
-        }
-        // #133 (§186): chama cada <clinit> antes do main (ordem de classes no
+        // M-4 (#1135): a chave TLS do macOS (a cadeia de excecoes por thread)
+        // nasce AQUI — antes dos <clinit> e do main, single-thread (no Linux
+        // o corpo e' um ret: o TLS ELF initial-exec ja existe).
+        sb.append("    call kof_plat_tls_init\n");
+        // §133 (§186): chama cada <clinit> antes do main (ordem de classes no
         // módulo — link-ordem estática; não há dependência dinâmica declarada).
         emitClinitCalls(nb, sb);
+        if (mainHasArgs) {
+            // M-4 (#1135): o array de args vive no %rbx (callee-saved) — as
+            // chamadas do entry (o thread_id, o TLS init, os <clinit>) podem
+            // clobberar o %rdi, entao ele e' re-materializado AQUI.
+            sb.append("    movq %rbx, %rdi\n");
+        }
         sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
         // #431: com externs bindados a libc flusha o stdio DA C antes do
         // exit_group cru — puts/printf da lib ficam no buffer do processo e

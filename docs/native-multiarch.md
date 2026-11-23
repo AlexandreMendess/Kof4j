@@ -537,6 +537,361 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
 
 - Advanced `GC` mark-sweep, `float/double` on Native (`F2D`), native `kof.web`
   `listen`, `macOS` Mach-O / `Windows` PE.
+
+  **`macOS` Mach-O is IN PROGRESS (issue #1135, `D-NATIVE-MACOS` — arm64 + x86-64).**
+  The `kof_plat_*` seam (the 21 named platform functions) is the migration
+  surface, and it is now RATCHETED: `scripts/check_macos_seam.sh` measures the
+  system calls that still bypass the seam (x86-64 `syscall` 180 out-of-seam of
+  203; riscv64 `ecall` 168 out-of-seam of 184), the ELF TLS sites
+  (`%fs:/@tpoff`, 24) and the `futex` sites (15 — macOS uses
+  `__ulock`/`os_unfair_lock`), and **fails the build if any of those numbers
+  grows** (the baseline is `scripts/macos-seam-baseline.txt`; diminishing is
+  always green; `--update-baseline` regenerates it; `--selftest` proves the
+  gate still distinguishes equal/growth/improvement). The stages M-1..M-8
+  (Mach-O emitter → libSystem seam → allocator/GC → exceptions → concurrency →
+  …) consume these numbers as the BEFORE; M-7 needs a macOS runner.
+  **M-1 LANDED 21/11 (#1135, D-NATIVE-MACOS):** the macOS target opens as a
+  PROFILE (`NativeProfile.MACOS_ARM64`, `--profile macos`), not a new backend
+  — the IR, the lowering and the `kof_plat_*` seam are untouched. The stage
+  delivers the three faces of the M-1 row: (1) the **Mach-O directive
+  emitter** (`nat/NativeMachO.java` — a textual pass over the whole assembly:
+  the ELF-only `.type`/`.size` are dropped, the sections become
+  `__TEXT,__text`/`__DATA,__data`/`__DATA,__bss`/`__TEXT,__const`, and the
+  globals AND their references take the Mach-O `_` prefix — the mnemonic and
+  the registers are never touched); (2) the **link line**
+  (`NativeAssembler.macosLinkArgs` — `ld -lSystem -arch arm64` plus
+  `-syslibroot <sdk>` when `KOF_MACOS_SDK_PATH` is set; no ELF
+  `-dynamic-linker`, no GNU `-lc`); (3) the **honest refusal** on a host
+  without the macOS toolchain (`NATIVE004` — this Linux fleet has the GNU
+  `as`/`ld`, which do not speak Mach-O; the runner that proves the link is
+  the M-7 stage). The proof of the stage is STRUCTURAL on this fleet (the
+  translated text + the link line), exactly as the plan states; the `_main`
+  entry and the libSystem seam bodies are the M-2 row.
+  **M-1 CORRECTED 22/11 (#1135 — the M-1 emitter was BROKEN against the real
+  assembly; measured, not assumed):** the M-1 proof was six small text tests
+  (~10 lines each). The **real** assembly the backend emits is the whole
+  runtime — **132 KB** — and against THAT text the M-1 emitter had five real
+  defects, all found by running the **real Mach-O assembler** (the clang 18,
+  provisioned by `scripts/provision-macho-toolchain.sh` →
+  `~/.local/share/kof-macho`): (1) it **hung** — the operand scan restarted at
+  the `%` of a REGISTER without consuming it, so every line with a register
+  (`pushq %rbx`) looped forever: a real macOS compile would never have
+  finished; (2) the **immediates were corrupted** (`movq $1` → `movq _$1`;
+  the clang: "invalid operand for instruction"); (3) the **hex literals were
+  corrupted** (`0x4f0c…` → `0_x4f0c…`; "unexpected token"); (4) the
+  **mnemonic after a prefix** was prefixed (`lock cmpxchg` → `lock _cmpxchg`;
+  "invalid instruction mnemonic"); (5) the **data reference** (`.quad
+  Pair_toString`, the method table) took no prefix — the symbol would have
+  been undefined. The emitter now scans TOKEN by token (the mnemonic and its
+  prefixes, the registers, the immediates, the numbers, the strings and the
+  comments are all copied verbatim; only the global symbol references take the
+  `_` prefix), and the proof is **the real assembler accepting the real
+  132 KB** — the whole runtime, minus the two ELF-only faces the macOS still
+  lacks. The stage also gained the **named refusal `NATIVE005`** for those
+  faces: the raw Linux syscalls (the M-2 row — the `kof_plat_*` seam over
+  libSystem) and the ELF local-exec TLS (`%fs:…@tpoff` — the M-4 row) are
+  counted in the emitted text and the profile refuses with the diagnostic
+  naming both, instead of emitting a binary that fails at run time (R6).
+  **M-2 SLICE 1 LANDED 22/11 (#1135 — the `kof_plat_*` seam over libSystem:
+  the write/exit family; and the link line names the architecture of the
+  EMITTER):** the macOS profile emitted the **host** text, and the host text
+  speaks the raw Linux syscall ABI — the Darwin has no such thing, so a macOS
+  binary could never have run. MEASURED on the real hello (the same 132 KB the
+  M-1 correction proved against the real assembler): the **9** raw syscall
+  sites are owned by `kof_plat_write`, `kof_plat_writev`, `kof_plat_exit`,
+  `kof_plat_exit_group`, `kof_plat_thread_id`, `kof_plat_sync` and three
+  `mmap` grows in the allocator (`.Lgrow_try`). THE FIRST FAMILY MIGRATED is
+  write/exit: on the macOS profile the seam calls the **libSystem**
+  (`call write`, `call writev`, `call exit` — the same SysV argument
+  registers as the Linux syscall, `%rdi/%rsi/%rdx`), with the proven
+  stack-alignment shape (`pushq %r15; movq %rsp, %r15; andq $-16, %rsp;
+  call …; subq %rsp, %r15; addq %r15, %rsp; popq %r15`) because the libc
+  uses SSE and the ABI wants `%rsp ≡ 0` at the call site. The Darwin has no
+  `exit_group`, so both exits call `exit` (the process ends either way; the
+  difference from the Linux `exit`=thread-only is recorded in the seam). THE
+  RATCHET FELL from **9 to 5** raw syscalls: the migrated family is gone and
+  what is left is the allocator (M-3) and the concurrency (M-5) — and the
+  refusal `NATIVE005` now **names the owners** instead of counting blindly.
+  **THE ARCHITECTURE OF THE LINK LINE (a measured contradiction, fixed):**
+  the M-1 line said `-arch arm64` while the object the backend emits is
+  **x86-64** (the M-1 proof assembled the real 132 KB as
+  `x86_64-macos-none`) — a link that fails on the M-7 runner. The
+  architecture now follows the **emitter** (`-arch x86_64`), and the profile
+  constant lost its architecture claim (`NativeProfile.MACOS`, was
+  `MACOS_ARM64`): a profile that names an architecture it does not emit is a
+  lie. The **Apple silicon face (arm64) is the next row of #1135** — it
+  needs the cross aarch64 emitter and its own Mach-O proof; on Apple silicon
+  the x86-64 face runs under Rosetta 2. **THE DETECTOR WAS BLIND ON TWO
+  FACES:** `NATIVE005` counted only the x86-64 `syscall` — on the aarch64
+  (`svc #0`) and riscv64 (`ecall`) faces the refusal was silent; it now sees
+  the three. **PROOF (executed):** `NativeMacOSSeamE2ETest` **8/8** —
+  RED-first **6/6 failures** on the old code (the raw syscall inside the
+  seam, the ratchet still at 9, the missing `_write`/`_exit` symbols, the
+  `-arch arm64` link line, the architecture claim in the profile name, the
+  blind detector on `ecall`) and GREEN after; the **real Mach-O assembler
+  accepts the profile text** with the libSystem bodies (the object carries
+  `_write`/`_exit` as undefined externals — what the libSystem link
+  resolves); `NativeMacOSProfileE2ETest` 11/11; the native battery **810 run /
+  0F / 0E / 81 skipped** (named environment skips); the gates rc=0.
+  **M-2 SLICE 2 LANDED 22/11 (#1135 — the time/random/io families of the seam
+  over libSystem, and the Darwin clock ids are the DARWIN ones):** the second
+  batch of the seam now speaks the libSystem too, and one of its bodies would
+  have been silently WRONG if the Linux constant had been copied. MEASURED on
+  a real program (`time.sleep` + `time.now` + `random.hex(8)` — the fatias
+  those faces pull): the raw Linux syscalls fell **20 → 16**, and the four
+  families that left the Linux ABI are `kof_plat_time`, `kof_plat_time_mono`,
+  `kof_plat_sleep` and `kof_plat_random` (plus `kof_plat_read`/`kof_plat_close`
+  in the io family). **THE CLOCK IDS ARE THE DARWIN ONES (measured in the
+  macOS SDK headers that the provisioned toolchain ships):**
+  `CLOCK_REALTIME = 0` and **`CLOCK_MONOTONIC = 6`** — the Linux value is 1,
+  which on Darwin is not the monotonic clock at all. The `struct timespec` of
+  the Darwin has the SAME layout as the Linux (`tv_sec` at 0, `tv_nsec` at 8),
+  so the runtime that reads `0(%rsp)`/`8(%rsp)` stays right. **THE RANDOM
+  FAMILY USES THE DARWIN CSPRNG:** `getentropy` does **not exist** on Darwin
+  (measured — it is absent from the SDK headers) and it caps at 256 bytes per
+  call, which `random.hex(n)` would break; the body uses
+  `arc4random_buf(buf, len)` (10.7+, the Darwin's own CSPRNG, no size cap)
+  and returns the requested length, because the seam contract is
+  `kof_plat_random(buf, len) -> n` with `n >= 0` = bytes written. The io
+  family (`read`/`close`) migrated mechanically — the same SysV registers.
+  **THE BODIES MOVED TO THEIR OWN CLASS** (`runtime/RuntimePlatMacos.java` —
+  the same pattern as `RuntimeBios`/`RuntimeUefi`/`RuntimeBareRandom`), and
+  `RuntimePlat` delegates per family. **WHAT IS STILL LINUX (measured on that
+  program):** the 16 remaining raw syscalls are `kof_plat_thread_id` and
+  `kof_plat_sync` (the concurrency face — M-5), the allocator's `.Lgrow_try`
+  (M-3), and the runtime's OWN io (`.Lkof_read_line_loop`, `kof_read_file`,
+  `kof_write_file`) plus `kof_sec_secret_get` — those BYPASS the seam, and
+  routing them through it is the M-6 row. **PROOF (executed):**
+  `NativeMacOSSeamE2ETest` **12/12** — RED-first **4 failures** on the old
+  code (the raw syscall in the time family, the Linux clock id, the io family
+  still on `syscall`, the missing `_clock_gettime`/`_arc4random_buf` symbols)
+  and GREEN after; the **real Mach-O assembler accepts the time/random
+  bodies** (the object carries `_clock_gettime` and `_arc4random_buf` as
+  undefined externals); `NativeMacOSProfileE2ETest` 11/11; the native battery
+  **814 run / 0F / 0E / 81 skipped**; the gates rc=0.
+  **M-3 SLICE LANDED 22/11 (the allocator over the libSystem) — the
+  `kof_plat_heap_grow` (the arena's 4 GiB → 64 MiB descent) now calls
+  `mmap`/`munmap` from the libSystem, and the Darwin's mmap is NOT the Linux
+  mmap in THREE points, all MEASURED in the SDK headers: (1) the 4th flag
+  goes in `%rcx` (the SysV ABI — the Linux syscall put it in `%r10`); (2) the
+  flags are DIFFERENT — `MAP_PRIVATE|MAP_ANON|MAP_NORESERVE` = `0x1042` on the
+  Darwin vs the Linux `0x4022` (the Linux `MAP_ANONYMOUS` is 0x20 and its
+  `MAP_NORESERVE` is 0x4000); (3) the error is `MAP_FAILED` = `-1` exactly
+  (the Linux syscall returned a `-errno` in `[-4095,-1]`). The arena logic
+  (the descent, the bitmap, the release of the failed bitmap) is the host's
+  byte for byte — only the syscall became the libc call, with the proven
+  stack-alignment shape. **THE RATCHET:** the raw Linux syscalls of the real
+  hello fell **5 → 2** — what is left of the seam's x86-64 face is the
+  concurrency (`kof_plat_thread_id`, `kof_plat_sync` — the M-5 row). **PROOF
+  (executed):** `NativeMacOSAllocatorE2ETest` **5/5** — RED-first **5
+  failures** on the old code (the body still on `syscall`, the Linux flags in
+  `%r10`, the Linux `-errno` check, the ratchet still at 5, the missing
+  `_mmap`/`_munmap` symbols) and GREEN after; the **real Mach-O assembler
+  accepts the allocator body** (the object carries `_mmap`/`_munmap` as
+  undefined externals); `NativeMacOSSeamE2ETest` 12/12;
+  `NativeMacOSProfileE2ETest` 11/11; the native battery **819 run / 0F / 0E /
+  81 skipped**; the gates rc=0. **THE BOUNDARY (honest):** the profile still
+  REFUSES to emit a binary (`NATIVE005`) — the concurrency (M-5), the TLS
+  (M-4) and the runtime's own io (M-6) still speak Linux, and the proof that
+  a macOS binary RUNS is the M-7 runner.
+  **M-6 SLICE 1 LANDED 22/11 (the runtime's own io through the seam) — the
+  Native runtime's `read`/`write`/`close` now speak the seam instead of the
+  raw Linux syscall, so the macOS profile can read and write through the
+  libSystem.** The seam is the ONLY place where the runtime talks to the
+  OS, and the io was speaking the Linux syscall ABI directly (the gate 2
+  counted it as out-of-seam debt). 16 call sites moved
+  (`RuntimeIo2`, `RuntimeIo3`, `RuntimeTime`: the stdin read, the file
+  read/write, the append, the byte ranges). The host behaviour is
+  byte-identical — the seam's host bodies ARE the same syscalls with the
+  same registers — and the macOS profile now reaches the libc `read`/
+  `write`/`close`. **THE `fstat` STAYS RAW ON PURPOSE (measured):** the
+  syscall numbers are `0=read`, `1=write`, `3=close`, **`5=fstat`** — and
+  the `struct stat` of the Darwin has a DIFFERENT layout than the Linux
+  one, so the stat family is the NEXT M-6 row (its own seam body), not a
+  read in disguise. (The first pass of this slice mapped the `5` to the
+  read and the io suite caught it — 4 RED — before anything shipped.)
+  **THE RATCHET:** the out-of-seam x86-64 count fell **180 → 164** and the
+  baseline was regenerated deliberately after the improvement (the gate's
+  documented flow; the selftest is 3/3). **PROOF (executed):**
+  `NativeIoSeamE2ETest` **2/2** — RED-first **2 failures** on the old code
+  (the io does not go through the seam) and GREEN after; the io family
+  **92 run / 0F / 0E / 9 skipped** (`IoE2ETest` 26/0); the native battery
+  **829 run / 0F / 0E / 82 skipped**; the gates rc=0.
+  **THE MEASUREMENT FOR THE NEXT ROW (M-4, the TLS):** the Mach-O thread
+  local access was read off the REAL compiler (the provisioned clang 18):
+  `movq _x@TLVP(%rip), %rdi; callq *(%rdi); movq (%rax), %reg` plus the
+  `__DATA,__thread_vars` descriptor (`__tlv_bootstrap`, 0, the init
+  slot) — and the runtime's exception chain is ONE variable
+  (`kof_exc_chain`) read/written at 22 sites (9 loads, 13 stores). The
+  register audit already paid one dividend: at the store sites the
+  `%rdi`/`%rax` hold LIVE values (the `String` argument, the result), so
+  a naive seam call would clobber them — the M-4 bodies must preserve the
+  caller-saved registers (the seam get/set shape) or the sites must be
+  rewritten with the value in a register they can spare.
+  **M-4 SLICE 1 LANDED 22/11 (the TLS through the seam — the chain's LOADS;
+  and the macOS face is a pthread key, a PUBLIC API):** the runtime's
+  exception chain (`kof_exc_chain`) got a get/set seam pair with a
+  TRANSPARENT contract — the get returns the value in `%rax` and preserves
+  every other register; the set takes `%rdi` and preserves everything
+  (including `%rax`, because `pthread_setspecific` returns an int the caller
+  does not expect). The **9 LOAD sites** moved (the parse-or-default family,
+  the GC, the DB, the concurrency); the **13 STORE sites** are the next
+  slice — the register audit measured that `%rdi`/`%rax` hold LIVE values
+  there (the `String` argument, the result), so a naive seam call would
+  clobber them. The **macOS face** uses `pthread_key_create`/
+  `pthread_getspecific`/`pthread_setspecific` (measured in the SDK's
+  pthread.h), with the key created at the **STARTUP** (`kof_plat_tls_init`,
+  single-thread — no creation race). The alternative measured (the Mach-O
+  TLV: `movq _x@TLVP(%rip), %rdi; callq *(%rdi)` + the
+  `__DATA,__thread_vars` descriptor) was REJECTED: it would force the
+  translator to rewrite every access and emit the descriptor (the `$` in
+  the symbol names). **A LATENT BUG FIXED ON THE WAY:** the entry left the
+  `main(String[] args)` array in `%rdi` and then called the thread-id seam —
+  on macOS (a libc call) that clobbers `%rdi`, so the args would arrive
+  garbage; the entry now re-materializes `%rdi` from the callee-saved `%rbx`
+  right before the main call. **THE RATCHET:** the TLS sites fell **24 →
+  17** (the baseline regenerated after the improvement). **PROOF
+  (executed):** `NativeMacOSTlsE2ETest` **3/3** — RED-first **3 failures**
+  (the seam pair missing; the macOS bodies missing; the `_pthread_*` symbols
+  missing) and GREEN after; the native + exception battery **946 run / 0F /
+  0E / 80 skipped**; the gates rc=0. **THE NEXT SLICE (M-4):** the 13
+  stores (the value must reach a register the site can spare) + the
+  emitter's try/catch machinery (2 sites inside the compiled method) — then
+  the hello's last TLS face is gone and the `NATIVE005` refusal goes silent.
+  **M-4 SLICE 2 LANDED 22/11 — THE TLS MIGRATION IS COMPLETE: the macOS
+  profile has NO ELF-only face left, and the NATIVE005 refusal goes SILENT
+  (the only refusal that remains is NATIVE004 = the missing macOS toolchain,
+  the M-7 runner).** The remaining **18 sites** (14 in the runtime + 4 in the
+  emitter's try/catch machinery) now go through the seam: the value reaches
+  `%rdi` (with `%rdi`/`%rcx` pushed/popped at the site, and the `%rsp` stores
+  using `leaq 16(%rsp)` — the original stack pointer after the two pushes), and
+  the set body preserves EVERYTHING, so the `movq %rax, %rsp` that follows the
+  unlink keeps working (the `%rax` base survives the call). **THE RATCHET:**
+  the TLS sites fell **17 → 3** (the 3 are the seam's own Linux body), and the
+  baseline was regenerated. **THE MILESTONE TEST:** `theMacosProfileHasNoElfTlsLeft`
+  — the macOS profile's emitted text has **no `%fs:` and no `@tpoff`** at all
+  (RED on the old code). The two refusal tests now assert the milestone: the
+  NATIVE005 is GONE and only the NATIVE004 names the toolchain. **PROOF
+  (executed):** the macOS family **40/0F**; the UEFI/Ring families **8/0F** and
+  **5/0F** (the suite's mid-run failures were contamination — see the verdict
+  record); the Troolean family is **3/0F** (the sibling lane's #1178 ROOT fix
+  landed: the type was `Nullable(Nullable(Bool))`, not a design fork); the
+  exception + native battery **946/0F**; the gates rc=0. **THE BOUNDARY
+  (honest):** the macOS profile now compiles the hello cleanly up to the LINK
+  — the link and the RUN need the M-7 runner (a real macos-14 host), and that
+  is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
+  the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
+  cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 2 LANDED 22/11 (the NET family over the libSystem — and a REAL
+  TRANSLATOR BUG the slice exposed: the character-literal immediates).** The
+  six socket seam functions (`kof_plat_net_socket`/`connect`/`bind`/`listen`/
+  `accept`/`send`) now call the libSystem on the macOS profile; the BSD socket
+  ABI is the SAME as the Linux libc one, and the ONE difference is the 4th
+  flag of the `sendto` (the Linux syscall puts it in `%r10`, the SysV ABI in
+  `%rcx` — the body moves it). The bodies are TRANSPARENT (they preserve the
+  caller-saved registers, so the runtime callers — written against the
+  syscall — stay correct) and they live in their own class
+  (`RuntimePlatMacosNet`) because the seam file crossed the 500-line gate;
+  the TLS family moved to `RuntimePlatMacosTls` for the same reason (the
+  gate is now rc=0 with all three under the critical band).
+  **THE TRANSLATOR BUG (found by the real assembler, not by inspection):**
+  a character-literal immediate (`$'h'`) was scanned as an operand — the `h`
+  took the Mach-O `_` prefix (`$'_h'`) and the clang answered "single quote
+  way too long". The kof.http runtime compares characters
+  (`cmpb $'h', 0(%rbx)`), so the face appeared the moment the net slice
+  entered the text; the fix copies `$'X'` (and the escaped `$'\n'`)
+  verbatim. **PROOF (executed):** `NativeMacOSNetE2ETest` **3/3** — RED-first
+  **3 failures** on the old code (the socket bodies were the raw syscalls;
+  the sendto had no flag move; the char literal was corrupted) and GREEN
+  after; `NativeMacOSProfileE2ETest` **12/12** (the new char-literal test RED
+  on the old translator); the macOS family **36/0F**; the native + http/web
+  battery **877 run / 1F** (the failure is the sibling lane's in-flight
+  `NativeCrossMultidistroE2ETest` — a missing `image.Raster` import at the
+  front end, untouched by this slice); the seam gate rc=0 (futex 13, TLS 3);
+  `check_500` rc=0 after the splits; the changelog-ledger gate is red on the
+  tip for the SIBLING lane's §1193/§1194/§1195 rows (no CHANGELOG entry yet
+  — their bookkeeping, reported not touched).
+
+
+
+
+  **M-5 SLICE 1 LANDED 22/11 (the concurrency face) — the port exposed a REAL
+  DEFECT in the x86-64 runtime: the futex arguments were passed in the WRONG
+  registers, so the "futex wait" was an EINVAL no-op (a wait that never
+  sleeps) and the scheduler's wake woke the WRONG address.** THE CONTRACT of
+  the seam is the futex ABI — `kof_plat_sync(uaddr=%rdi, op=%rsi, val=%rdx,
+  timeout=%r10)` — declared the same way on the riscv face
+  (`kof_plat_sync(uaddr=a0, op=a1, val=a2, timeout=a3)`). The repo already
+  knew this class of bug: the "bug 50" note in `RuntimeChannel` says the old
+  code called syscall 202 with `rdi=chan` (the wrong uaddr) and `rsi=&lock`
+  (used as the op) — "undefined behaviour under contention (spawn)". That fix
+  landed in `RuntimeChannel` and `RuntimeLock` but NOT in `kof_alloc` nor in
+  the scheduler: their wait sites left the ADDRESS in `%rsi` (the op
+  register) and a stale value in `%rdi`, and the scheduler's wake sites woke
+  the JOB pointer instead of the lock. THE FIX uses the established pattern
+  (`leaq <lock>(%rip), %rdi; xorl %esi, %esi` for the wait — plus restoring
+  the address for the `cmpxchg` — and `leaq <lock>(%rip), %rdi` for the wake).
+  **MEASURED on the real binary (strace):** the futex calls were
+  `futex(0x40a780, FUTEX_WAKE, 0)` — and the kernel honours that val by
+  waking ONE waiter (the wake returned 1 — the undocumented-but-measured
+  behaviour, so the existing wake sites were right in effect); the wait sites
+  never appeared with a valid op, because the (tiny) critical section is
+  usually won by the spin. **THE MACOS THREAD ID:** the Darwin has no
+  `gettid`; the public API is `pthread_threadid_np(NULL, &tid)` (measured in
+  the SDK header, and `_pthread_threadid_np` is in the libSystem export
+  list) — the body keeps the id slot in the stack and aligns the stack for
+  the libc call. **THE RATCHET:** the raw Linux syscalls of the real hello
+  fell **2 → 1** — only the futex (`kof_plat_sync`) is left in the seam's
+  x86-64 face. **PROOF (executed):** `NativeConcurrencySeamE2ETest` **4/4** —
+  RED-first **4 failures** on the old code (the broken contract at the
+  `kof_alloc` wait; the macOS thread id still `gettid`; the missing
+  `_pthread_threadid_np` symbol; the ratchet) and GREEN after; the contract
+  proof is **structural and deterministic** (the test walks the emitted
+  assembly and, at EVERY `kof_plat_sync` call site, requires the op to be a
+  constant, the uaddr an address and the val a constant — no race involved);
+  the concurrency family stays green (`KofConcurrency2Test` 50/0,
+  `KofAwaitTest` 8/0, `SpawnAwaitBlockE2ETest` 5/0, `MakealiveReconcileE2ETest`
+  1/0, `WorkflowPrimitivesE2ETest` 6/0); the native battery **823 run / 0F /
+  0E / 81 skipped**; the gates rc=0. **THE NEXT SLICE:** the macOS sync body
+  (the futex → `__ulock`/`os_unfair_lock`) — the ulock API is PRIVATE (it is
+  NOT in the SDK headers, but libSystem exports `___ulock_wait`/`___ulock_wake`
+  — measured in the libSystem export list), so its semantics need the XNU
+  contract and a real runner (M-7) to be proven.
+  **M-5 SLICE 2 LANDED 22/11 (the macOS sync over the Darwin ulock — and the
+  seam's x86-64 face is now ALL libSystem):** the futex became the **ulock**
+  API, and the mapping was MEASURED in the XNU source, not guessed —
+  `bsd/sys/ulock.h` (`__ulock_wait(uint32_t op, void *addr, uint64_t value,
+  uint32_t timeout_us)`, `__ulock_wake(uint32_t op, void *addr, uint64_t
+  wake_value)`, `UL_COMPARE_AND_WAIT = 1`, `ULF_WAKE_ALL = 0x100`) and
+  `bsd/kern/sys_ulock.c` (the wait does `copyin_atomic32` and only sleeps
+  when `*addr == value` — the futex WAIT; the wake without `ULF_WAKE_ALL`
+  calls `waitq_wakeup64_one`, with it `waitq_wakeup64_all`; `wake_value` is
+  ignored for `COMPARE_AND_WAIT`). THE BODY: the futex command is the low 7
+  bits of the op (`andl $0x7f` — the `FUTEX_PRIVATE` flag rides above and is
+  irrelevant on Darwin), the WAIT maps to `__ulock_wait(1, uaddr, val, 0)`
+  (timeout 0 = none, like the futex's NULL) and the Kof `futex WAKE(INT_MAX)`
+  maps to `__ulock_wake(1 | ULF_WAKE_ALL, uaddr, 0)` while a smaller count
+  wakes one. THE BOUNDARY (honest): the ulock API is **PRIVATE** — it is NOT
+  in the SDK headers (measured), but libSystem EXPORTS
+  `___ulock_wait`/`___ulock_wake` (the SDK export list, with the three
+  underscores — the names the assembly carries) — so the wiring is proven by
+  the text + the real assembler, and the running semantics by the M-7
+  runner. **THE RATCHET:** the raw Linux syscalls of the real hello fell
+  **1 → 0** — the seam's x86-64 face is ALL libSystem now, and the
+  `NATIVE005` refusal names ONLY the TLS face (the M-4 row). **THE GATE:** the
+  futex count in `check_macos_seam.sh` now EXCLUDES the seam (the seam is the
+  migration surface, not the out-of-seam debt) — the number fell 15 → 13 and
+  the baseline was regenerated deliberately after the improvement (the
+  selftest is 3/3). **PROOF (executed):** `NativeConcurrencySeamE2ETest`
+  **7/7** — RED-first **4 failures** (the macOS sync still `syscall 202`; the
+  ratchet at 1; the missing `___ulock_*` symbols; the refusal still naming
+  the syscall face) and GREEN after; the **real Mach-O assembler accepts the
+  sync body** (the object carries `___ulock_wait`/`___ulock_wake` as
+  undefined externals); the native battery **826 run / 0F / 0E / 81
+  skipped**; the concurrency family unchanged (the host path is untouched);
+  the gates rc=0 for this lane's surfaces (`check_release_blockers` is red on
+  the tip because the new issues #1187–#1189 have no ledger rows yet — the
+  triage lane's file, reported not touched).
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters

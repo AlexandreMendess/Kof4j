@@ -13,17 +13,25 @@ import dev.kof.compiler.nat.NativeProfile;
  * {@code --target native} (x86_64) — nos demais alvos seria um no-op
  * silencioso, então é recusado com mensagem nomeada (R6). Um valor fora de
  * {@code host|freestanding} também é recusado, nunca ignorado.
+ *
+ * <p>M-1 (#1135, D-NATIVE-MACOS 17/11): o perfil {@code macos} abre o alvo
+ * Mach-O (arm64) — o formato do objeto e a linha de link mudam; o código
+ * emitido é o mesmo.
  */
 final class BuildProfileFlag {
 
     private BuildProfileFlag() {
     }
 
-    /** Mapeia {@code host|freestanding}; {@code null} = valor inválido (R6). */
+    /** Mapeia {@code host|freestanding|macos}; {@code null} = valor inválido (R6).
+     *  M-1 (#1135): o perfil {@code macos} abre o alvo Mach-O (a face do
+     *  emissor: x86-64). */
     static NativeProfile parse(String value) {
         return switch (value) {
             case "host" -> NativeProfile.HOST;
             case "freestanding" -> NativeProfile.FREESTANDING;
+            // M-1 (#1135, D-NATIVE-MACOS): o alvo macOS (Mach-O + libSystem).
+            case "macos" -> NativeProfile.MACOS;
             default -> null;
         };
     }
@@ -38,7 +46,8 @@ final class BuildProfileFlag {
                     + TargetMatrix.name(target) + ")";
         }
         if (parse(profileArg) == null) {
-            return command + ": --profile invalid: '" + profileArg + "' (expected host|freestanding)";
+            return command + ": --profile invalid: '" + profileArg
+                    + "' (expected host|freestanding|macos)";
         }
         return null;
     }

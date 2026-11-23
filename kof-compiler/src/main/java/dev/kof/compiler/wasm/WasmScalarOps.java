@@ -92,9 +92,46 @@ public final class WasmScalarOps {
                 }
             }
             case NOT -> out.add(new WasmInstr.Simple(0x45, "i32.eqz"));
+            // ── as CONVERSOES (medido 22/11: TODAS recusavam no WASI) ────────
+            // A lei das larguras deste backend: Int/Long/Char viajam em i64 na
+            // pilha, Bool em i32, Double em f64 (o mapType abaixo). A conversao
+            // so' emite instrucao quando as larguras DIFEREM — as de mesma
+            // largura sao IDENTIDADE.
+            case I2C -> {
+                // Char = code unit UTF-16 (16 bits), na pilha i64: recorta
+                // (a MESMA lei do `& 0xFFFF` do array Char, §187)
+                out.add(new WasmInstr.Const(1, 0xFFFFL));
+                out.add(new WasmInstr.Simple(0x83, "i64.and"));
+            }
+            case I2L -> { /* identidade: os dois sao i64 na pilha */ }
+            case I2B -> {
+                out.add(new WasmInstr.Const(1, 0xFFL));
+                out.add(new WasmInstr.Simple(0x83, "i64.and"));
+            }
+            case I2S -> {
+                out.add(new WasmInstr.Const(1, 0xFFFFL));
+                out.add(new WasmInstr.Simple(0x83, "i64.and"));
+            }
+            case L2I -> { /* identidade: o truncamento a 32 bits so' ocorre na
+                             fronteira da memoria (o slot e' o mesmo i64) */ }
+            case I2D, L2D, F2D -> out.add(new WasmInstr.Simple(0xb9, "f64.convert_i64_s"));
+            case D2I, D2L -> out.add(new WasmInstr.Simple(0xb0, "i64.trunc_f64_s"));
+            case I2F, L2F, D2F, F2I, F2L -> { /* identidade: Float = o slot f64 */ }
             default -> throw new WasmUnsupportedException("unario '" + un.op()
-                    + "' fora do subset 15.2 (WASM002) — conversions pertencem as unidades 15.3+");
+                    + "' fora do subset 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");
         }
+    }
+
+    /** O nome do tipo do RESULTADO de uma conversao (o `operandType()` do
+     *  {@code KofUnary} e' o do OPERANDO — um {@code I2D} tem operandType
+     *  int e resultado double). */
+    static String resultTypeName(KofUnary un) {
+        return switch (un.op()) {
+            case I2L, I2C, I2B, I2S, L2I -> "int";
+            case I2D, I2F, L2D, L2F, F2D, D2F -> "double";
+            case D2I, D2L, F2I, F2L -> "int";
+            default -> typeName(un.operandType());
+        };
     }
 
     static WasmInstr cmp(KofConditionalJump cj, String suffix, int i64Op, int f64Op) {
@@ -126,6 +163,12 @@ public final class WasmScalarOps {
     }
 
     static String typeName(Type t) {
+        // fase 4 (#776): o receiver do kof.io (File/Path/Directory) e' um
+        // ALIAS do path (a String) — a MESMA lei do runtime JVM (o receiver
+        // e' apagado para o path String: o File nao e' um objeto, e' o
+        // caminho). Sem isto o local caia no mapa de tipos e recusava
+        // honesto (WASM002: "local f 'File' fora do subset escalar").
+        if (WasmIoTypes.isIoReceiver(t)) return "string";
         // FATIA MV (28/10, #776): o String? (o valor do map.get) recebe o
         // NOME PROPRI0 — o scan aceita e o print despacha com o check do
         // handle null (o JVM imprime `null`)

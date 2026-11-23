@@ -86,6 +86,216 @@ class KofWebNativeE2ETest extends ServerProcessSupport {
 
     // ---------------- testes ----------------
 
+    /**
+     * §1159 (20/11): o CONTEXTO da request corrente no nativo x86-64 —
+     * {@code method()} e {@code path()} devolvem o método e o path da request
+     * que casou a rota. Antes recusavam em compile-time (WEB001) e o ticket
+     * listava "path params" como residual do nativo.
+     */
+    private static final String SERVER_CTX = """
+            main() {
+                var app = web.app()
+                app.get("/ctx/7") {
+                    return "m=" + method() + " p=" + path()
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    /**
+     * §1159 (20/11): o STATUS da resposta no nativo x86-64 — `status(404,
+     * "gone")` guarda o código (e devolve o body) e o escritor de resposta
+     * emite "HTTP/1.1 404 Not Found" no fio. Antes recusava em compile-time
+     * (WEB001).
+     */
+    private static final String SERVER_STATUS = """
+            main() {
+                var app = web.app()
+                app.get("/gone") {
+                    return status(404, "gone")
+                }
+                app.get("/created") {
+                    return status(201, "made")
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    /**
+     * §1159 (20/11): os PATH PARAMS no nativo — `app.get("/item/:id")` casa
+     * e `param("id")` devolve o segmento do path da request. Antes o match
+     * era string exata (o padrão `:id` nunca casava).
+     */
+    private static final String SERVER_PARAMS = """
+            main() {
+                var app = web.app()
+                app.get("/item/:id") {
+                    return "id=" + param("id")
+                }
+                app.get("/user/:name/pet/:pet") {
+                    return param("name") + "/" + param("pet")
+                }
+                app.get("/plain") {
+                    return "plain"
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerCapturesPathParams(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_PARAMS);
+        String one = httpGet(serverPort, "/item/42");
+        assertTrue(one.contains("200"), "status: " + one);
+        assertTrue(one.endsWith("id=42"), "the :id segment must be captured: " + one);
+        String two = httpGet(serverPort, "/user/mel/pet/rex");
+        assertTrue(two.endsWith("mel/rex"), "two params in one route: " + two);
+        String plain = httpGet(serverPort, "/plain");
+        assertTrue(plain.endsWith("plain"), "the literal route still matches: " + plain);
+        String miss = httpGet(serverPort, "/nope");
+        assertTrue(miss.contains("404"), "a non-matching path still 404s: " + miss);
+    }
+
+    /**
+     * §1159 (20/11): a FILA de headers no nativo — `headerSet()` guarda
+     * (nome, valor); Set-Cookie REPETE, o resto last-wins; o guard anti-CRLF
+     * recusa em compile-time... não: recusa em runtime (rax null), como o JVM
+     * recusa com exceção. O escritor emite a fila antes do Content-Type.
+     */
+    private static final String SERVER_HEADERS = """
+            main() {
+                var app = web.app()
+                app.get("/login") {
+                    headerSet("Set-Cookie", "a=1; Path=/")
+                    headerSet("Set-Cookie", "b=2; Path=/")
+                    headerSet("X-One", "first")
+                    headerSet("X-One", "second")
+                    return "ok"
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerSendsTheQueuedHeaders(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_HEADERS);
+        String r = httpGet(serverPort, "/login");
+        assertTrue(r.contains("Set-Cookie: a=1; Path=/"), "the first cookie: " + r);
+        assertTrue(r.contains("Set-Cookie: b=2; Path=/"), "the second cookie (repeat): " + r);
+        assertTrue(r.contains("X-One: second") && !r.contains("X-One: first"),
+                "other headers keep last-wins: " + r);
+        assertTrue(r.endsWith("ok"), "the body must still come through: " + r);
+    }
+
+    /**
+     * §1159 (21/11): a QUERY STRING no nativo — o path da request é separado
+     * do {@code "?..."} (o roteamento casa o path SEM o query; antes
+     * {@code GET /list?page=2} dava 404 porque o path inteiro era
+     * {@code "/list?page=2"}) e {@code query("name")} devolve o valor
+     * percent-decodificado (o mesmo contrato do JVM: chave CRUA, valor
+     * decodificado, ausente = null).
+     */
+    private static final String SERVER_QUERY = """
+            main() {
+                var app = web.app()
+                app.get("/q") {
+                    val v = query("name")
+                    if (v == null) {
+                        return "absent"
+                    }
+                    return "v=" + v
+                }
+                app.get("/path") {
+                    return "p=" + path()
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerRoutesThePathWithoutTheQueryString(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_QUERY);
+        String withQuery = httpGet(serverPort, "/q?name=abc");
+        assertTrue(withQuery.contains("200"), "the route must match with a query string: " + withQuery);
+        assertTrue(withQuery.endsWith("v=abc"), "the query value must reach the handler: " + withQuery);
+        String pathOnly = httpGet(serverPort, "/path");
+        assertTrue(pathOnly.endsWith("p=/path"), "path() must be the path without the query: " + pathOnly);
+    }
+
+    @Test
+    void nativeServerDecodesTheQueryValueAndReportsAbsence(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_QUERY);
+        assertTrue(httpGet(serverPort, "/q?name=a%20b").endsWith("v=a b"),
+                "the value is percent-decoded (the JVM/JS contract): ");
+        assertTrue(httpGet(serverPort, "/q?other=1&name=xyz").endsWith("v=xyz"),
+                "the pair is found among several: ");
+        assertTrue(httpGet(serverPort, "/q").endsWith("absent"),
+                "an absent parameter is null (the JVM contract): ");
+        assertTrue(httpGet(serverPort, "/q?name=").endsWith("v="),
+                "an empty value is present and empty: ");
+    }
+
+    /**
+     * §1159 (21/11): `import kof.web` no nativo — o inject FLAT de
+     * {@code pageRequest} chama {@code query()}, que não tinha runtime
+     * nativo; TODA programa Native com o import era recusado em compile-time
+     * (WEB001). Agora compila e pagina (o mesmo oráculo do JVM:
+     * {@code /list?page=3&limit=20} → {@code p:3 l:20 o:40}).
+     */
+    private static final String SERVER_PAGINATION = """
+            import kof.web
+
+            main() {
+                var app = web.app()
+                app.get("/list") {
+                    try {
+                        val p = pageRequest(20, 100)
+                        return "p:" + p.page() + " l:" + p.limit() + " o:" + p.offset()
+                    } catch (String e) {
+                        return status(400, e)
+                    }
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerPaginatesWithTheInjectedHelper(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_PAGINATION);
+        String paged = httpGet(serverPort, "/list?page=3&limit=20");
+        assertTrue(paged.contains("200"), "the page must be served: " + paged);
+        assertTrue(paged.endsWith("p:3 l:20 o:40"), "the JVM oracle values: " + paged);
+        String first = httpGet(serverPort, "/list");
+        assertTrue(first.endsWith("p:1 l:20 o:0"), "the defaults (page 1, offset 0): " + first);
+        String clamped = httpGet(serverPort, "/list?limit=500");
+        assertTrue(clamped.endsWith("p:1 l:100 o:0"), "the limit is clamped to the max: " + clamped);
+        String bad = httpGet(serverPort, "/list?page=0");
+        assertTrue(bad.contains("400"), "a bad page is the named error: " + bad);
+        assertTrue(bad.endsWith("PAGINATION: page must be >= 1"), "the named error body: " + bad);
+    }
+
+    @Test
+    void nativeServerEmitsTheStatusTheHandlerSet(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_STATUS);
+        String notFound = httpGet(serverPort, "/gone");
+        assertTrue(notFound.contains("404"), "the status line must carry the code: " + notFound);
+        assertTrue(notFound.contains("Not Found"), "the status text must be the standard one: " + notFound);
+        assertTrue(notFound.endsWith("gone"), "the body must be what status() returned: " + notFound);
+        String created = httpGet(serverPort, "/created");
+        assertTrue(created.contains("201"), "the status line must carry the code: " + created);
+        assertTrue(created.contains("Created"), "the status text must be the standard one: " + created);
+        assertTrue(created.endsWith("made"), "the body must be what status() returned: " + created);
+    }
+
+    @Test
+    void nativeServerExposesTheRequestMethodAndPath(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_CTX);
+        String resp = httpGet(serverPort, "/ctx/7");
+        assertTrue(resp.contains("200"), "status: " + resp);
+        assertTrue(resp.endsWith("m=GET p=/ctx/7"),
+                "the request context must carry the method and the path: " + resp);
+    }
+
     @Test
     void nativeServerAcceptsAndResponds200(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_T1);
