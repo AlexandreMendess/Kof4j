@@ -784,6 +784,83 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 5 POUSADA 22/11 — O PONTO CEGO DO PRÓPRIO GATE FECHADO: o
+  ratchet x86 vigiava só metade da superfície.** O gate da costura conta o
+  acesso a sistema que ainda passa por fora da costura — a promessa é "a
+  costura não cresce". Mas o lado x86 varria só o pacote `runtime/`: os
+  sítios de syscall x86 do pacote `nat/` (o `socket`/`connect`/`fcntl`/
+  `poll`/`setsockopt` do core do HTTP, o web listen, o net front) **não
+  estavam no ratchet** — **19 instruções `syscall` reais** medidas fora da
+  superfície contada. Um syscall novo ali passaria pelo gate em silêncio.
+  **A CORREÇÃO (duas precisões):** o inventário agora varre **os dois**
+  pacotes (as faces riscv/aarch64/mcu continuam contadas à parte, e o
+  tradutor fica de fora — lá o `syscall` é o DETECTOR, não um sítio emitido);
+  e a métrica conta a **instrução** (a linha que É o `syscall`), não a
+  palavra em prosa — o pacote `nat/` tem comentários e o texto do diagnóstico
+  NATIVE005 que dizem "syscall" sem emitir um sítio (a contagem antiga
+  incluía 45 linhas assim só no pacote runtime). A métrica do TLS recebeu o
+  mesmo tratamento (um mnemônico com o operando, não uma menção): 3 → 2.
+  **PROVA (executada):** com um `syscall` cru plantado num ficheiro do
+  `nat/`, o gate ANTIGO devolve **rc=0** (cego) e o NOVO devolve **rc=1** — o
+  ponto cego fechou, medido no mesmo sandbox e com o mesmo baseline; o
+  selftest do gate cresceu para **4/4** (o caso novo é exatamente este: o
+  crescimento no pacote `nat/` tem que falhar). O baseline novo:
+  `x86_out_seam` 148, `riscv_out_seam` 168, `tls_sites` 2, `futex_sites` 13 (o
+  número x86 CAIU porque a métrica parou de contar prosa — a superfície
+  coberta CRESCEU em 19 sítios reais). **O QUE ISSO TOMA MENSURÁVEL (a
+  próxima fatia):** a família de sockets do HTTP — os seus equivalentes na
+  libSystem (`socket`, `connect`, `fcntl`, `poll`, `setsockopt`) mantêm os
+  MESMOS registradores SysV, e as constantes de opção são o que falta
+  medir (`SO_RCVTIMEO` é 20 no Linux e 0x1002 no Darwin).
+
+  **M-6 FATIA 4 POUSADA 22/11 (o relógio do `kof.http` pela costura) — o
+  circuit-breaker pedia ao Darwin o clock id do LINUX.** O `kof_http_now_ms`
+  fazia o syscall `clock_gettime=228` CRU com `CLOCK_MONOTONIC=1` — o id do
+  Linux. No Darwin o id é **6** (medido no SDK), então o corpo cru teria
+  pedido outro relógio (ou falhado). Agora passa por `kof_plat_time_mono`, a
+  costura que já carrega o id de cada plataforma (1 no Linux, 6 no Darwin) —
+  e a aritmética dos milissegundos fica num lugar só. **PROVA (executada):**
+  `NativeMacOSHttpClockE2ETest` **3/3** — RED-first **2 falhas** no código
+  antigo (o clock_gettime cru e a costura ausente) e GREEN depois; a bateria
+  nativa + http/web **927 run / 1F** (a falha é a
+  `NativeCrossMultidistroE2ETest` da lane irmã em voo — um import
+  `image.Raster` ausente no front end, intocado aqui); os gates rc=0. **A
+  MEDIÇÃO QUE ESTE CICLO ENCONTROU (o ponto cego do próprio gate):** o lado
+  x86 do gate da costura só vigia o pacote `runtime/` — os sítios de syscall
+  x86 do pacote `nat/` (o `socket`/`connect`/`fcntl`/`poll`/`setsockopt` do
+  core do HTTP, o web listen, o net front) **não estavam no ratchet**: 19
+  instruções `syscall` reais e 34 menções ficam fora da superfície contada.
+  Um syscall novo ali não dispararia o gate. A próxima fatia fecha esse
+  buraco (e a família de sockets do HTTP — cujos equivalentes na libSystem têm
+  os MESMOS registradores SysV — é a migração que ele torna mensurável).
+
+  **M-6 FATIA 3 POUSADA 22/11 (a família STAT da costura — e o `struct stat` do
+  Darwin NÃO É o do Linux).** Os sete sítios do runtime que chamavam o
+  `newfstatat` (syscall 262) direto agora passam por `kof_plat_stat`. O layout
+  do Darwin foi **MEDIDO** compilando os `offsetof` com o clang real (o
+  toolchain provisionado), não adivinhado: `mode@4` (u16), `nlink@6` (u16),
+  `mtimespec@48`, `size@96` — contra o `mode@24` (u32), `nlink@16` (u32),
+  `mtim@88`, `size@48` do Linux; e as FLAGS também diferem
+  (`AT_SYMLINK_NOFOLLOW` = **0x20** no Darwin, 0x100 no Linux; `AT_FDCWD` =
+  **-2**, -100 no Linux). Copiar o corpo do Linux teria feito o runtime ler
+  lixo — o `st_size@96` do Darwin seria lido como mode. **A NORMALIZAÇÃO (um
+  lugar só, não leituras espalhadas):** o corpo do macOS chama o `fstatat` num
+  rascunho de 144 bytes na pilha e copia os QUATRO campos que o runtime usa
+  para o buffer do chamador nos offsets do HOST — então **nenhum chamador
+  muda**: eles continuam lendo `24/48/88/96(%rsp)`. O corpo do host é o mesmo
+  syscall `newfstatat`, logo o comportamento do host não muda (o teste
+  assere isso). **O RATCHET:** a contagem x86-64 fora-da-costura caiu de
+  **164 para 157** (o baseline regenerado; o selftest do gate é 3/3).
+  **PROVA (executada):** `NativeMacOSStatE2ETest` **4/4** — RED-first **4
+  falhas** no código antigo (sem costura, sem `fstatat`, sem normalização, sem
+  o símbolo `_fstatat`) e GREEN depois; as famílias macOS + io **87/0F**;
+  `check_500` rc=0 (`RuntimePlatMacosStat` é uma classe nova, só dela); os
+  gates rc=0. **A PRÓXIMA LINHA:** o runner **M-7** (o link + a execução num
+  host macos-14 de verdade — a primeira prova de que um binário macOS
+  RODA), e depois a face arm64; o relógio do `kof.http` (o
+  `kof_http_now_ms` com o `clock_gettime` cru) é a próxima família de syscall
+  medida neste ciclo.
+
   **M-6 FATIA 2 POUSADA 22/11 (a família de REDE sobre a libSystem — e um BUG
   REAL DO TRADUTOR que a fatia expôs: os imediatos de CARACTERE).** As seis
   funções de socket da costura (`kof_plat_net_socket`/`connect`/`bind`/

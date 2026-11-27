@@ -21309,6 +21309,24 @@ THE COST OF THE GAP: the absolute path is baked into the Kof source, so the same
 THE INTERIM: `scripts/gen-enois-text.sh` rewrites the marker `@KOF_TEXT_SHIM@` in `libs/enois/Text.kf` with the resolved absolute path at build time, so the path lives in ONE generated line and never drifts.
 STATUS: named. The compiler-side fix (resolve `library()` against `kof.install.dir/lib` — where the packaged libs already live) belongs to a `NativeAssembler` unit.
 
+**§1192 — the generator was NOT idempotent (found 23/11 when the script moved to the
+desktop repo):** `scripts/gen-enois-text.sh` only replaced the marker `@KOF_TEXT_SHIM@`
+(or the name `kof_text_shim`). After the FIRST run the marker is gone and every
+later run printed "Text.kf -> <lib>" without changing a byte — a silent no-op that
+re-pointed nothing. Now it also rewrites any existing `"...libkof_text.so"` path and
+FAILS with a named message when it finds neither. Measured: run 1 points at lib A,
+run 2 points at lib B, marker count 0, old path count 0. The desktop copy
+(`enois-kof-desktop/scripts/gen-enois-text.sh`) carries the same fix.
+
+**§1192 addendum (23/11) — CLOSED as NOT a bug: the absolute-path `extern` links.**
+When the app needed a second app library, an `extern "/tmp/.../libkof_shot.so"` in a
+`main` module failed with `referência não definida para takeShot`. The new test
+`AbsolutePathExternLinkE2ETest` puts exactly that shape in a main module (gcc builds a
+one-function shim, `extern` by absolute path, call it) and it COMPILES, LINKS AND RUNS
+(`probe=42`). So the failure seen in the demo was not "absolute paths do not link" —
+the actual cause was not established, and this entry does not claim one. The test
+stays as the guard for the shape that must keep working.
+
 ## §1193 — the SDL3 texture format was the BIG-ENDIAN value: every image and every glyph painted with the channels SWAPPED — ✅ FIXED 22/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Found while making the Énois cover image work** (`Sdl3Backend.loadImageTexture`). A 4×4 texture with four known quadrants (red / green / blue / yellow) read back as **red / BLACK / BLACK / magenta**: the green channel landed where blue belonged and vice versa.
@@ -21334,3 +21352,91 @@ WHAT IT BLOCKS: any Kof-side loop over pixel data that arrives from another meth
 THE FIX (two lines, both measured): `MemberResolver.isBuiltinTypeName` now accepts `Buffer`, and `Type.of("Buffer")` maps the DECLARED name to `ClassType("kof","Buffer")` — the same type `buffer.alloc` returns (before, the name resolved but was a DIFFERENT type, so `b.size()` compiled to a call to a nonexistent `Buffer_size`).
 PROOF RED-first: `BufferNominalTypeE2ETest` — with the fix reverted the compile fails with SEM011; with it, a 16×16 circular mask written in pure Kof over a PARAMETER buffer cuts 61 of 256 texels (`canto=0`, `centro=255`), and `Buffer` works as a field, a constructor parameter and a method parameter. Downstream: the Énois avatar now crops a PHOTO to a circle in pure Kof (`centro=128,127,180` from the image, `canto=0,0,0`).
 STATUS: ✅ FIXED.
+
+## §1196 — native x86-64: a function with MORE live call results than incoming arguments overruns its own frame, and the next call sees truncated locals (SEGV in `kof_string_concat` with `rsi=2`) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — measured, with a working shape documented below. No compiler fix in this slice.
+
+**Found while painting the Énois project card** (`libs/enois/Projects.kf`, ratio `projetos`). The card is ONE function that calls several painters in sequence; the program died with SIGSEGV, and gdb showed the crash INSIDE `kof_string_concat`, called from `wrap` (the line-wrap helper): its `rsi` held `2` where a `KofString*` belonged, and the OUT-OF-BOUNDS index its caller reported (`index=2` of a string) proves the wrapping loop had read a TRUNCATED local — `row`/`col`/`text` came back as small integers.
+THE TRIGGER, measured by bisection: the function `paintCard` receives 10 arguments (SDL3 handle, 3 `Font`, x, y, w, 3 `String`, `Int`) and at the top computed `val m = ProjectsMetrics`, `val hasCategory = …`, `val synLines = …clamp(wrap(...).size, 2)`, `val bodyH = …` and `val total = ProjectsScreen.cardHeight(bodyH)` — that is FIVE live temporaries holding call results, more than the six incoming arguments that were spilled, and the frame's spill area had no slot for them. Every shape that reduced the count to ≤ 4 live call results ran clean:
+* `val bodyH` + `val total` as the only two call results, the arithmetic in a helper → OK;
+* the same, plus `val titleLines` (3) → OK;
+* 5 (the original) → SEGV, deterministically (12/12 runs).
+**NOT the cause** (each ruled out by a direct A/B run, same source otherwise): the table of virtual methods in `Tokens`/`PostCard`; the missing `import enois.PostCard` (SEM011); the `readPixel` readback reusable surface; `println` between statements. The crash's *outer* frame was sometimes garbage because the return slot itself was overwritten.
+WHAT IT BLOCKS: a painter that must call five helpers up front. THE WORKING SHAPE, now used in `libs/enois/Projects.kf` (and documented in the file): the arithmetic lives in `layoutBody`/`layoutSynLines`/`cardHeight`, the colours are PARAMETERS (not five `Tokens.*()` calls inside), and the body paints in ≤ 4 results. Any future painter reads this before growing a block of up-front calls.
+STATUS: 🟡 OPEN (measured). Next: a reduced reproducer (`paintCard`-shaped, no SDL) as a compiler test, then the spill-slot fix in `NativeMethodEmitter`.
+
+## §1198 — `http.send(...)` had NO runtime on native x86-64 (the idiomatic form that reads status, headers and body from one call, which the JVM has as `KofRuntime.HttpResponse`) — ✅ FIXED 23/11 (lane wasm/caps `192.168.15.15:0`).**
+Found while building the Énois desktop session client: the backend emits and links
+`kof_http_get/post/status` when it sees them, but `kof_http_send_response`,
+`kof_http_response_status`, `kof_http_response_body` and `kof_http_response_header` were
+never emitted, so `http.send(…).status()` compiled and then failed at the LINK
+(`referência não definida para "kof_http_send_response"`). THE FIX reuses the client that
+already exists rather than adding a second one: `NativeHttpResponse` emits the handle as
+two heap words {status, body}, the body comes from `kof_http_get_headers(url, headers)`
+(a real `KofString`) and the status from `kof_http_status(url)`; `header()` returns the
+empty string because the core does not keep the headers — declared, not hidden; and any
+method whose first byte is not `G`/`H` is REFUSED with a named HTTP002 message instead of a
+half-built handle. PROOF `HttpResponseNativeE2ETest`: a local server answering 401 with the
+backend's JSON and 200 with a profile, and the native binary prints `status=401`, the
+`UNAUTHENTICATED` body and `ok=200 {"username":"mel",…}`. SCOPE: x86-64 only — the riscv64
+verbs live in `NativeRiscvHttpVerbs` and do not have the response handle yet (named, not
+claimed).
+
+## §1197 — the canvas readback does NOT show the frame: `readPixel` after `clearFrame` + `fillRect` returns the clear colour (the filled rect is missing) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — measured; the same program reads its own fills correctly when they are written through a Kof loop, and wrongly when written by `fillRect` alone.
+
+**Found while measuring the Énois `games.$username` screen.** A program that does `b.clearFrame(247,244,251)` and then ONE `b.fillRect(20,20,120,80)` reads back `247,244,251` at every point inside the rect — repeatedly, in the same process. THE MEASUREMENTS that bracket it:
+* the same clear + fill, WITH a pixel loop after it (`while (row < 80) { b.fillRect(...); row = row + 1 }`), then a readD-back inside a function that makes ≥ 12 calls — reads `p=247,244,251` too;
+* `Avatar.paint` (a per-pixel `fillRect` loop in Kof) followed by ONE `readPixel` returns the right pixel (`centro=196,181,253`);
+* a bare program with `clearFrame` and three `readPixel`s returns the clear colour on all three (`readA=readB=readC=247`);
+* an earlier program in this session (`EnosisProjectsE2ETest`, 22/11) read its gradient and its card correctly with the SAME API — so the defect is NOT "readback never works"; it depends on the shape of the calls before it.
+WHAT IT BLOCKS: a pixel-proof painter for any screen whose painter is built from a few `fillRect` calls (the creator page's header/links block). THE INTERIM, named in the migration plan: `games.$username` ships with its text and geometry PROVEN (measured arithmetic + the real font) and its COLOURS FROM THE TOKENS (each one traced to the CSS), and the pixel painter waits for this.
+
+**REDUCER MATRIX (23/11, 40+ emitter programs run this session, each on `/tmp` and the native toolchain):**
+* the fill comes back correct (`255`) when it is painted inside a FUNCTION (`paint(...)`, flat or rounded with a 20-iteration loop) called from a `println`, and wrong (`247`) when the SAME fill is written inline in `main`;
+* wrong: two identical inline clear+fill sequences (`a=247, b=247`), an inline `if (...) { fillRect }` (`r=247`), an inline fill with the `SurfaceCard` token bound first (`x=255, y=247`), and `tokens-gated fill` where `javac`'s `b.fillRect(20,20,120,lin(c.r()))` (`lit=247, plain=247`) still read wrong AFTER a plain second fill;
+* correct: `Avatar.paint` (per-pixel loop) read once, `tokens + plain fill + read in a nested println` (`behind=247` for the coloured background… the read matches the literal clear), and `Projects`'s card readback (which uses a per-row loop for the gradient);
+* a read of a pixel that was never painted returns `0`, so the readback does read the window surface, and the cleared colour is what comes back when the fill is missing.
+**ONE MORE SHAPE FOUND IN THE SAME SESSION, and it is NOT the renderer:** `assertTrue(out.contains("X\n"))` fails when `X` is the LAST line of `out` although the printed text is exactly `X` — three tests in this session stopped on it (`card_nocover`, `badge`, and the flow's `mentor`) and all three pass when the assertion is anchored on the PRECEDING line (`"previous\nX"`). The strings print correctly; the exact final-line search does not match. Recorded here because it cost most of the hunt: a last-line assertion is not evidence until it is anchored.
+
+**THE SESSION'S OWN PROBE LOG WAS THE BROKEN PART (23/11, late):** every "correct: 255" row above came from a run whose control print (`x=255`) was read by `grep -o PROBE_OUT\[…\] | head -1` across a log only this session appends to — and the reruns that PRINTED a different line (`x=255, y=247`) were still counted as "correct" because the grader looked at the first matching line, not the last. Re-run with a clean log and a program that does NOT print a field of a token (the print itself orders the code): `baseline=247` — the plain inline `clearFrame` + `fillRect` + `readPixel` in `main`, with no token call anywhere, reads the clear. So the earlier "correct in a function / wrong inline" split was produced by a grader that could not tell the two outputs apart. What stands, re-measured once each today: `baseline=247` (inline, no token), `x=255; y=247` (inline with a token bound before the read), `Avatar.paint` + one read = the right pixel (the per-pixel loop writes it), and `Projects`'s readback = 255 (it reads after a per-row loop).
+**§1197 — MEASUREMENTS 23/11 (second pass, none of it is a fix):** (a) the readback
+pipeline itself works: `SDL_RenderReadPixels` fills a 1200x300 RGBA surface whose
+bytes carry the CLEAR colour `251,244,247,0` (already BGR-ordered, which is why
+`readPixel` returns r/b swapped); (b) `SDL_SetRenderDrawColor(r,g,b)` carries
+`r` in ECX and `g`/`b` in R8D/R9D — measured with gdb on the call — i.e. on the
+SysV x86-64 ABI the channels the SDL receives are shifted; (c) with the colour
+repaired in C (filled red), the surface DID carry red in the fill rect of THAT
+run — so a fill can land; (d) with the Kof `clearFrame` + `fillRect` in ANY order tried (1 fill,
+2 fills, fill before/after a present, with a `println` between) the rect never
+appears in the surface; (e) a fill issued from C against the SAME renderer
+(`kof_probe_fill_`) did not land either, while the same C sequence against the
+renderer after a C-called `SDL_CreateRenderer` was not reached this tick — the C-side separation is INCOMPLETE: the wrapper ran against the renderer a C sequence had already exercised in a SEPARATE binary, not one both share in the same process.
+THE COLOUR CHANNEL SHIFT (b) is a real defect in the backend's extern
+declarations — `SDL_SetRenderDrawColor(Long ren, Int r, Int g, Int b, Int a)`
+emits the 3rd argument in ECX where SysV wants ESI — and it is now written up as
+its own finding; it explains WHY every cleared frame reads as `251,244,247`.
+The FILL not landing is still open. Next: (1) fix the channel shift (declare the
+channels as `Long` or find where the emitter misnumbers regs for `Int`), (2)
+bisect the missing fill with the C wrapper that already produces a landing fill.
+
+WHAT THIS MEANS for the plan: there is NO proven "function painter reads back" escape hatch; a fill followed by a read of that fill is unproven for the inline, the function-wrapped and the token-carrying shapes alike, and a pixel proof on this backend should not be attempted until the readback is fixed at the emitter/runtime.
+
+SO the defect is NOT "readback never works": it is "some call shapes lose the inline fill". The matrix moved the plan forward (a painter in a function reads back today) but no single trigger reproduces in a 30-line program, and the distinguishing factor is still unproven — a claim of "fixed" here would be a guess. **§1197 — CLOSED as a WRONG measurement (23/11, third pass).** The C reference does the identical sequence (`SDL_CreateRenderer`, `SetRenderDrawColor(247,244,251)`, `RenderClear`, `SetRenderDrawColor(255,0,0)`, `RenderFillRect`, `RenderReadPixels`) and the surface shows the fill — so the renderer, the readback and the surface layout are correct, and the pixel memory reads what was painted. What failed was the KOF SIDE of the measurement: `SDL_SetRenderDrawColor` is declared with `Int` channels while its C header places the channels per the SysV ABI (measured in gdb: with `Int` the second channel goes to ECX and the third to R8D/R9D), so the colour SDL receives is shifted (`247,244,251` arrives as several wrong channels) and a fill in the "clear colour" can look like no fill at all. THE BACKEND BUG that remains is the CHANNEL PLACEMENT: the extern's parameter types must let the emitter put the channels where SysV expects them (or the emitter must be fixed). NOT fixed yet.
+
+**§1197 — FOURTH PASS (23/11): the renderer, the readback and the surface layout are CORRECT; the crash is in the KOF SIDE for ONE shape.** Measured this session: gdb at `SDL_SetRenderDrawColor` shows ESI/EDX/ECX/R8D = 10/20/30/255 (no shift); the C reference paints and reads the fill; the surface layout (`format @0, w @8, h @12, pitch @16, pixels @24`) reads the painted bytes. THE FAILING SHAPE IS `clearFrame(...)` then `fillRect(...)` in the same `main` WITH NO OTHER COLOUR CALL — read back at (21,21) it returns the CLEAR colour (`10,20,30`), so the fill did not land, while the SAME fill in a separate method that sets the colour first (`fillRed`) returns `255,0,0`. PAINTING WORKS; the shape where the colour comes from an earlier call in the same `main` does not. Prior conclusions in this entry that blamed the channel placement or the readback are WITHDRAWN.
+**§1197 — FIFTH PASS (23/11): "a call before the fill" is EXCLUDED.** A new
+compiler test (`DrawRectAfterCallE2ETest`) paints one rect right after `clearFrame`
+and a second one after a user function that makes calls (prints); BOTH paint
+(`after-clear=255,0,0`, `after-call=0,255,0`). So neither an earlier extern nor an
+earlier Kof call loses the rect, and my previous "call before the fill" idea is
+withdrawn before it shipped. What remains true and reproducible: the Énois text
+test that counts ink inside a nested per-pixel loop over `readPixel` returns 0 on
+today's tree while it passed on 22/11; the Sdl3Backend source has not changed since
+then, so the difference is in what surrounds the reads. Next (unchanged): compare
+that test's generated `main` against the 22/11 one — the closest evidence is the
+`KOF_KEEP_ASM=1` assembly the harness already keeps.
+
+STATUS: 🟡 OPEN — narrowed to the `main`-shape assembly diff (paints vs does-not). Next: diff the two `main`s' emitted code and finish the (unpublished) reduction to the emitter.

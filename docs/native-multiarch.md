@@ -782,6 +782,84 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 5 LANDED 22/11 — THE GATE'S OWN BLIND SPOT CLOSED: the x86
+  ratchet was watching half the surface.** The seam gate counts the system
+  access that still bypasses the seam — the promise is "the seam cannot
+  grow". But its x86 side scanned only the `runtime/` package: the
+  `nat/` package's x86 syscall sites (the HTTP core's `socket`/`connect`/
+  `fcntl`/`poll`/`setsockopt`, the web listen, the net front) were **not in
+  the ratchet at all** — 19 real `syscall` instructions measured outside the
+  counted surface. A new raw syscall there would have passed the gate
+  silently. **THE FIX (two precision changes):** the inventory now scans
+  **both** packages (the riscv/aarch64/mcu faces stay counted separately, and
+  the translator is excluded — its `syscall` is the DETECTOR, not an emitted
+  site); and the metric counts the **instruction** (the line that IS the
+  `syscall`), not the word in prose — the `nat/` package has comments and the
+  NATIVE005 diagnostic text that say "syscall" without emitting one (the old
+  count included 45 such lines in the runtime package alone). The TLS metric
+  got the same treatment (a mnemonic with the operand, not a mention): 3 → 2.
+  **PROOF (executed):** with a raw `syscall` planted in a `nat/` file, the
+  OLD gate returns **rc=0** (blind) and the NEW gate returns **rc=1** — the
+  blind spot is closed, measured on the same sandbox and the same baseline;
+  the gate's selftest grew to **4/4** (the new case is exactly this: growth
+  in the `nat/` package must fail). The new baseline: `x86_out_seam` 148,
+  `riscv_out_seam` 168, `tls_sites` 2, `futex_sites` 13 (the x86 number fell
+  because the metric stopped counting prose — the surface covered GREW by 19
+  real sites). **WHAT THIS MAKES MEASURABLE (the next slice):** the HTTP
+  socket family — its libSystem equivalents (`socket`, `connect`, `fcntl`,
+  `poll`, `setsockopt`) keep the SAME SysV registers, and the option
+  constants are the thing to measure next (`SO_RCVTIMEO` is 20 on Linux and
+  0x1002 on Darwin).
+
+  **M-6 SLICE 4 LANDED 22/11 (the `kof.http` clock through the seam) — the
+  circuit-breaker's clock asked the Darwin for the LINUX clock id.** The
+  `kof_http_now_ms` did the `clock_gettime=228` syscall RAW with
+  `CLOCK_MONOTONIC=1` — the Linux id. On the Darwin the id is **6** (measured
+  in the SDK), so the raw body would have asked for another clock (or failed).
+  It now goes through `kof_plat_time_mono`, the seam that already carries
+  the per-platform id (1 on Linux, 6 on Darwin) — and the millisecond
+  arithmetic stays in one place. **PROOF (executed):**
+  `NativeMacOSHttpClockE2ETest` **3/3** — RED-first **2 failures** on the old
+  code (the raw clock_gettime and the missing seam) and GREEN after; the
+  native + http/web battery **927 run / 1F** (the failure is the sibling
+  lane's in-flight `NativeCrossMultidistroE2ETest` — a missing
+  `image.Raster` import at the front end, untouched here); the gates rc=0.
+  **THE MEASUREMENT THIS CYCLE FOUND (the gate's own blind spot):** the
+  seam gate's x86 side watches only the `runtime/` package — the `nat/`
+  package's x86 syscall sites (the HTTP core's `socket`/`connect`/`fcntl`/
+  `poll`/`setsockopt`, the web listen, the net front) were **not in the
+  ratchet at all**: 19 real `syscall` instructions and 34 mentions sit
+  outside the counted surface. A new raw syscall there would not have
+  tripped the gate. The next slice closes that hole (and the HTTP socket
+  family — whose libSystem equivalents have the SAME SysV registers — is the
+  migration it makes measurable).
+
+  **M-6 SLICE 3 LANDED 22/11 (the STAT family of the seam — and the Darwin's
+  `struct stat` is NOT the Linux one).** The seven runtime sites that called
+  `newfstatat` (syscall 262) directly now go through `kof_plat_stat`. The
+  Darwin's layout was **MEASURED** by compiling the `offsetof`s with the real
+  clang (the provisioned toolchain), not guessed:
+  `mode@4` (u16), `nlink@6` (u16), `mtimespec@48`, `size@96` — against the
+  Linux `mode@24` (u32), `nlink@16` (u32), `mtim@88`, `size@48`; and the FLAGS
+  differ too (`AT_SYMLINK_NOFOLLOW` = **0x20** on Darwin, 0x100 on Linux;
+  `AT_FDCWD` = **-2**, -100 on Linux). Copying the Linux body would have made
+  the runtime read garbage — `st_size@96` of the Darwin would be read as the
+  mode. **THE NORMALIZATION (one place, not scattered reads):** the macOS body
+  calls `fstatat` into a 144-byte scratch on the stack and copies the FOUR
+  fields the runtime uses into the caller's buffer at the HOST offsets — so
+  **no caller changes**: they keep reading `24/48/88/96(%rsp)`. The host body
+  is the same `newfstatat` syscall, so the host behaviour is unchanged (the
+  test asserts it). **THE RATCHET:** the out-of-seam x86-64 count fell
+  **164 → 157** (the baseline regenerated; the gate's selftest is 3/3).
+  **PROOF (executed):** `NativeMacOSStatE2ETest` **4/4** — RED-first **4
+  failures** on the old code (no seam at all, no `fstatat`, no normalization,
+  no `_fstatat` symbol) and GREEN after; the macOS + io families **87/0F**;
+  `check_500` rc=0 (`RuntimePlatMacosStat` is a new class of its own); the
+  gates rc=0. **THE NEXT ROW:** the runner **M-7** (the link + the run on a
+  real macos-14 host — the first proof that a macOS binary actually RUNS),
+  then the arm64 face; the `kof.http` clock (the `kof_http_now_ms` raw
+  `clock_gettime`) is the next syscall family measured in this cycle.
+
   **M-6 SLICE 2 LANDED 22/11 (the NET family over the libSystem — and a REAL
   TRANSLATOR BUG the slice exposed: the character-literal immediates).** The
   six socket seam functions (`kof_plat_net_socket`/`connect`/`bind`/`listen`/
